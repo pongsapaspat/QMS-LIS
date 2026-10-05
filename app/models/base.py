@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+
 from sqlalchemy import DateTime, MetaData, func
 from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
