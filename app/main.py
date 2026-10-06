@@ -1,5 +1,6 @@
 
 from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -8,7 +9,9 @@ from app.core.config import get_settings
 from app.domain.exceptions import (
     BranchNotFoundError,
     DuplicatePatientIdentifierError,
+    InvalidPatientChangeError,
     PatientNotFoundError,
+    PossibleDuplicatePatientError,
 )
 from app.web.router import web_router
 
@@ -23,6 +26,20 @@ app = FastAPI(
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(api_router, prefix=settings.api_v1_prefix)
 app.include_router(web_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def safe_validation_error_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    safe_errors = [
+        {"location": error["loc"], "message": error["msg"], "type": error["type"]}
+        for error in exc.errors()
+    ]
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={"detail": safe_errors},
+    )
 
 
 @app.exception_handler(PatientNotFoundError)
@@ -44,6 +61,35 @@ async def duplicate_patient_identifier_handler(
     request: Request, exc: DuplicatePatientIdentifierError
 ) -> JSONResponse:
     return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
+
+
+@app.exception_handler(PossibleDuplicatePatientError)
+async def possible_duplicate_patient_handler(
+    request: Request, exc: PossibleDuplicatePatientError
+) -> JSONResponse:
+    candidates = [
+        {
+            "patient_id": candidate.patient_id,
+            "hn": candidate.hn,
+            "display_name": candidate.display_name,
+            "match_reason": candidate.match_reason,
+        }
+        for candidate in exc.candidates
+    ]
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={"detail": str(exc), "candidates": candidates},
+    )
+
+
+@app.exception_handler(InvalidPatientChangeError)
+async def invalid_patient_change_handler(
+    request: Request, exc: InvalidPatientChangeError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={"detail": str(exc)},
+    )
 
 
 @app.get("/health", tags=["health"])

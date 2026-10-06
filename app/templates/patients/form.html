@@ -1,1 +1,71 @@
+{% extends "base.html" %}
 
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">{{ page_title }}</h1>
+  <a class="btn btn-outline-secondary" href="{{ url_for('patient_list') }}">Back | กลับ</a>
+</div>
+
+{% if patient and patient.identity_document_missing %}
+<div class="alert alert-warning" role="alert"><strong>Incomplete identity | ข้อมูลยืนยันตัวตนไม่ครบ:</strong>
+  Add a National ID or Passport when available.</div>
+{% endif %}
+
+{% if errors %}
+<div class="alert alert-danger" role="alert" aria-live="assertive">
+  <h2 class="h6">Please correct the following | กรุณาตรวจสอบข้อมูล</h2>
+  <ul class="mb-0">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+{% if candidates %}
+<div class="alert alert-warning" role="alert">
+  <h2 class="h5">Possible duplicate patients | อาจมีผู้ป่วยซ้ำ</h2>
+  <p>Review these records. Records will never be merged automatically.</p>
+  <ul>{% for candidate in candidates %}<li><a href="{{ url_for('patient_detail', patient_id=candidate.patient_id) }}"
+    target="_blank" rel="noopener">{{ candidate.hn }} — {{ candidate.display_name }}</a></li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<form method="post" novalidate>
+  {% if candidates %}<input type="hidden" name="confirm_possible_duplicate" value="true">{% endif %}
+  <fieldset class="mb-4">
+    <legend class="h5">Identity and names | ข้อมูลประจำตัวและชื่อ</legend>
+    {% if mode == "edit" %}
+    <div class="mb-3"><label class="form-label" for="hn">HN (readonly)</label>
+      <input class="form-control" id="hn" value="{{ patient.hn }}" readonly aria-readonly="true"></div>
+    {% endif %}
+    <div class="row g-3">
+      <div class="col-md-2"><label class="form-label" for="title">Title | คำนำหน้า</label><input class="form-control" id="title" name="title" value="{{ values.get('title') or '' }}"></div>
+      <div class="col-md-5"><label class="form-label" for="first_name_th">Thai first name | ชื่อ</label><input class="form-control" id="first_name_th" name="first_name_th" value="{{ values.get('first_name_th') or '' }}"></div>
+      <div class="col-md-5"><label class="form-label" for="last_name_th">Thai last name | นามสกุล</label><input class="form-control" id="last_name_th" name="last_name_th" value="{{ values.get('last_name_th') or '' }}"></div>
+      <div class="col-md-6"><label class="form-label" for="first_name_en">English first name</label><input class="form-control" id="first_name_en" name="first_name_en" value="{{ values.get('first_name_en') or '' }}"></div>
+      <div class="col-md-6"><label class="form-label" for="last_name_en">English last name</label><input class="form-control" id="last_name_en" name="last_name_en" value="{{ values.get('last_name_en') or '' }}"></div>
+      <div class="col-md-4"><label class="form-label" for="date_of_birth">Date of birth | วันเกิด</label><input class="form-control" type="date" id="date_of_birth" name="date_of_birth" value="{{ values.get('date_of_birth') or '' }}"></div>
+      <div class="col-md-4"><label class="form-label" for="sex">Sex | เพศ</label><select class="form-select" id="sex" name="sex"><option value="">Select</option>{% for option in sex_options %}<option value="{{ option.value }}" {% if values.get('sex') == option.value %}selected{% endif %}>{{ option.value }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><label class="form-label" for="blood_group">Blood group | กรุ๊ปเลือด</label><select class="form-select" id="blood_group" name="blood_group"><option value="">Unknown</option>{% for option in blood_group_options %}<option value="{{ option.value }}" {% if values.get('blood_group') == option.value %}selected{% endif %}>{{ option.value }}</option>{% endfor %}</select></div>
+      <div class="col-md-6"><label class="form-label" for="national_id">Thai National ID | เลขบัตรประชาชน</label><input class="form-control" id="national_id" name="national_id" inputmode="numeric" maxlength="17" value="{{ values.get('national_id') or '' }}"></div>
+      <div class="col-md-6"><label class="form-label" for="passport_number">Passport | หนังสือเดินทาง</label><input class="form-control" id="passport_number" name="passport_number" value="{{ values.get('passport_number') or '' }}"></div>
+    </div>
+  </fieldset>
+
+  <fieldset class="mb-4"><legend class="h5">Contact | ข้อมูลติดต่อ</legend><div class="row g-3">
+    <div class="col-md-6"><label class="form-label" for="phone_number">Phone | โทรศัพท์</label><input class="form-control" id="phone_number" name="phone_number" value="{{ values.get('phone_number') or '' }}"></div>
+    <div class="col-md-6"><label class="form-label" for="email">Email | อีเมล</label><input class="form-control" type="email" id="email" name="email" value="{{ values.get('email') or '' }}"></div>
+    <div class="col-12"><label class="form-label" for="address">Address | ที่อยู่</label><textarea class="form-control" id="address" name="address" rows="2">{{ values.get('address') or '' }}</textarea></div>
+  </div></fieldset>
+
+  <fieldset class="mb-4"><legend class="h5">Emergency contact | ผู้ติดต่อฉุกเฉิน</legend><div class="row g-3">
+    <div class="col-md-4"><label class="form-label" for="emergency_contact_name">Name | ชื่อ</label><input class="form-control" id="emergency_contact_name" name="emergency_contact_name" value="{{ values.get('emergency_contact_name') or '' }}"></div>
+    <div class="col-md-4"><label class="form-label" for="emergency_contact_relationship">Relationship | ความสัมพันธ์</label><input class="form-control" id="emergency_contact_relationship" name="emergency_contact_relationship" value="{{ values.get('emergency_contact_relationship') or '' }}"></div>
+    <div class="col-md-4"><label class="form-label" for="emergency_contact_phone">Phone | โทรศัพท์</label><input class="form-control" id="emergency_contact_phone" name="emergency_contact_phone" value="{{ values.get('emergency_contact_phone') or '' }}"></div>
+  </div></fieldset>
+
+  {% if mode == "edit" %}
+  <div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="is_active" name="is_active" {% if values.get('is_active', patient.is_active) %}checked{% endif %}><label class="form-check-label" for="is_active">Active patient | ใช้งาน</label></div>
+  <div class="mb-4"><label class="form-label" for="change_reason">Reason for change | เหตุผลการแก้ไข <span aria-hidden="true">*</span></label><textarea class="form-control" id="change_reason" name="change_reason" required aria-required="true">{{ values.get('change_reason') or '' }}</textarea></div>
+  {% endif %}
+  {% if candidates %}<p class="text-danger fw-semibold">By continuing, you confirm this is a distinct patient.</p>{% endif %}
+  <button class="btn btn-primary" type="submit">{% if candidates %}Confirm and create{% elif mode == 'edit' %}Save changes{% else %}Register patient{% endif %}</button>
+</form>
+{% endblock %}

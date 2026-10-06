@@ -1,1 +1,4 @@
-
+body { background: #f8f9fa; }
+main.container { max-width: 1100px; }
+.identity-warning { border-left: .35rem solid #d39e00; }
+fieldset { background: #fff; border: 1px solid #dee2e6; border-radius: .5rem; padding: 1rem; }

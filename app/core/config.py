@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./qms_lis_dev.sqlite3"
     enforce_four_eyes_check: bool = False
     allow_partial_release: bool = True
+    enable_dev_admin_fallback: bool = True
     log_level: str = "INFO"
     log_pii: bool = Field(default=False, description="PII must stay out of application logs.")
 

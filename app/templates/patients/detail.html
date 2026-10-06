@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div><h1 class="h3 mb-1">{{ patient.hn }}</h1><p class="text-secondary mb-0">{{ patient.display_name }}</p></div>
+  <div><a class="btn btn-outline-secondary" href="{{ url_for('patient_list') }}">Back</a>
+    <a class="btn btn-primary" href="{{ url_for('patient_edit', patient_id=patient.id) }}">Edit | แก้ไข</a></div>
+</div>
+{% if patient.identity_document_missing %}<div class="alert alert-warning identity-warning" role="alert"><strong>Incomplete identity | ข้อมูลยืนยันตัวตนไม่ครบ</strong><br>No National ID or Passport is recorded.</div>{% endif %}
+<div class="card"><div class="card-body"><dl class="row mb-0">
+  <dt class="col-sm-4">HN</dt><dd class="col-sm-8">{{ patient.hn }}</dd>
+  <dt class="col-sm-4">Thai name | ชื่อไทย</dt><dd class="col-sm-8">{{ patient.first_name_th or '-' }} {{ patient.last_name_th or '' }}</dd>
+  <dt class="col-sm-4">English name</dt><dd class="col-sm-8">{{ patient.first_name_en or '-' }} {{ patient.last_name_en or '' }}</dd>
+  <dt class="col-sm-4">Date of birth | วันเกิด</dt><dd class="col-sm-8">{{ patient.date_of_birth or '-' }}</dd>
+  <dt class="col-sm-4">Sex | เพศ</dt><dd class="col-sm-8">{{ patient.sex or '-' }}</dd>
+  <dt class="col-sm-4">National ID | เลขบัตร</dt><dd class="col-sm-8">{{ patient.national_id or '-' }}</dd>
+  <dt class="col-sm-4">Passport</dt><dd class="col-sm-8">{{ patient.passport_number or '-' }}</dd>
+  <dt class="col-sm-4">Phone | โทรศัพท์</dt><dd class="col-sm-8">{{ patient.phone_number or '-' }}</dd>
+  <dt class="col-sm-4">Email</dt><dd class="col-sm-8">{{ patient.email or '-' }}</dd>
+  <dt class="col-sm-4">Address | ที่อยู่</dt><dd class="col-sm-8">{{ patient.address or '-' }}</dd>
+  <dt class="col-sm-4">Blood group | กรุ๊ปเลือด</dt><dd class="col-sm-8">{{ patient.blood_group or '-' }}</dd>
+  <dt class="col-sm-4">Emergency contact | ผู้ติดต่อฉุกเฉิน</dt><dd class="col-sm-8">{{ patient.emergency_contact_name or '-' }}{% if patient.emergency_contact_relationship %} ({{ patient.emergency_contact_relationship }}){% endif %} {{ patient.emergency_contact_phone or '' }}</dd>
+  <dt class="col-sm-4">Status</dt><dd class="col-sm-8">{{ 'Active' if patient.is_active else 'Inactive' }}</dd>
+</dl></div></div>
+{% endblock %}

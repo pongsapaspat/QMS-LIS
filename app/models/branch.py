@@ -1,7 +1,12 @@
+from typing import TYPE_CHECKING
+
 from sqlalchemy import Boolean, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.patient import Patient
 
 
 class Branch(TimestampMixin, Base):
@@ -18,6 +23,3 @@ class Branch(TimestampMixin, Base):
     )
 
     patients: Mapped[list["Patient"]] = relationship(back_populates="branch")
-
-
-from app.models.patient import Patient  # noqa: E402

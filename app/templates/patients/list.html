@@ -1,1 +1,54 @@
+{% extends "base.html" %}
 
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3 mb-1">Patients <span lang="th">| ผู้ป่วย</span></h1>
+    <p class="text-secondary mb-0">{{ total }} record(s)</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('patient_new') }}">New patient | ลงทะเบียน</a>
+</div>
+
+<form class="row g-2 mb-4" method="get" role="search">
+  <div class="col-md-9">
+    <label class="visually-hidden" for="search">Search patients</label>
+    <input class="form-control" id="search" name="search" value="{{ search }}"
+           placeholder="HN, name, National ID | ค้นหา HN ชื่อ หรือเลขบัตร">
+  </div>
+  <div class="col-md-3 d-grid">
+    <button class="btn btn-outline-primary" type="submit">Search | ค้นหา</button>
+  </div>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead><tr><th>HN</th><th>Name | ชื่อ</th><th>Identity</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for patient in patients %}
+      <tr class="{% if patient.identity_document_missing %}table-warning{% endif %}">
+        <td class="fw-semibold">{{ patient.hn }}</td>
+        <td>{{ patient.display_name }}</td>
+        <td>
+          {% if patient.identity_document_missing %}
+          <span class="badge text-bg-warning">Incomplete | เอกสารไม่ครบ</span>
+          {% else %}
+          <span class="badge text-bg-success">Verified data</span>
+          {% endif %}
+        </td>
+        <td>{{ "Active" if patient.is_active else "Inactive" }}</td>
+        <td class="text-end"><a class="btn btn-sm btn-outline-secondary"
+          href="{{ url_for('patient_detail', patient_id=patient.id) }}">View | ดู</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-center text-secondary py-4">No patients found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<nav aria-label="Patient pagination" class="d-flex justify-content-between">
+  {% if has_previous %}<a class="btn btn-outline-secondary" href="?search={{ search }}&page={{ page - 1 }}">Previous</a>{% else %}<span></span>{% endif %}
+  <span class="align-self-center">Page {{ page }}</span>
+  {% if has_next %}<a class="btn btn-outline-secondary" href="?search={{ search }}&page={{ page + 1 }}">Next</a>{% else %}<span></span>{% endif %}
+</nav>
+{% endblock %}
