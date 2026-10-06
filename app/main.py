@@ -8,7 +8,10 @@ from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.domain.exceptions import (
     BranchNotFoundError,
+    CatalogNotFoundError,
+    DuplicateCatalogCodeError,
     DuplicatePatientIdentifierError,
+    InvalidCatalogOperationError,
     InvalidPatientChangeError,
     PatientNotFoundError,
     PossibleDuplicatePatientError,
@@ -85,6 +88,30 @@ async def possible_duplicate_patient_handler(
 @app.exception_handler(InvalidPatientChangeError)
 async def invalid_patient_change_handler(
     request: Request, exc: InvalidPatientChangeError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={"detail": str(exc)},
+    )
+
+
+@app.exception_handler(CatalogNotFoundError)
+async def catalog_not_found_handler(
+    request: Request, exc: CatalogNotFoundError
+) -> JSONResponse:
+    return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)})
+
+
+@app.exception_handler(DuplicateCatalogCodeError)
+async def duplicate_catalog_code_handler(
+    request: Request, exc: DuplicateCatalogCodeError
+) -> JSONResponse:
+    return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
+
+
+@app.exception_handler(InvalidCatalogOperationError)
+async def invalid_catalog_operation_handler(
+    request: Request, exc: InvalidCatalogOperationError
 ) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

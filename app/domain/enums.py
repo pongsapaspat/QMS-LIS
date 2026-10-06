@@ -18,3 +18,20 @@ class BloodGroup(StrEnum):
     O_POSITIVE = "O+"
     O_NEGATIVE = "O-"
     UNKNOWN = "unknown"
+
+
+class ResultType(StrEnum):
+    NUMERIC = "NUMERIC"
+    QUALITATIVE = "QUALITATIVE"
+
+
+class ReferenceSex(StrEnum):
+    ALL = "ALL"
+    MALE = "MALE"
+    FEMALE = "FEMALE"
+
+
+class AgeUnit(StrEnum):
+    DAYS = "DAYS"
+    MONTHS = "MONTHS"
+    YEARS = "YEARS"

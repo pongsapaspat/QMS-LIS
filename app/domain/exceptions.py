@@ -22,3 +22,15 @@ class PossibleDuplicatePatientError(DomainError):
 
 class InvalidPatientChangeError(DomainError):
     pass
+
+
+class CatalogNotFoundError(DomainError):
+    pass
+
+
+class DuplicateCatalogCodeError(DomainError):
+    pass
+
+
+class InvalidCatalogOperationError(DomainError):
+    pass
