@@ -1,1 +1,20 @@
-
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3"><h1 class="h3">{{ page_title }}</h1><a class="btn btn-outline-secondary" href="{{ url_for('home') }}">Back</a></div>
+{% if errors %}<div class="alert alert-danger"><ul class="mb-0">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
+<form method="post" class="card card-body" id="order-form">
+  <div class="row g-3">
+    <div class="col-md-6"><label class="form-label" for="patient_id">Patient</label><select class="form-select" id="patient_id" name="patient_id" required><option value="">Select patient</option>{% for patient in patients %}<option value="{{ patient.id }}" {% if values.get('patient_id')|string == patient.id|string %}selected{% endif %}>{{ patient.hn }} — {{ patient.display_name }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label" for="priority">Priority</label><select class="form-select" id="priority" name="priority">{% for item in priorities %}<option value="{{ item.value }}" {% if values.get('priority', 'ROUTINE')|string == item.value %}selected{% endif %}>{{ item.value }}</option>{% endfor %}</select></div>
+    <div class="col-12"><label class="form-label" for="clinical_note">Clinical note</label><textarea class="form-control" id="clinical_note" name="clinical_note" rows="2">{{ values.get('clinical_note') or '' }}</textarea></div>
+  </div>
+  <hr>
+  <h2 class="h5">Active Lab Tests</h2>
+  <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th></th><th>Code</th><th>Test</th><th>Result</th><th class="text-end">Price</th></tr></thead><tbody>{% for test in tests %}<tr><td><input class="form-check-input test-choice" type="checkbox" name="test_ids" value="{{ test.id }}" data-code="{{ test.code }}" data-name="{{ test.name_en }}" data-price="{{ test.current_price }}" {% if test.id|string in values.get('test_ids', []) %}checked{% endif %}></td><td>{{ test.code }}</td><td>{{ test.name_en }}<br><small class="text-secondary">{{ test.name_th }}</small></td><td>{{ test.result_type }}{% if test.result_unit %} ({{ test.result_unit }}){% endif %}</td><td class="text-end">{{ '%.2f'|format(test.current_price) }}</td></tr>{% else %}<tr><td colspan="5" class="text-secondary">No active Lab Tests available.</td></tr>{% endfor %}</tbody></table></div>
+  <div class="border rounded p-3 bg-light"><strong>Selected tests</strong><ul id="selected-tests" class="mb-2"><li class="text-secondary">None selected</li></ul><div class="text-end fw-semibold">Total price: <span id="total-price">0.00</span></div></div>
+  <div class="mt-4"><button class="btn btn-primary" type="submit">Save order</button></div>
+</form>
+<script>
+(() => { const choices = [...document.querySelectorAll('.test-choice')]; const selected = document.getElementById('selected-tests'); const total = document.getElementById('total-price'); function refresh() { const active = choices.filter(c => c.checked); selected.innerHTML = active.length ? active.map(c => `<li>${c.dataset.code} — ${c.dataset.name}</li>`).join('') : '<li class="text-secondary">None selected</li>'; total.textContent = active.reduce((sum, c) => sum + Number(c.dataset.price || 0), 0).toFixed(2); } choices.forEach(c => c.addEventListener('change', refresh)); refresh(); })();
+</script>
+{% endblock %}

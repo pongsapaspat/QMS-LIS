@@ -1,6 +1,7 @@
 from app.models.audit import AuditLog
 from app.models.base import Base
 from app.models.branch import Branch
+from app.models.order import LabOrder, LabOrderItem, OrderPriority, OrderStatus
 from app.models.patient import Patient
 from app.models.test_catalog import (
     LabTest,
@@ -17,6 +18,10 @@ __all__ = [
     "Branch",
     "LabTest",
     "Patient",
+    "LabOrder",
+    "LabOrderItem",
+    "OrderPriority",
+    "OrderStatus",
     "QualitativeResultOption",
     "ReferenceRange",
     "SpecimenType",

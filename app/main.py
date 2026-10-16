@@ -13,6 +13,7 @@ from app.domain.exceptions import (
     DuplicatePatientIdentifierError,
     InvalidCatalogOperationError,
     InvalidPatientChangeError,
+    OrderNotFoundError,
     PatientNotFoundError,
     PossibleDuplicatePatientError,
 )
@@ -116,6 +117,15 @@ async def invalid_catalog_operation_handler(
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={"detail": str(exc)},
+    )
+
+
+@app.exception_handler(OrderNotFoundError)
+async def order_not_found_handler(
+    request: Request, exc: OrderNotFoundError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)}
     )
 
 

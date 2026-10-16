@@ -1,3 +1,6 @@
+from app.domain.policies import DuplicateCandidate
+
+
 class DomainError(Exception):
     """Base exception for expected business-rule failures."""
 
@@ -15,7 +18,7 @@ class DuplicatePatientIdentifierError(DomainError):
 
 
 class PossibleDuplicatePatientError(DomainError):
-    def __init__(self, candidates: list[object]) -> None:
+    def __init__(self, candidates: list[DuplicateCandidate]) -> None:
         super().__init__("possible duplicate patient confirmation required")
         self.candidates = candidates
 
@@ -33,4 +36,8 @@ class DuplicateCatalogCodeError(DomainError):
 
 
 class InvalidCatalogOperationError(DomainError):
+    pass
+
+
+class OrderNotFoundError(DomainError):
     pass

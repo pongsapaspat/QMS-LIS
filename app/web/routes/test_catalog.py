@@ -104,10 +104,17 @@ def _detail_context(service: Any, test_id: int) -> dict[str, Any]:
     }
 
 
-def _master_context(service: Any) -> dict[str, Any]:
+def _master_context(service: Any, test: Any | None = None) -> dict[str, Any]:
+    categories = service.list_categories()
+    specimen_types = service.list_specimen_types()
+    if test is not None:
+        if not test.category.is_active:
+            categories.append(test.category)
+        if not test.specimen_type.is_active:
+            specimen_types.append(test.specimen_type)
     return {
-        "categories": service.list_categories(include_inactive=True),
-        "specimen_types": service.list_specimen_types(include_inactive=True),
+        "categories": categories,
+        "specimen_types": specimen_types,
     }
 
 
@@ -530,7 +537,7 @@ def test_catalog_edit(
             "values": values,
             "errors": [],
             "test": test,
-            **_master_context(service),
+            **_master_context(service, test),
         },
     )
 
@@ -545,12 +552,16 @@ async def test_catalog_update(
     test = service.get_test(test_id)
     form = await request.form()
     values = _form_values(form, TEST_FORM_FIELDS)
-    values.pop("code", None)
     try:
         service.update_test(
             test_id, CatalogTestUpdate.model_validate(values), actor_reference=actor.reference
         )
-    except (ValidationError, CatalogNotFoundError, InvalidCatalogOperationError) as exc:
+    except (
+        ValidationError,
+        CatalogNotFoundError,
+        DuplicateCatalogCodeError,
+        InvalidCatalogOperationError,
+    ) as exc:
         return _render_form_error(
             request,
             "test_catalog/form.html",
@@ -559,7 +570,7 @@ async def test_catalog_update(
                 "mode": "edit",
                 "values": values,
                 "test": test,
-                **_master_context(service),
+                **_master_context(service, test),
             },
             exc,
         )

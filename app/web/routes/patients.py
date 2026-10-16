@@ -1,7 +1,7 @@
 from typing import Any
 
 from fastapi import APIRouter, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
@@ -112,7 +112,7 @@ async def patient_create_from_form(
     request: Request,
     service: PatientServiceDependency,
     actor: AdminActorDependency,
-) -> HTMLResponse:
+) -> Response:
     form = await request.form()
     values = _clean_form_data(form)
     values["branch_id"] = 1
@@ -211,7 +211,7 @@ async def patient_update_from_form(
     request: Request,
     service: PatientServiceDependency,
     actor: AdminActorDependency,
-) -> HTMLResponse:
+) -> Response:
     patient = service.get(patient_id)
     form = await request.form()
     values = _clean_form_data(form)

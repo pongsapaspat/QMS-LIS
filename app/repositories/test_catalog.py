@@ -46,8 +46,11 @@ class TestCatalogRepository:
         statement = select(model.id).where(func.lower(model.code) == code.casefold()).limit(1)
         return self.session.execute(statement).scalar_one_or_none() is not None
 
-    def test_code_exists(self, code: str) -> bool:
-        statement = select(LabTest.id).where(func.lower(LabTest.code) == code.casefold()).limit(1)
+    def test_code_exists(self, code: str, exclude_test_id: int | None = None) -> bool:
+        statement = select(LabTest.id).where(func.lower(LabTest.code) == code.casefold())
+        if exclude_test_id is not None:
+            statement = statement.where(LabTest.id != exclude_test_id)
+        statement = statement.limit(1)
         return self.session.execute(statement).scalar_one_or_none() is not None
 
     def active_test_uses_category(self, category_id: int) -> bool:

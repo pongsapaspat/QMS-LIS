@@ -24,11 +24,17 @@ def normalize_code(value: str) -> str:
     return normalized
 
 
-def normalize_reason(value: str) -> str:
+def normalize_reason(value: str | None) -> str:
+    if value is None:
+        return ""
     normalized = " ".join(value.split())
-    if len(normalized) < 3:
-        raise ValueError("reason is required")
     return normalized
+
+
+def normalize_optional_code(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return normalize_code(value)
 
 
 class ConfigurationCreate(BaseModel):
@@ -37,11 +43,11 @@ class ConfigurationCreate(BaseModel):
     code: str = Field(min_length=1, max_length=30)
     name_th: str = Field(min_length=1, max_length=150)
     name_en: str = Field(min_length=1, max_length=150)
-    reason: str = Field(min_length=3, max_length=500)
+    reason: str = Field(default="", max_length=500)
 
     _code = field_validator("code")(normalize_code)
     _names = field_validator("name_th", "name_en")(normalize_required_text)
-    _reason = field_validator("reason")(normalize_reason)
+    _reason = field_validator("reason", mode="before")(normalize_reason)
 
 
 class ConfigurationUpdate(BaseModel):
@@ -50,14 +56,14 @@ class ConfigurationUpdate(BaseModel):
     name_th: str | None = Field(default=None, min_length=1, max_length=150)
     name_en: str | None = Field(default=None, min_length=1, max_length=150)
     is_active: bool | None = None
-    reason: str = Field(min_length=3, max_length=500)
+    reason: str = Field(default="", max_length=500)
 
     _names = field_validator("name_th", "name_en")(normalize_optional_required_text)
-    _reason = field_validator("reason")(normalize_reason)
+    _reason = field_validator("reason", mode="before")(normalize_reason)
 
     @model_validator(mode="after")
     def require_change(self) -> "ConfigurationUpdate":
-        if self.model_fields_set == {"reason"}:
+        if not (self.model_fields_set - {"reason"}):
             raise ValueError("at least one field must change")
         return self
 
@@ -86,11 +92,11 @@ class CatalogTestCreate(BaseModel):
     result_type: ResultType
     result_unit: str | None = Field(default=None, max_length=50)
     tat_minutes: int = Field(gt=0, le=525600)
-    reason: str = Field(min_length=3, max_length=500)
+    reason: str = Field(default="", max_length=500)
 
     _code = field_validator("code")(normalize_code)
     _names = field_validator("name_th", "name_en")(normalize_required_text)
-    _reason = field_validator("reason")(normalize_reason)
+    _reason = field_validator("reason", mode="before")(normalize_reason)
 
     @field_validator("result_unit", mode="before")
     @classmethod
@@ -112,6 +118,7 @@ class CatalogTestCreate(BaseModel):
 class CatalogTestUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    code: str | None = Field(default=None, max_length=40)
     name_th: str | None = Field(default=None, min_length=1, max_length=200)
     name_en: str | None = Field(default=None, min_length=1, max_length=200)
     category_id: int | None = Field(default=None, ge=1)
@@ -122,10 +129,11 @@ class CatalogTestUpdate(BaseModel):
     result_type: ResultType | None = None
     result_unit: str | None = Field(default=None, max_length=50)
     tat_minutes: int | None = Field(default=None, gt=0, le=525600)
-    reason: str = Field(min_length=3, max_length=500)
+    reason: str = Field(default="", max_length=500)
 
+    _code = field_validator("code", mode="before")(normalize_optional_code)
     _names = field_validator("name_th", "name_en")(normalize_optional_required_text)
-    _reason = field_validator("reason")(normalize_reason)
+    _reason = field_validator("reason", mode="before")(normalize_reason)
 
     @field_validator("result_unit", mode="before")
     @classmethod
@@ -134,7 +142,7 @@ class CatalogTestUpdate(BaseModel):
 
     @model_validator(mode="after")
     def require_change(self) -> "CatalogTestUpdate":
-        if self.model_fields_set == {"reason"}:
+        if not (self.model_fields_set - {"reason"}):
             raise ValueError("at least one field must change")
         return self
 
@@ -143,9 +151,9 @@ class ActivationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     is_active: bool
-    reason: str = Field(min_length=3, max_length=500)
+    reason: str = Field(default="", max_length=500)
 
-    _reason = field_validator("reason")(normalize_reason)
+    _reason = field_validator("reason", mode="before")(normalize_reason)
 
 
 class CatalogTestListItem(BaseModel):
@@ -189,9 +197,9 @@ class ReferenceRangeCreate(BaseModel):
     upper_critical: Decimal | None = None
     display_text: str | None = Field(default=None, max_length=500)
     context_metadata: dict[str, str] | None = None
-    reason: str = Field(min_length=3, max_length=500)
+    reason: str = Field(default="", max_length=500)
 
-    _reason = field_validator("reason")(normalize_reason)
+    _reason = field_validator("reason", mode="before")(normalize_reason)
 
     @model_validator(mode="after")
     def validate_bounds(self) -> "ReferenceRangeCreate":
@@ -221,13 +229,13 @@ class ReferenceRangeUpdate(BaseModel):
     upper_critical: Decimal | None = None
     display_text: str | None = Field(default=None, max_length=500)
     context_metadata: dict[str, str] | None = None
-    reason: str = Field(min_length=3, max_length=500)
+    reason: str = Field(default="", max_length=500)
 
-    _reason = field_validator("reason")(normalize_reason)
+    _reason = field_validator("reason", mode="before")(normalize_reason)
 
     @model_validator(mode="after")
     def require_change(self) -> "ReferenceRangeUpdate":
-        if self.model_fields_set == {"reason"}:
+        if not (self.model_fields_set - {"reason"}):
             raise ValueError("at least one field must change")
         return self
 
@@ -258,11 +266,11 @@ class QualitativeOptionCreate(BaseModel):
     label_en: str = Field(min_length=1, max_length=150)
     sort_order: int = Field(default=0, ge=0)
     is_abnormal: bool | None = None
-    reason: str = Field(min_length=3, max_length=500)
+    reason: str = Field(default="", max_length=500)
 
     _code = field_validator("code")(normalize_code)
     _labels = field_validator("label_th", "label_en")(normalize_required_text)
-    _reason = field_validator("reason")(normalize_reason)
+    _reason = field_validator("reason", mode="before")(normalize_reason)
 
 
 class QualitativeOptionUpdate(BaseModel):
@@ -272,7 +280,7 @@ class QualitativeOptionUpdate(BaseModel):
     label_en: str | None = Field(default=None, min_length=1, max_length=150)
     sort_order: int | None = Field(default=None, ge=0)
     is_abnormal: bool | None = None
-    reason: str = Field(min_length=3, max_length=500)
+    reason: str = Field(default="", max_length=500)
 
     _labels = field_validator("label_th", "label_en")(
         normalize_optional_required_text
@@ -281,7 +289,7 @@ class QualitativeOptionUpdate(BaseModel):
 
     @model_validator(mode="after")
     def require_change(self) -> "QualitativeOptionUpdate":
-        if self.model_fields_set == {"reason"}:
+        if not (self.model_fields_set - {"reason"}):
             raise ValueError("at least one field must change")
         return self
 

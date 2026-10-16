@@ -194,9 +194,15 @@ class TestCatalogService:
             resulting_specimen_type_id, int
         ):
             raise InvalidCatalogOperationError("category and specimen type are required")
-        self._require_active_configuration(
-            resulting_category_id, resulting_specimen_type_id
+        self._require_editable_configuration(
+            test,
+            resulting_category_id,
+            resulting_specimen_type_id,
         )
+        if "code" in changes and self.repository.test_code_exists(
+            changes["code"], exclude_test_id=test.id
+        ):
+            raise DuplicateCatalogCodeError("test code already exists")
 
         result_type = changes.get("result_type", test.result_type)
         result_unit = changes.get("result_unit", test.result_unit)
@@ -556,6 +562,18 @@ class TestCatalogService:
             raise CatalogNotFoundError("active test category not found")
         specimen_type = self.repository.get_specimen_type(specimen_type_id)
         if specimen_type is None or not specimen_type.is_active:
+            raise CatalogNotFoundError("active specimen type not found")
+
+    def _require_editable_configuration(
+        self, test: LabTest, category_id: int, specimen_type_id: int
+    ) -> None:
+        category = self.repository.get_category(category_id)
+        if category is None or (category_id != test.category_id and not category.is_active):
+            raise CatalogNotFoundError("active test category not found")
+        specimen_type = self.repository.get_specimen_type(specimen_type_id)
+        if specimen_type is None or (
+            specimen_type_id != test.specimen_type_id and not specimen_type.is_active
+        ):
             raise CatalogNotFoundError("active specimen type not found")
 
     @staticmethod
