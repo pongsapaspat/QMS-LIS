@@ -41,3 +41,11 @@ class InvalidCatalogOperationError(DomainError):
 
 class OrderNotFoundError(DomainError):
     pass
+
+
+class SpecimenNotFoundError(DomainError):
+    pass
+
+
+class InvalidSpecimenOperationError(DomainError):
+    pass

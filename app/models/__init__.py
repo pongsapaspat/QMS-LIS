@@ -3,6 +3,7 @@ from app.models.base import Base
 from app.models.branch import Branch
 from app.models.order import LabOrder, LabOrderItem, OrderPriority, OrderStatus
 from app.models.patient import Patient
+from app.models.specimen import Specimen, SpecimenItem, SpecimenStatus
 from app.models.test_catalog import (
     LabTest,
     QualitativeResultOption,
@@ -18,6 +19,9 @@ __all__ = [
     "Branch",
     "LabTest",
     "Patient",
+    "Specimen",
+    "SpecimenItem",
+    "SpecimenStatus",
     "LabOrder",
     "LabOrderItem",
     "OrderPriority",

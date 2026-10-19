@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.services.order import OrderService
 from app.services.patient import PatientService
+from app.services.specimen import SpecimenService
 from app.services.test_catalog import TestCatalogService
 
 SessionDependency = Annotated[Session, Depends(get_db)]
@@ -32,3 +33,10 @@ def get_order_service(session: SessionDependency) -> OrderService:
 
 
 OrderServiceDependency = Annotated[OrderService, Depends(get_order_service)]
+
+
+def get_specimen_service(session: SessionDependency) -> SpecimenService:
+    return SpecimenService(session)
+
+
+SpecimenServiceDependency = Annotated[SpecimenService, Depends(get_specimen_service)]

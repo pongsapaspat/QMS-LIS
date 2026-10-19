@@ -13,9 +13,11 @@ from app.domain.exceptions import (
     DuplicatePatientIdentifierError,
     InvalidCatalogOperationError,
     InvalidPatientChangeError,
+    InvalidSpecimenOperationError,
     OrderNotFoundError,
     PatientNotFoundError,
     PossibleDuplicatePatientError,
+    SpecimenNotFoundError,
 )
 from app.web.router import web_router
 
@@ -126,6 +128,23 @@ async def order_not_found_handler(
 ) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)}
+    )
+
+
+@app.exception_handler(SpecimenNotFoundError)
+async def specimen_not_found_handler(
+    request: Request, exc: SpecimenNotFoundError
+) -> JSONResponse:
+    return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)})
+
+
+@app.exception_handler(InvalidSpecimenOperationError)
+async def invalid_specimen_operation_handler(
+    request: Request, exc: InvalidSpecimenOperationError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        content={"detail": str(exc)},
     )
 
 

@@ -16,10 +16,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base, UTCDateTime, TimestampMixin, utc_now
+from app.models.base import Base, TimestampMixin, UTCDateTime, utc_now
 
 if TYPE_CHECKING:
     from app.models.patient import Patient
+    from app.models.test_catalog import LabTest
 
 
 class OrderStatus(StrEnum):
@@ -93,3 +94,4 @@ class LabOrderItem(Base):
     )
 
     order: Mapped[LabOrder] = relationship(back_populates="items")
+    lab_test: Mapped["LabTest"] = relationship()
