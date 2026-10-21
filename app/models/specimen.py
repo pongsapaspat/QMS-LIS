@@ -17,6 +17,7 @@ class SpecimenStatus(StrEnum):
     PENDING_COLLECTION = "PENDING_COLLECTION"
     COLLECTED = "COLLECTED"
     REJECTED = "REJECTED"
+    RECEIVED = "RECEIVED"
 
 
 class Specimen(TimestampMixin, Base):
@@ -48,6 +49,10 @@ class Specimen(TimestampMixin, Base):
     )
     collected_by: Mapped[str] = mapped_column(String(100), nullable=False)
     collection_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    received_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    received_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    receiving_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rejection_reason_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     rejected_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 

@@ -17,6 +17,7 @@ from app.repositories.audit import AuditRepository
 from app.repositories.specimen import SpecimenRepository
 from app.schemas.specimen import (
     SpecimenCollectRequest,
+    SpecimenReceiptRequest,
     SpecimenRejectRequest,
     SpecimenRequirement,
     SpecimenRequirementItem,
@@ -144,6 +145,7 @@ class SpecimenService:
         if specimen.status != SpecimenStatus.COLLECTED:
             raise InvalidSpecimenOperationError("only collected specimens may be rejected")
         specimen.status = SpecimenStatus.REJECTED
+        specimen.rejection_reason_code = data.rejection_reason_code
         specimen.rejection_reason = data.rejection_reason
         specimen.rejected_at = utc_now()
         try:
@@ -152,8 +154,13 @@ class SpecimenService:
                     event_type="SPECIMEN_REJECTED",
                     entity_type="specimen",
                     entity_id=specimen.id,
-                    changed_fields=["rejected_at", "rejection_reason", "status"],
-                    reason=data.rejection_reason,
+                    changed_fields=[
+                        "rejected_at",
+                        "rejection_reason",
+                        "rejection_reason_code",
+                        "status",
+                    ],
+                    reason=data.rejection_reason or "",
                     actor_reference=actor_reference,
                 )
             )
@@ -167,13 +174,80 @@ class SpecimenService:
             raise InvalidSpecimenOperationError("specimen rejection could not be saved") from exc
         return self.get(specimen.id)
 
+    def receive(
+        self, specimen_id: int, data: SpecimenReceiptRequest, *, actor_reference: str
+    ) -> Specimen:
+        specimen = self.get(specimen_id)
+        order = self._get_receivable_order(specimen.order_id)
+        if specimen.status != SpecimenStatus.COLLECTED:
+            raise InvalidSpecimenOperationError("only collected specimens may be received")
+        received_at = data.received_at or utc_now()
+        if received_at < specimen.collected_at:
+            raise InvalidSpecimenOperationError("received at cannot be earlier than collected at")
+        if received_at > utc_now():
+            raise InvalidSpecimenOperationError("received at cannot be in the future")
+        specimen.status = SpecimenStatus.RECEIVED
+        specimen.received_at = received_at
+        specimen.received_by = actor_reference
+        specimen.receiving_note = data.receiving_note
+        try:
+            self.audit_repository.add(
+                AuditLog(
+                    event_type="SPECIMEN_RECEIVED",
+                    entity_type="specimen",
+                    entity_id=specimen.id,
+                    changed_fields=["received_at", "received_by", "receiving_note", "status"],
+                    reason=data.receiving_note or "",
+                    actor_reference=actor_reference,
+                )
+            )
+            if self.repository.all_required_specimens_received(order.id):
+                order.status = OrderStatus.SPECIMENS_RECEIVED
+                self.audit_repository.add(
+                    AuditLog(
+                        event_type="ORDER_SPECIMENS_RECEIVED",
+                        entity_type="lab_order",
+                        entity_id=order.id,
+                        changed_fields=["status"],
+                        reason="",
+                        actor_reference=actor_reference,
+                    )
+                )
+            self.session.commit()
+            self.session.refresh(specimen)
+        except (IntegrityError, SQLAlchemyError) as exc:
+            self.session.rollback()
+            raise InvalidSpecimenOperationError("specimen receipt could not be saved") from exc
+        return self.get(specimen.id)
+
     def get(self, specimen_id: int) -> Specimen:
         specimen = self.repository.get_specimen(specimen_id)
         if specimen is None:
             raise SpecimenNotFoundError("specimen not found")
         return specimen
 
+    def get_by_accession_number(self, accession_number: str) -> Specimen:
+        specimen = self.repository.get_by_accession_number(accession_number)
+        if specimen is None:
+            raise SpecimenNotFoundError("specimen not found")
+        return specimen
+
+    def receiving_queue(
+        self, *, status: str | None = SpecimenStatus.COLLECTED, accession_number: str | None = None
+    ) -> list[Specimen]:
+        return self.repository.list_receiving_queue(
+            status=status, accession_number=accession_number, limit=100
+        )
+
     def _get_collectable_order(self, order_id: int) -> LabOrder:
+        order = self.repository.get_order(order_id)
+        if order is None:
+            raise OrderNotFoundError("lab order not found")
+        if order.status == OrderStatus.CANCELLED:
+            raise InvalidSpecimenOperationError("cancelled orders cannot receive specimens")
+        return order
+
+    def _get_receivable_order(self, order_id: int) -> LabOrder:
         order = self.repository.get_order(order_id)
         if order is None:
             raise OrderNotFoundError("lab order not found")

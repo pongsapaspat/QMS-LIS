@@ -1,10 +1,11 @@
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, status
 
 from app.api.dependencies import SpecimenServiceDependency
-from app.core.security import SpecimenCollectorDependency
+from app.core.security import SpecimenCollectorDependency, SpecimenReceivingReaderDependency
 from app.schemas.specimen import (
     SpecimenCollectRequest,
+    SpecimenReceiptRequest,
     SpecimenRejectRequest,
     SpecimenRequirement,
     SpecimenResponse,
@@ -34,13 +35,41 @@ def collect_specimen(
     )
 
 
-@router.get("/{specimen_id}", response_model=SpecimenResponse)
+@router.get("/{specimen_id:int}", response_model=SpecimenResponse)
 def get_specimen(
     specimen_id: int,
     service: SpecimenServiceDependency,
-    actor: SpecimenCollectorDependency,
+    actor: SpecimenReceivingReaderDependency,
 ) -> SpecimenResponse:
     return SpecimenResponse.model_validate(service.get(specimen_id))
+
+
+@router.get("/accession/{accession_number}", response_model=SpecimenResponse)
+def get_specimen_by_accession_number(
+    accession_number: str,
+    service: SpecimenServiceDependency,
+    actor: SpecimenReceivingReaderDependency,
+) -> SpecimenResponse:
+    return SpecimenResponse.model_validate(service.get_by_accession_number(accession_number))
+
+
+@router.get("/receiving-queue", response_model=list[SpecimenResponse])
+def receiving_queue(
+    service: SpecimenServiceDependency,
+    actor: SpecimenReceivingReaderDependency,
+    specimen_status: str | None = Query(default="COLLECTED", alias="status"),
+    accession_number: str | None = Query(default=None, max_length=24),
+) -> list[SpecimenResponse]:
+    allowed_statuses = {"COLLECTED", "RECEIVED", "REJECTED"}
+    if specimen_status is not None and specimen_status not in allowed_statuses:
+        specimen_status = None
+    return [
+        SpecimenResponse.model_validate(specimen)
+        for specimen in service.receiving_queue(
+            status=specimen_status,
+            accession_number=accession_number.strip() if accession_number else None,
+        )
+    ]
 
 
 @router.patch("/{specimen_id}/rejection", response_model=SpecimenResponse)
@@ -52,4 +81,16 @@ def reject_specimen(
 ) -> SpecimenResponse:
     return SpecimenResponse.model_validate(
         service.reject(specimen_id, data, actor_reference=actor.reference)
+    )
+
+
+@router.patch("/{specimen_id}/receipt", response_model=SpecimenResponse)
+def receive_specimen(
+    specimen_id: int,
+    data: SpecimenReceiptRequest,
+    service: SpecimenServiceDependency,
+    actor: SpecimenCollectorDependency,
+) -> SpecimenResponse:
+    return SpecimenResponse.model_validate(
+        service.receive(specimen_id, data, actor_reference=actor.reference)
     )

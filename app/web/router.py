@@ -10,6 +10,7 @@ web_router.include_router(patients.router)
 web_router.include_router(test_catalog.router)
 web_router.include_router(orders.router)
 web_router.include_router(specimens.router)
+web_router.include_router(specimens.receiving_router)
 
 
 @web_router.get("/", response_class=HTMLResponse)

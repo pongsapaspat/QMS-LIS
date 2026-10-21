@@ -6,11 +6,22 @@ from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
 from app.api.dependencies import SpecimenServiceDependency
-from app.core.security import SpecimenCollectorDependency
+from app.core.security import (
+    ActorDependency,
+    SpecimenCollectorDependency,
+    SpecimenReceivingReaderDependency,
+)
 from app.domain.exceptions import InvalidSpecimenOperationError, OrderNotFoundError
-from app.schemas.specimen import SpecimenCollectRequest, SpecimenRejectRequest
+from app.schemas.specimen import (
+    REJECTION_REASON_LABELS,
+    RejectionReasonCode,
+    SpecimenCollectRequest,
+    SpecimenReceiptRequest,
+    SpecimenRejectRequest,
+)
 
 router = APIRouter(prefix="/orders")
+receiving_router = APIRouter(prefix="/specimens")
 templates = Jinja2Templates(directory="app/templates")
 
 
@@ -126,4 +137,110 @@ async def specimen_reject(
     return RedirectResponse(
         request.url_for("specimen_collection", order_id=specimen.order_id),
         status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@receiving_router.get("/receiving", response_class=HTMLResponse, name="specimen_receiving_queue")
+def specimen_receiving_queue(
+    request: Request,
+    service: SpecimenServiceDependency,
+    actor: SpecimenReceivingReaderDependency,
+    status_filter: str = "COLLECTED",
+    accession_number: str = "",
+    success: str = "",
+) -> Response:
+    selected_status = None if status_filter == "ALL" else status_filter
+    specimens = service.receiving_queue(
+        status=selected_status, accession_number=accession_number.strip() or None
+    )
+    return templates.TemplateResponse(
+        request=request,
+        name="specimens/receiving_queue.html",
+        context={
+            "page_title": "Specimen receiving queue",
+            "specimens": specimens,
+            "status_filter": status_filter,
+            "accession_number": accession_number,
+            "success": success,
+        },
+    )
+
+
+@receiving_router.get(
+    "/receiving/{specimen_id}", response_class=HTMLResponse, name="specimen_receiving_detail"
+)
+def specimen_receiving_detail(
+    specimen_id: int,
+    request: Request,
+    service: SpecimenServiceDependency,
+    actor: SpecimenReceivingReaderDependency,
+) -> Response:
+    return _receiving_detail_response(request, service.get(specimen_id), actor, {}, [])
+
+
+@receiving_router.post("/receiving/{specimen_id}/receipt", name="specimen_receive")
+async def specimen_receive(
+    specimen_id: int, request: Request, service: SpecimenServiceDependency,
+    actor: SpecimenCollectorDependency,
+) -> Response:
+    specimen = service.get(specimen_id)
+    form = await request.form()
+    values = {
+        "received_at": form.get("received_at") or None,
+        "receiving_note": form.get("receiving_note") or None,
+    }
+    try:
+        service.receive(
+            specimen_id,
+            SpecimenReceiptRequest.model_validate(values),
+            actor_reference=actor.reference,
+        )
+    except (ValidationError, InvalidSpecimenOperationError) as exc:
+        return _receiving_detail_response(request, specimen, actor, values, _errors(exc))
+    return RedirectResponse(
+        f"{request.url_for('specimen_receiving_queue')}?success=received",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@receiving_router.post("/receiving/{specimen_id}/reject", name="specimen_receiving_reject")
+async def specimen_receiving_reject(
+    specimen_id: int, request: Request, service: SpecimenServiceDependency,
+    actor: SpecimenCollectorDependency,
+) -> Response:
+    specimen = service.get(specimen_id)
+    form = await request.form()
+    values = {
+        "rejection_reason_code": form.get("rejection_reason_code") or None,
+        "rejection_reason": form.get("rejection_reason") or None,
+    }
+    try:
+        service.reject(
+            specimen_id,
+            SpecimenRejectRequest.model_validate(values),
+            actor_reference=actor.reference,
+        )
+    except (ValidationError, InvalidSpecimenOperationError) as exc:
+        return _receiving_detail_response(request, specimen, actor, values, _errors(exc))
+    return RedirectResponse(
+        f"{request.url_for('specimen_receiving_queue')}?success=rejected",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+def _receiving_detail_response(
+    request: Request,
+    specimen: Any,
+    actor: ActorDependency,
+    values: dict[str, Any],
+    errors: list[str],
+) -> Response:
+    return templates.TemplateResponse(
+        request=request, name="specimens/receiving_detail.html",
+        context={
+            "page_title": "Receive specimen", "specimen": specimen,
+            "reason_labels": REJECTION_REASON_LABELS, "reason_codes": RejectionReasonCode,
+            "can_mutate": actor.role in {"ADMIN", "LAB_TECH"}, "errors": errors, "values": values,
+        },
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT if errors else status.HTTP_200_OK,
     )

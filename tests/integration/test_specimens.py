@@ -1,9 +1,10 @@
+from pathlib import Path
+
 import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
@@ -238,7 +239,8 @@ def test_collection_validates_input_and_preserves_order_snapshots(
     )
     assert collected.status_code == 201
     assert collected.json()["collected_at"] == "2026-10-19T02:30:00Z"
-    assert client.get(f"/api/v1/specimens/{collected.json()['id']}", headers=HEADERS).status_code == 200
+    response = client.get(f"/api/v1/specimens/{collected.json()['id']}", headers=HEADERS)
+    assert response.status_code == 200
 
     after = client.get(f"/api/v1/orders/{order_id}", headers=HEADERS).json()
     assert after["patient_id"] == before["patient_id"]
@@ -347,3 +349,42 @@ def test_collection_rolls_back_when_persistence_fails(
                 actor_reference="collector-1",
             )
         assert session.scalars(select(Specimen).where(Specimen.order_id == order_id)).all() == []
+
+
+@pytest.mark.integration
+def test_receiving_queue_receipt_and_final_order_status(
+    client: TestClient, db_session_factory: sessionmaker[Session]
+) -> None:
+    order_id, serum_id, urine_id, _ = create_collection_order(client)
+    serum = client.post(
+        "/api/v1/specimens",
+        json={"order_id": order_id, "specimen_type_id": serum_id},
+        headers=HEADERS,
+    ).json()
+    queue = client.get("/api/v1/specimens/receiving-queue", headers=HEADERS)
+    assert queue.status_code == 200
+    assert [item["id"] for item in queue.json()] == [serum["id"]]
+    received = client.patch(
+        f"/api/v1/specimens/{serum['id']}/receipt",
+        json={"receiving_note": "  sealed  "},
+        headers=HEADERS,
+    )
+    assert received.status_code == 200
+    assert received.json()["status"] == "RECEIVED"
+    assert received.json()["received_by"] == "collector-1"
+    assert received.json()["receiving_note"] == "sealed"
+    duplicate = client.patch(f"/api/v1/specimens/{serum['id']}/receipt", json={}, headers=HEADERS)
+    assert duplicate.status_code == 422
+    urine = client.post(
+        "/api/v1/specimens",
+        json={"order_id": order_id, "specimen_type_id": urine_id},
+        headers=HEADERS,
+    ).json()
+    final_receipt = client.patch(
+        f"/api/v1/specimens/{urine['id']}/receipt", json={}, headers=HEADERS
+    )
+    assert final_receipt.status_code == 200
+    with db_session_factory() as session:
+        order = session.get(LabOrder, order_id)
+        assert order is not None
+        assert order.status == OrderStatus.SPECIMENS_RECEIVED
