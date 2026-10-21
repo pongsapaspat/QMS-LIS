@@ -39,4 +39,16 @@ def require_admin(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
 
 
 AdminActorDependency = Annotated[Actor, Depends(require_admin)]
+
+
+def require_specimen_collector(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
+    if actor.role not in {"ADMIN", "LAB_TECH"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="LAB_TECH or ADMIN role required",
+        )
+    return actor
+
+
+SpecimenCollectorDependency = Annotated[Actor, Depends(require_specimen_collector)]
 ActorDependency = Annotated[Actor, Depends(get_current_actor)]

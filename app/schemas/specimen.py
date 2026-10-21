@@ -18,6 +18,7 @@ class SpecimenCollectRequest(BaseModel):
 
     order_id: int = Field(ge=1)
     specimen_type_id: int = Field(ge=1)
+    collected_at: datetime | None = None
     collection_note: str | None = Field(default=None, max_length=2000)
 
     @field_validator("collection_note", mode="before")

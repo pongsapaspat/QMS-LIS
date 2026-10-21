@@ -2,7 +2,7 @@
 from fastapi import APIRouter, status
 
 from app.api.dependencies import SpecimenServiceDependency
-from app.core.security import ActorDependency
+from app.core.security import SpecimenCollectorDependency
 from app.schemas.specimen import (
     SpecimenCollectRequest,
     SpecimenRejectRequest,
@@ -18,7 +18,7 @@ order_router = APIRouter(prefix="/orders", tags=["specimens"])
 def get_specimen_requirements(
     order_id: int,
     service: SpecimenServiceDependency,
-    actor: ActorDependency,
+    actor: SpecimenCollectorDependency,
 ) -> list[SpecimenRequirement]:
     return service.requirements(order_id)
 
@@ -27,7 +27,7 @@ def get_specimen_requirements(
 def collect_specimen(
     data: SpecimenCollectRequest,
     service: SpecimenServiceDependency,
-    actor: ActorDependency,
+    actor: SpecimenCollectorDependency,
 ) -> SpecimenResponse:
     return SpecimenResponse.model_validate(
         service.collect(data, actor_reference=actor.reference)
@@ -38,7 +38,7 @@ def collect_specimen(
 def get_specimen(
     specimen_id: int,
     service: SpecimenServiceDependency,
-    actor: ActorDependency,
+    actor: SpecimenCollectorDependency,
 ) -> SpecimenResponse:
     return SpecimenResponse.model_validate(service.get(specimen_id))
 
@@ -48,7 +48,7 @@ def reject_specimen(
     specimen_id: int,
     data: SpecimenRejectRequest,
     service: SpecimenServiceDependency,
-    actor: ActorDependency,
+    actor: SpecimenCollectorDependency,
 ) -> SpecimenResponse:
     return SpecimenResponse.model_validate(
         service.reject(specimen_id, data, actor_reference=actor.reference)

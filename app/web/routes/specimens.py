@@ -6,7 +6,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
 from app.api.dependencies import SpecimenServiceDependency
-from app.core.security import ActorDependency
+from app.core.security import SpecimenCollectorDependency
 from app.domain.exceptions import InvalidSpecimenOperationError, OrderNotFoundError
 from app.schemas.specimen import SpecimenCollectRequest, SpecimenRejectRequest
 
@@ -25,7 +25,7 @@ def specimen_collection(
     order_id: int,
     request: Request,
     service: SpecimenServiceDependency,
-    actor: ActorDependency,
+    actor: SpecimenCollectorDependency,
 ) -> Response:
     requirements = service.requirements(order_id)
     order = service.repository.get_order(order_id)
@@ -54,10 +54,13 @@ async def specimen_collect(
     specimen_type_id: int,
     request: Request,
     service: SpecimenServiceDependency,
-    actor: ActorDependency,
+    actor: SpecimenCollectorDependency,
 ) -> Response:
     form = await request.form()
-    values: dict[str, Any] = {"collection_note": form.get("collection_note") or None}
+    values: dict[str, Any] = {
+        "collected_at": form.get("collected_at") or None,
+        "collection_note": form.get("collection_note") or None,
+    }
     try:
         service.collect(
             SpecimenCollectRequest.model_validate(
@@ -93,7 +96,7 @@ async def specimen_reject(
     specimen_id: int,
     request: Request,
     service: SpecimenServiceDependency,
-    actor: ActorDependency,
+    actor: SpecimenCollectorDependency,
 ) -> Response:
     specimen = service.get(specimen_id)
     form = await request.form()
@@ -105,10 +108,20 @@ async def specimen_reject(
             ),
             actor_reference=actor.reference,
         )
-    except (ValidationError, InvalidSpecimenOperationError):
-        return RedirectResponse(
-            request.url_for("specimen_collection", order_id=specimen.order_id),
-            status_code=status.HTTP_303_SEE_OTHER,
+    except (ValidationError, InvalidSpecimenOperationError) as exc:
+        requirements = service.requirements(specimen.order_id)
+        order = service.repository.get_order(specimen.order_id)
+        return templates.TemplateResponse(
+            request=request,
+            name="specimens/collection.html",
+            context={
+                "page_title": "Specimen collection",
+                "order": order,
+                "requirements": requirements,
+                "errors": _errors(exc),
+                "values": {"rejection_reason": form.get("rejection_reason") or ""},
+            },
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     return RedirectResponse(
         request.url_for("specimen_collection", order_id=specimen.order_id),

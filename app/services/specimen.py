@@ -1,7 +1,7 @@
 
 from uuid import uuid4
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.domain.exceptions import (
@@ -84,8 +84,10 @@ class SpecimenService:
             raise InvalidSpecimenOperationError(
                 "specimen type is not required by this laboratory order"
             )
-        specimen_type = matching_items[0].lab_test.specimen_type
-        collected_at = utc_now()
+        specimen_type = self.repository.get_specimen_type(data.specimen_type_id)
+        if specimen_type is None or not specimen_type.is_active:
+            raise InvalidSpecimenOperationError("active specimen type not found")
+        collected_at = data.collected_at or utc_now()
         specimen = Specimen(
             accession_number=f"P-{uuid4().hex[:22]}",
             order_id=order.id,
@@ -125,9 +127,14 @@ class SpecimenService:
             self.session.refresh(specimen)
         except IntegrityError as exc:
             self.session.rollback()
-            raise InvalidSpecimenOperationError(
-                "a specimen for this order and specimen type already exists"
-            ) from exc
+            if self.repository.get_order_specimen(order.id, data.specimen_type_id) is not None:
+                raise InvalidSpecimenOperationError(
+                    "a specimen for this order and specimen type already exists"
+                ) from exc
+            raise InvalidSpecimenOperationError("specimen collection could not be saved") from exc
+        except SQLAlchemyError as exc:
+            self.session.rollback()
+            raise InvalidSpecimenOperationError("specimen collection could not be saved") from exc
         return self.get(specimen.id)
 
     def reject(
@@ -153,6 +160,9 @@ class SpecimenService:
             self.session.commit()
             self.session.refresh(specimen)
         except IntegrityError as exc:
+            self.session.rollback()
+            raise InvalidSpecimenOperationError("specimen rejection could not be saved") from exc
+        except SQLAlchemyError as exc:
             self.session.rollback()
             raise InvalidSpecimenOperationError("specimen rejection could not be saved") from exc
         return self.get(specimen.id)

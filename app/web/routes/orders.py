@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from app.api.dependencies import (
     OrderServiceDependency,
     PatientServiceDependency,
+    SpecimenServiceDependency,
     TestCatalogServiceDependency,
 )
 from app.core.security import ActorDependency
@@ -114,11 +115,16 @@ def order_detail(
     order_id: int,
     request: Request,
     service: OrderServiceDependency,
+    specimen_service: SpecimenServiceDependency,
     actor: ActorDependency,
 ) -> Response:
     order = service.get(order_id)
     return templates.TemplateResponse(
         request=request,
         name="orders/detail.html",
-        context={"page_title": "Laboratory order", "order": order},
+        context={
+            "page_title": "Laboratory order",
+            "order": order,
+            "specimens": specimen_service.repository.list_order_specimens(order.id),
+        },
     )

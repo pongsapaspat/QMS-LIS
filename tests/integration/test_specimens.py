@@ -1,12 +1,31 @@
 import pytest
+import sqlalchemy as sa
+from alembic import command
+from alembic.config import Config
 from fastapi.testclient import TestClient
+from pathlib import Path
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.domain.exceptions import InvalidSpecimenOperationError
 from app.models.audit import AuditLog
+from app.models.order import LabOrder, OrderStatus
+from app.models.specimen import Specimen
+from app.models.test_catalog import SpecimenType
+from app.schemas.specimen import SpecimenCollectRequest
+from app.services.specimen import SpecimenService
 
 HEADERS = {"X-Role": "LAB_TECH", "X-Actor": "collector-1"}
 ADMIN_HEADERS = {"X-Role": "ADMIN", "X-Actor": "catalog-admin"}
+
+
+def _alembic_config(database_url: str) -> Config:
+    project_root = Path(__file__).resolve().parents[2]
+    config = Config(str(project_root / "alembic.ini"))
+    config.set_main_option("script_location", str(project_root / "migrations"))
+    config.set_main_option("sqlalchemy.url", database_url)
+    return config
 
 
 def create_collection_order(client: TestClient) -> tuple[int, int, int, int]:
@@ -180,3 +199,151 @@ def test_web_collection_view_and_submit(client: TestClient) -> None:
     detail = client.get(collected.headers["location"], headers=HEADERS)
     assert detail.status_code == 200
     assert "SPC" in detail.text
+
+
+@pytest.mark.integration
+def test_collection_validates_input_and_preserves_order_snapshots(
+    client: TestClient, db_session_factory: sessionmaker[Session]
+) -> None:
+    order_id, serum_id, _, _ = create_collection_order(client)
+    before = client.get(f"/api/v1/orders/{order_id}", headers=HEADERS).json()
+
+    invalid_order = client.post(
+        "/api/v1/specimens",
+        json={"order_id": 99999, "specimen_type_id": serum_id},
+        headers=HEADERS,
+    )
+    assert invalid_order.status_code == 404
+    invalid_timestamp = client.post(
+        "/api/v1/specimens",
+        json={"order_id": order_id, "specimen_type_id": serum_id, "collected_at": "nope"},
+        headers=HEADERS,
+    )
+    assert invalid_timestamp.status_code == 422
+    unknown_field = client.post(
+        "/api/v1/specimens",
+        json={"order_id": order_id, "specimen_type_id": serum_id, "patient_id": 1},
+        headers=HEADERS,
+    )
+    assert unknown_field.status_code == 422
+
+    collected = client.post(
+        "/api/v1/specimens",
+        json={
+            "order_id": order_id,
+            "specimen_type_id": serum_id,
+            "collected_at": "2026-10-19T09:30:00+07:00",
+        },
+        headers=HEADERS,
+    )
+    assert collected.status_code == 201
+    assert collected.json()["collected_at"] == "2026-10-19T02:30:00Z"
+    assert client.get(f"/api/v1/specimens/{collected.json()['id']}", headers=HEADERS).status_code == 200
+
+    after = client.get(f"/api/v1/orders/{order_id}", headers=HEADERS).json()
+    assert after["patient_id"] == before["patient_id"]
+    assert after["items"] == before["items"]
+    assert after["total_price"] == before["total_price"]
+    with db_session_factory() as session:
+        specimens = session.scalars(select(Specimen).where(Specimen.order_id == order_id)).all()
+        assert len(specimens) == 1
+
+
+@pytest.mark.integration
+def test_collection_rejects_ineligible_orders_and_inactive_types_without_persistence(
+    client: TestClient, db_session_factory: sessionmaker[Session]
+) -> None:
+    order_id, serum_id, _, _ = create_collection_order(client)
+    with db_session_factory() as session:
+        specimen_type = session.get(SpecimenType, serum_id)
+        assert specimen_type is not None
+        specimen_type.is_active = False
+        session.commit()
+
+    inactive = client.post(
+        "/api/v1/specimens",
+        json={"order_id": order_id, "specimen_type_id": serum_id},
+        headers=HEADERS,
+    )
+    assert inactive.status_code == 422
+    with db_session_factory() as session:
+        assert session.scalars(select(Specimen).where(Specimen.order_id == order_id)).all() == []
+        order = session.get(LabOrder, order_id)
+        assert order is not None
+        order.status = OrderStatus.CANCELLED
+        session.commit()
+
+    cancelled = client.post(
+        "/api/v1/specimens",
+        json={"order_id": order_id, "specimen_type_id": serum_id},
+        headers=HEADERS,
+    )
+    assert cancelled.status_code == 422
+    with db_session_factory() as session:
+        assert session.scalars(select(Specimen).where(Specimen.order_id == order_id)).all() == []
+
+
+@pytest.mark.integration
+def test_order_detail_shows_collected_specimen_and_collection_requires_role(
+    client: TestClient,
+) -> None:
+    order_id, serum_id, _, _ = create_collection_order(client)
+    forbidden = client.post(
+        "/api/v1/specimens",
+        json={"order_id": order_id, "specimen_type_id": serum_id},
+        headers={"X-Role": "RECEPTION", "X-Actor": "reception-1"},
+    )
+    assert forbidden.status_code == 403
+    collected = client.post(
+        "/api/v1/specimens",
+        json={"order_id": order_id, "specimen_type_id": serum_id},
+        headers=HEADERS,
+    )
+    assert collected.status_code == 201
+    detail = client.get(f"/orders/{order_id}", headers=HEADERS)
+    assert detail.status_code == 200
+    assert "Specimens" in detail.text
+    assert collected.json()["accession_number"] in detail.text
+
+
+@pytest.mark.integration
+def test_specimen_migration_upgrade_and_downgrade(tmp_path: Path) -> None:
+    database_url = f"sqlite:///{(tmp_path / 'specimens.sqlite3').as_posix()}"
+    config = _alembic_config(database_url)
+    command.upgrade(config, "head")
+
+    engine = sa.create_engine(database_url)
+    inspector = sa.inspect(engine)
+    assert {"specimens", "specimen_items"}.issubset(inspector.get_table_names())
+    assert {"ix_specimens_order_id", "ix_specimens_order_status"}.issubset(
+        index["name"] for index in inspector.get_indexes("specimens")
+    )
+    assert {"ix_specimen_items_specimen_id", "ix_specimen_items_order_item_id"}.issubset(
+        index["name"] for index in inspector.get_indexes("specimen_items")
+    )
+    engine.dispose()
+
+    command.downgrade(config, "20261007_0006")
+    engine = sa.create_engine(database_url)
+    assert {"specimens", "specimen_items"}.isdisjoint(sa.inspect(engine).get_table_names())
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_collection_rolls_back_when_persistence_fails(
+    client: TestClient, db_session_factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    order_id, serum_id, _, _ = create_collection_order(client)
+    with db_session_factory() as session:
+        service = SpecimenService(session)
+
+        def fail_audit(_: AuditLog) -> AuditLog:
+            raise IntegrityError("INSERT audit_logs", {}, Exception("forced failure"))
+
+        monkeypatch.setattr(service.audit_repository, "add", fail_audit)
+        with pytest.raises(InvalidSpecimenOperationError, match="could not be saved"):
+            service.collect(
+                SpecimenCollectRequest(order_id=order_id, specimen_type_id=serum_id),
+                actor_reference="collector-1",
+            )
+        assert session.scalars(select(Specimen).where(Specimen.order_id == order_id)).all() == []
