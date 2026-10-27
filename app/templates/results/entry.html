@@ -1,1 +1,14 @@
-
+{% extends "base.html" %}
+{% block content %}
+<h1>Result entry</h1>
+<form method="post">
+  {% for item in items %}
+  <div class="card mb-3"><div class="card-body"><strong>{{ item.test_code }} — {{ item.test_name_en }}</strong>
+    {% if item.result_type == 'CATEGORICAL' or item.result_type == 'QUALITATIVE' %}
+    <select class="form-select" name="value_{{ item.id }}"><option value=""></option>{% for option in item.lab_test.qualitative_options %}<option value="{{ option.code }}">{{ option.label_en }}</option>{% endfor %}</select>
+    {% else %}<input class="form-control" name="value_{{ item.id }}" type="{% if item.result_type == 'NUMERIC' %}number{% else %}text{% endif %}" step="any">{% endif %}
+    <span>{{ item.result_unit or '' }}</span><label><input type="checkbox" name="complete_{{ item.id }}"> Complete</label><label><input type="checkbox" name="ack_{{ item.id }}"> Acknowledge critical value</label>
+  </div></div>{% endfor %}
+  <button class="btn btn-primary" type="submit">Save results</button>
+</form>
+{% endblock %}

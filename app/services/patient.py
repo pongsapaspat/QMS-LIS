@@ -227,6 +227,4 @@ class PatientService:
         first_name_en: str | None,
         last_name_en: str | None,
     ) -> bool:
-        return bool(
-            (first_name_th and last_name_th) or (first_name_en and last_name_en)
-        )
+        return bool((first_name_th and last_name_th) or (first_name_en and last_name_en))

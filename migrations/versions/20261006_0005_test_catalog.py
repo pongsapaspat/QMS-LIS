@@ -70,9 +70,7 @@ def upgrade() -> None:
     _drop_audit_triggers()
     with op.batch_alter_table("audit_logs") as batch_op:
         batch_op.drop_constraint("fk_audit_logs_entity_id_patients", type_="foreignkey")
-        batch_op.create_index(
-            "ix_audit_logs_entity", ["entity_type", "entity_id"], unique=False
-        )
+        batch_op.create_index("ix_audit_logs_entity", ["entity_type", "entity_id"], unique=False)
     _create_audit_triggers()
 
     op.create_table(
@@ -96,9 +94,7 @@ def upgrade() -> None:
         [sa.text("lower(code)")],
         unique=True,
     )
-    op.create_index(
-        "ix_test_categories_is_active", "test_categories", ["is_active"], unique=False
-    )
+    op.create_index("ix_test_categories_is_active", "test_categories", ["is_active"], unique=False)
 
     op.create_table(
         "specimen_types",
@@ -121,9 +117,7 @@ def upgrade() -> None:
         [sa.text("lower(code)")],
         unique=True,
     )
-    op.create_index(
-        "ix_specimen_types_is_active", "specimen_types", ["is_active"], unique=False
-    )
+    op.create_index("ix_specimen_types_is_active", "specimen_types", ["is_active"], unique=False)
 
     op.create_table(
         "lab_tests",
@@ -310,12 +304,8 @@ def downgrade() -> None:
         "ix_qualitative_result_options_test_id",
         table_name="qualitative_result_options",
     )
-    op.drop_index(
-        "ix_qualitative_options_test_sort", table_name="qualitative_result_options"
-    )
-    op.drop_index(
-        "uq_qualitative_options_test_code_ci", table_name="qualitative_result_options"
-    )
+    op.drop_index("ix_qualitative_options_test_sort", table_name="qualitative_result_options")
+    op.drop_index("uq_qualitative_options_test_code_ci", table_name="qualitative_result_options")
     op.drop_table("qualitative_result_options")
 
     op.drop_index("ix_test_reference_ranges_is_active", table_name="test_reference_ranges")

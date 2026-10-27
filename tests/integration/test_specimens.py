@@ -102,9 +102,7 @@ def test_collection_groups_items_and_records_audit(
 ) -> None:
     order_id, serum_id, urine_id, _ = create_collection_order(client)
 
-    requirements = client.get(
-        f"/api/v1/orders/{order_id}/specimen-requirements", headers=HEADERS
-    )
+    requirements = client.get(f"/api/v1/orders/{order_id}/specimen-requirements", headers=HEADERS)
     assert requirements.status_code == 200
     grouped = {item["specimen_type_id"]: item for item in requirements.json()}
     assert {item["test_code"] for item in grouped[serum_id]["items"]} == {"GLU", "CREA"}

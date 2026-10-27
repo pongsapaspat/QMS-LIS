@@ -1,4 +1,3 @@
-
 from uuid import uuid4
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -67,9 +66,7 @@ class SpecimenService:
             )
         return list(sorted(grouped.values(), key=lambda item: item.specimen_type_code))
 
-    def collect(
-        self, data: SpecimenCollectRequest, *, actor_reference: str
-    ) -> Specimen:
+    def collect(self, data: SpecimenCollectRequest, *, actor_reference: str) -> Specimen:
         order = self._get_collectable_order(data.order_id)
         if self.repository.get_order_specimen(order.id, data.specimen_type_id) is not None:
             raise InvalidSpecimenOperationError(

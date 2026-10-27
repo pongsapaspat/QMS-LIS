@@ -49,3 +49,11 @@ class SpecimenNotFoundError(DomainError):
 
 class InvalidSpecimenOperationError(DomainError):
     pass
+
+
+class ResultNotFoundError(DomainError):
+    pass
+
+
+class InvalidResultOperationError(DomainError):
+    pass

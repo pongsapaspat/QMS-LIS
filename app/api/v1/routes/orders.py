@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, status
 
 from app.api.dependencies import OrderServiceDependency
@@ -14,9 +13,7 @@ def create_order(
     service: OrderServiceDependency,
     actor: ActorDependency,
 ) -> LabOrderResponse:
-    return LabOrderResponse.model_validate(
-        service.create(data, actor_reference=actor.reference)
-    )
+    return LabOrderResponse.model_validate(service.create(data, actor_reference=actor.reference))
 
 
 @router.get("/{order_id}", response_model=LabOrderResponse)

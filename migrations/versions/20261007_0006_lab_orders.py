@@ -82,9 +82,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_lab_order_items")),
         sa.UniqueConstraint("order_id", "lab_test_id", name="uq_lab_order_items_order_test"),
     )
-    op.create_index(
-        "ix_lab_order_items_order_id", "lab_order_items", ["order_id"], unique=False
-    )
+    op.create_index("ix_lab_order_items_order_id", "lab_order_items", ["order_id"], unique=False)
     op.create_index(
         "ix_lab_order_items_lab_test_id", "lab_order_items", ["lab_test_id"], unique=False
     )

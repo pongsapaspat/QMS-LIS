@@ -48,9 +48,7 @@ class TestCatalogService:
         self.repository = repository or TestCatalogRepository(session)
         self.audit_repository = audit_repository or AuditRepository(session)
 
-    def create_category(
-        self, data: ConfigurationCreate, *, actor_reference: str
-    ) -> TestCategory:
+    def create_category(self, data: ConfigurationCreate, *, actor_reference: str) -> TestCategory:
         return cast(
             TestCategory,
             self._create_configuration(TestCategory, data, actor_reference=actor_reference),
@@ -74,9 +72,7 @@ class TestCatalogService:
             and category.is_active
             and self.repository.active_test_uses_category(category.id)
         ):
-            raise InvalidCatalogOperationError(
-                "cannot deactivate a category used by active tests"
-            )
+            raise InvalidCatalogOperationError("cannot deactivate a category used by active tests")
         return cast(
             TestCategory,
             self._update_configuration(category, data, actor_reference=actor_reference),
@@ -113,12 +109,13 @@ class TestCatalogService:
             )
         return cast(
             SpecimenType,
-            self._update_configuration(
-                specimen_type, data, actor_reference=actor_reference
-            ),
+            self._update_configuration(specimen_type, data, actor_reference=actor_reference),
         )
 
     def create_test(self, data: CatalogTestCreate, *, actor_reference: str) -> LabTest:
+        if data.department_id is None:
+            department = self.repository.get_or_create_general_department()
+            data.department_id = department.id
         self._require_active_configuration(data.category_id, data.specimen_type_id)
         self._validate_test_configuration(data.result_type, data.result_unit)
         if self.repository.test_code_exists(data.code):
@@ -208,9 +205,10 @@ class TestCatalogService:
         result_unit = changes.get("result_unit", test.result_unit)
         self._validate_test_configuration(result_type, result_unit)
         if result_type != test.result_type:
-            if result_type == ResultType.QUALITATIVE and self.repository.list_reference_ranges(
-                test.id
-            ):
+            if result_type in {
+                ResultType.QUALITATIVE,
+                ResultType.CATEGORICAL,
+            } and self.repository.list_reference_ranges(test.id):
                 raise InvalidCatalogOperationError(
                     "a test with reference ranges cannot become qualitative"
                 )
@@ -279,9 +277,7 @@ class TestCatalogService:
             self._require_active_configuration(test.category_id, test.specimen_type_id)
         test.is_active = data.is_active
         event = "LAB_TEST_ACTIVATED" if data.is_active else "LAB_TEST_DEACTIVATED"
-        self._finish_mutation(
-            event, "lab_test", test, {"is_active"}, data.reason, actor_reference
-        )
+        self._finish_mutation(event, "lab_test", test, {"is_active"}, data.reason, actor_reference)
         return self.get_test(test.id)
 
     def list_reference_ranges(self, test_id: int) -> list[ReferenceRange]:
@@ -301,15 +297,11 @@ class TestCatalogService:
         entries = self.audit_repository.list_for_entity("lab_test", test_id)
         for reference_range in self.repository.list_reference_ranges(test_id):
             entries.extend(
-                self.audit_repository.list_for_entity(
-                    "reference_range", reference_range.id
-                )
+                self.audit_repository.list_for_entity("reference_range", reference_range.id)
             )
         for option in self.repository.list_qualitative_options(test_id):
             entries.extend(
-                self.audit_repository.list_for_entity(
-                    "qualitative_result_option", option.id
-                )
+                self.audit_repository.list_for_entity("qualitative_result_option", option.id)
             )
         return sorted(entries, key=lambda entry: (entry.occurred_at, entry.id), reverse=True)
 
@@ -408,7 +400,7 @@ class TestCatalogService:
         actor_reference: str,
     ) -> QualitativeResultOption:
         test = self.get_test(test_id)
-        if test.result_type != ResultType.QUALITATIVE:
+        if test.result_type not in {ResultType.QUALITATIVE, ResultType.CATEGORICAL}:
             raise InvalidCatalogOperationError(
                 "qualitative options are allowed only for qualitative tests"
             )
@@ -430,9 +422,7 @@ class TestCatalogService:
             self.session.refresh(option)
         except IntegrityError as exc:
             self.session.rollback()
-            raise DuplicateCatalogCodeError(
-                "qualitative option code already exists"
-            ) from exc
+            raise DuplicateCatalogCodeError("qualitative option code already exists") from exc
         return option
 
     def update_qualitative_option(
@@ -447,7 +437,7 @@ class TestCatalogService:
         option = self.repository.get_qualitative_option(option_id)
         if option is None or option.test_id != test.id:
             raise CatalogNotFoundError("qualitative option not found")
-        if test.result_type != ResultType.QUALITATIVE:
+        if test.result_type not in {ResultType.QUALITATIVE, ResultType.CATEGORICAL}:
             raise InvalidCatalogOperationError(
                 "qualitative options are allowed only for qualitative tests"
             )
@@ -478,7 +468,10 @@ class TestCatalogService:
         option = self.repository.get_qualitative_option(option_id)
         if option is None or option.test_id != test.id:
             raise CatalogNotFoundError("qualitative option not found")
-        if data.is_active and test.result_type != ResultType.QUALITATIVE:
+        if data.is_active and test.result_type not in {
+            ResultType.QUALITATIVE,
+            ResultType.CATEGORICAL,
+        }:
             raise InvalidCatalogOperationError(
                 "qualitative options are allowed only for qualitative tests"
             )
@@ -554,9 +547,7 @@ class TestCatalogService:
         )
         return entity
 
-    def _require_active_configuration(
-        self, category_id: int, specimen_type_id: int
-    ) -> None:
+    def _require_active_configuration(self, category_id: int, specimen_type_id: int) -> None:
         category = self.repository.get_category(category_id)
         if category is None or not category.is_active:
             raise CatalogNotFoundError("active test category not found")
@@ -580,11 +571,16 @@ class TestCatalogService:
     def _validate_test_configuration(result_type: object, result_unit: object) -> None:
         if result_type == ResultType.NUMERIC and not result_unit:
             raise InvalidCatalogOperationError("result unit is required for numeric tests")
-        if result_type == ResultType.QUALITATIVE and result_unit:
+        if result_type in {ResultType.QUALITATIVE, ResultType.CATEGORICAL} and result_unit:
             raise InvalidCatalogOperationError(
                 "qualitative tests must not define a numeric result unit"
             )
-        if result_type not in (ResultType.NUMERIC, ResultType.QUALITATIVE):
+        if result_type not in (
+            ResultType.NUMERIC,
+            ResultType.TEXT,
+            ResultType.CATEGORICAL,
+            ResultType.QUALITATIVE,
+        ):
             raise InvalidCatalogOperationError("valid result type is required")
 
     @staticmethod

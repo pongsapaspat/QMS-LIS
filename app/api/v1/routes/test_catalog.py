@@ -31,9 +31,7 @@ specimen_router = APIRouter(prefix="/specimen-types", tags=["test catalog"])
 test_router = APIRouter(prefix="/tests", tags=["test catalog"])
 
 
-@category_router.post(
-    "", response_model=ConfigurationResponse, status_code=status.HTTP_201_CREATED
-)
+@category_router.post("", response_model=ConfigurationResponse, status_code=status.HTTP_201_CREATED)
 def create_category(
     data: ConfigurationCreate,
     service: TestCatalogServiceDependency,
@@ -68,9 +66,7 @@ def update_category(
     )
 
 
-@specimen_router.post(
-    "", response_model=ConfigurationResponse, status_code=status.HTTP_201_CREATED
-)
+@specimen_router.post("", response_model=ConfigurationResponse, status_code=status.HTTP_201_CREATED)
 def create_specimen_type(
     data: ConfigurationCreate,
     service: TestCatalogServiceDependency,
@@ -101,9 +97,7 @@ def update_specimen_type(
     actor: AdminActorDependency,
 ) -> ConfigurationResponse:
     return ConfigurationResponse.model_validate(
-        service.update_specimen_type(
-            specimen_type_id, data, actor_reference=actor.reference
-        )
+        service.update_specimen_type(specimen_type_id, data, actor_reference=actor.reference)
     )
 
 
@@ -215,9 +209,7 @@ def create_reference_range(
     )
 
 
-@test_router.patch(
-    "/{test_id}/reference-ranges/{range_id}", response_model=ReferenceRangeResponse
-)
+@test_router.patch("/{test_id}/reference-ranges/{range_id}", response_model=ReferenceRangeResponse)
 def update_reference_range(
     test_id: int,
     range_id: int,
@@ -226,9 +218,7 @@ def update_reference_range(
     actor: AdminActorDependency,
 ) -> ReferenceRangeResponse:
     return ReferenceRangeResponse.model_validate(
-        service.update_reference_range(
-            test_id, range_id, data, actor_reference=actor.reference
-        )
+        service.update_reference_range(test_id, range_id, data, actor_reference=actor.reference)
     )
 
 
@@ -278,9 +268,7 @@ def update_qualitative_option(
     actor: AdminActorDependency,
 ) -> QualitativeOptionResponse:
     return QualitativeOptionResponse.model_validate(
-        service.update_qualitative_option(
-            test_id, option_id, data, actor_reference=actor.reference
-        )
+        service.update_qualitative_option(test_id, option_id, data, actor_reference=actor.reference)
     )
 
 

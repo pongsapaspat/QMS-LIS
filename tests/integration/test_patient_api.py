@@ -34,9 +34,7 @@ def patient_payload(**overrides: object) -> dict[str, object]:
 
 @pytest.mark.integration
 def test_create_retrieve_search_and_update_patient(client: TestClient) -> None:
-    create_response = client.post(
-        "/api/v1/patients", json=patient_payload(), headers=ADMIN_HEADERS
-    )
+    create_response = client.post("/api/v1/patients", json=patient_payload(), headers=ADMIN_HEADERS)
 
     assert create_response.status_code == 201
     created = create_response.json()
@@ -51,9 +49,7 @@ def test_create_retrieve_search_and_update_patient(client: TestClient) -> None:
     assert retrieved.status_code == 200
     assert retrieved.json()["address"] == "Bangkok"
 
-    listed = client.get(
-        "/api/v1/patients", params={"search": "Suda"}, headers=ADMIN_HEADERS
-    )
+    listed = client.get("/api/v1/patients", params={"search": "Suda"}, headers=ADMIN_HEADERS)
     assert listed.status_code == 200
     page = listed.json()
     assert page["total"] == 1
@@ -99,14 +95,13 @@ def test_search_supports_national_id_without_exposing_it_in_list(client: TestCli
     ("field", "value"),
     [("national_id", SYNTHETIC_VALID_NATIONAL_ID), ("passport_number", "AA123456")],
 )
-def test_duplicate_identity_is_rejected(
-    client: TestClient, field: str, value: str
-) -> None:
+def test_duplicate_identity_is_rejected(client: TestClient, field: str, value: str) -> None:
     first_payload = patient_payload(passport_number=None)
     first_payload[field] = value
-    assert client.post(
-        "/api/v1/patients", json=first_payload, headers=ADMIN_HEADERS
-    ).status_code == 201
+    assert (
+        client.post("/api/v1/patients", json=first_payload, headers=ADMIN_HEADERS).status_code
+        == 201
+    )
 
     duplicate_payload = patient_payload(
         first_name_en="Mana",
@@ -115,9 +110,7 @@ def test_duplicate_identity_is_rejected(
         passport_number=None,
     )
     duplicate_payload[field] = value
-    response = client.post(
-        "/api/v1/patients", json=duplicate_payload, headers=ADMIN_HEADERS
-    )
+    response = client.post("/api/v1/patients", json=duplicate_payload, headers=ADMIN_HEADERS)
 
     assert response.status_code == 409
     assert "already registered" in response.json()["detail"]
@@ -125,9 +118,7 @@ def test_duplicate_identity_is_rejected(
 
 @pytest.mark.integration
 def test_duplicate_identity_is_rejected_during_update(client: TestClient) -> None:
-    first = client.post(
-        "/api/v1/patients", json=patient_payload(), headers=ADMIN_HEADERS
-    ).json()
+    first = client.post("/api/v1/patients", json=patient_payload(), headers=ADMIN_HEADERS).json()
     second = client.post(
         "/api/v1/patients",
         json=patient_payload(
@@ -283,9 +274,7 @@ def test_update_converts_optional_placeholders_to_null(client: TestClient) -> No
 
 @pytest.mark.integration
 def test_hn_is_immutable_and_update_requires_reason(client: TestClient) -> None:
-    patient = client.post(
-        "/api/v1/patients", json=patient_payload(), headers=ADMIN_HEADERS
-    ).json()
+    patient = client.post("/api/v1/patients", json=patient_payload(), headers=ADMIN_HEADERS).json()
 
     no_reason = client.patch(
         f"/api/v1/patients/{patient['id']}",
@@ -300,29 +289,24 @@ def test_hn_is_immutable_and_update_requires_reason(client: TestClient) -> None:
 
     assert no_reason.status_code == 422
     assert hn_change.status_code == 422
-    unchanged = client.get(
-        f"/api/v1/patients/{patient['id']}", headers=ADMIN_HEADERS
-    ).json()
+    unchanged = client.get(f"/api/v1/patients/{patient['id']}", headers=ADMIN_HEADERS).json()
     assert unchanged["hn"] == "HN000001"
 
 
 @pytest.mark.integration
 def test_possible_duplicate_requires_explicit_confirmation(client: TestClient) -> None:
-    assert client.post(
-        "/api/v1/patients", json=patient_payload(), headers=ADMIN_HEADERS
-    ).status_code == 201
+    assert (
+        client.post("/api/v1/patients", json=patient_payload(), headers=ADMIN_HEADERS).status_code
+        == 201
+    )
 
     possible_duplicate = patient_payload(passport_number="BB987654")
-    blocked = client.post(
-        "/api/v1/patients", json=possible_duplicate, headers=ADMIN_HEADERS
-    )
+    blocked = client.post("/api/v1/patients", json=possible_duplicate, headers=ADMIN_HEADERS)
     assert blocked.status_code == 409
     assert blocked.json()["candidates"][0]["hn"] == "HN000001"
 
     possible_duplicate["confirm_possible_duplicate"] = True
-    confirmed = client.post(
-        "/api/v1/patients", json=possible_duplicate, headers=ADMIN_HEADERS
-    )
+    confirmed = client.post("/api/v1/patients", json=possible_duplicate, headers=ADMIN_HEADERS)
     assert confirmed.status_code == 201
     assert confirmed.json()["hn"] == "HN000002"
 
@@ -332,9 +316,7 @@ def test_audit_log_contains_field_names_not_pii_values(
     client: TestClient,
     db_session_factory: sessionmaker[Session],
 ) -> None:
-    created = client.post(
-        "/api/v1/patients", json=patient_payload(), headers=ADMIN_HEADERS
-    ).json()
+    created = client.post("/api/v1/patients", json=patient_payload(), headers=ADMIN_HEADERS).json()
     client.patch(
         f"/api/v1/patients/{created['id']}",
         json={"phone_number": "0800000000", "change_reason": "verified correction"},
@@ -356,9 +338,7 @@ def test_audit_log_contains_field_names_not_pii_values(
 @pytest.mark.integration
 def test_patient_mutations_require_admin(client: TestClient) -> None:
     non_admin_headers = {"X-Role": "LAB_TECH", "X-Actor": "tech-1"}
-    response = client.post(
-        "/api/v1/patients", json=patient_payload(), headers=non_admin_headers
-    )
+    response = client.post("/api/v1/patients", json=patient_payload(), headers=non_admin_headers)
 
     assert response.status_code == 403
 

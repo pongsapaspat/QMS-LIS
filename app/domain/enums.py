@@ -22,6 +22,9 @@ class BloodGroup(StrEnum):
 
 class ResultType(StrEnum):
     NUMERIC = "NUMERIC"
+    TEXT = "TEXT"
+    CATEGORICAL = "CATEGORICAL"
+    # Kept for catalog rows created before result entry was introduced.
     QUALITATIVE = "QUALITATIVE"
 
 

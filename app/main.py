@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -13,10 +12,12 @@ from app.domain.exceptions import (
     DuplicatePatientIdentifierError,
     InvalidCatalogOperationError,
     InvalidPatientChangeError,
+    InvalidResultOperationError,
     InvalidSpecimenOperationError,
     OrderNotFoundError,
     PatientNotFoundError,
     PossibleDuplicatePatientError,
+    ResultNotFoundError,
     SpecimenNotFoundError,
 )
 from app.web.router import web_router
@@ -49,16 +50,12 @@ async def safe_validation_error_handler(
 
 
 @app.exception_handler(PatientNotFoundError)
-async def patient_not_found_handler(
-    request: Request, exc: PatientNotFoundError
-) -> JSONResponse:
+async def patient_not_found_handler(request: Request, exc: PatientNotFoundError) -> JSONResponse:
     return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)})
 
 
 @app.exception_handler(BranchNotFoundError)
-async def branch_not_found_handler(
-    request: Request, exc: BranchNotFoundError
-) -> JSONResponse:
+async def branch_not_found_handler(request: Request, exc: BranchNotFoundError) -> JSONResponse:
     return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)})
 
 
@@ -99,9 +96,7 @@ async def invalid_patient_change_handler(
 
 
 @app.exception_handler(CatalogNotFoundError)
-async def catalog_not_found_handler(
-    request: Request, exc: CatalogNotFoundError
-) -> JSONResponse:
+async def catalog_not_found_handler(request: Request, exc: CatalogNotFoundError) -> JSONResponse:
     return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)})
 
 
@@ -123,18 +118,12 @@ async def invalid_catalog_operation_handler(
 
 
 @app.exception_handler(OrderNotFoundError)
-async def order_not_found_handler(
-    request: Request, exc: OrderNotFoundError
-) -> JSONResponse:
-    return JSONResponse(
-        status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)}
-    )
+async def order_not_found_handler(request: Request, exc: OrderNotFoundError) -> JSONResponse:
+    return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)})
 
 
 @app.exception_handler(SpecimenNotFoundError)
-async def specimen_not_found_handler(
-    request: Request, exc: SpecimenNotFoundError
-) -> JSONResponse:
+async def specimen_not_found_handler(request: Request, exc: SpecimenNotFoundError) -> JSONResponse:
     return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)})
 
 
@@ -146,6 +135,23 @@ async def invalid_specimen_operation_handler(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={"detail": str(exc)},
     )
+
+
+@app.exception_handler(ResultNotFoundError)
+async def result_not_found_handler(request: Request, exc: ResultNotFoundError) -> JSONResponse:
+    return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)})
+
+
+@app.exception_handler(InvalidResultOperationError)
+async def invalid_result_handler(
+    request: Request, exc: InvalidResultOperationError
+) -> JSONResponse:
+    code = (
+        status.HTTP_409_CONFLICT
+        if "concurrent" in str(exc)
+        else status.HTTP_422_UNPROCESSABLE_CONTENT
+    )
+    return JSONResponse(status_code=code, content={"detail": str(exc)})
 
 
 @app.get("/health", tags=["health"])

@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Laboratory worklist</h1>
+<table class="table"><thead><tr><th>Order</th><th>Accession</th><th>Test</th><th>Status</th><th></th></tr></thead><tbody>
+{% for item, specimen, result in rows %}<tr><td>{{ item.order.order_number }}</td><td>{{ specimen.accession_number }}</td><td>{{ item.test_name_en }}</td><td>{{ result.status if result else 'PENDING' }}</td><td><a href="{{ request.url_for('result_entry', order_id=item.order_id) }}">Enter</a></td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

@@ -87,6 +87,7 @@ class CatalogTestCreate(BaseModel):
     name_th: str = Field(min_length=1, max_length=200)
     name_en: str = Field(min_length=1, max_length=200)
     category_id: int = Field(ge=1)
+    department_id: int | None = Field(default=None, ge=1)
     specimen_type_id: int = Field(ge=1)
     current_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
     result_type: ResultType
@@ -123,9 +124,7 @@ class CatalogTestUpdate(BaseModel):
     name_en: str | None = Field(default=None, min_length=1, max_length=200)
     category_id: int | None = Field(default=None, ge=1)
     specimen_type_id: int | None = Field(default=None, ge=1)
-    current_price: Decimal | None = Field(
-        default=None, ge=0, max_digits=12, decimal_places=2
-    )
+    current_price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     result_type: ResultType | None = None
     result_unit: str | None = Field(default=None, max_length=50)
     tat_minutes: int | None = Field(default=None, gt=0, le=525600)
@@ -282,9 +281,7 @@ class QualitativeOptionUpdate(BaseModel):
     is_abnormal: bool | None = None
     reason: str = Field(default="", max_length=500)
 
-    _labels = field_validator("label_th", "label_en")(
-        normalize_optional_required_text
-    )
+    _labels = field_validator("label_th", "label_en")(normalize_optional_required_text)
     _reason = field_validator("reason")(normalize_reason)
 
     @model_validator(mode="after")

@@ -159,9 +159,7 @@ def downgrade() -> None:
         )
 
     with op.batch_alter_table("patients") as batch_op:
-        batch_op.create_unique_constraint(
-            "uq_patients_thai_national_id", ["thai_national_id"]
-        )
+        batch_op.create_unique_constraint("uq_patients_thai_national_id", ["thai_national_id"])
         batch_op.create_unique_constraint("uq_patients_branch_hn", ["branch_id", "hn"])
         batch_op.create_index(
             "ix_patients_branch_name",

@@ -1,4 +1,3 @@
-
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -20,12 +19,15 @@ from app.models.base import Base, TimestampMixin, UTCDateTime, utc_now
 
 if TYPE_CHECKING:
     from app.models.patient import Patient
+    from app.models.result import Result
     from app.models.test_catalog import LabTest
 
 
 class OrderStatus(StrEnum):
     ORDERED = "ORDERED"
     SPECIMENS_RECEIVED = "SPECIMENS_RECEIVED"
+    RESULTS_IN_PROGRESS = "RESULTS_IN_PROGRESS"
+    RESULTS_COMPLETED = "RESULTS_COMPLETED"
     CANCELLED = "CANCELLED"
 
 
@@ -96,3 +98,4 @@ class LabOrderItem(Base):
 
     order: Mapped[LabOrder] = relationship(back_populates="items")
     lab_test: Mapped["LabTest"] = relationship()
+    result: Mapped["Result | None"] = relationship(back_populates="order_item", uselist=False)

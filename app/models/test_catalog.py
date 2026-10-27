@@ -34,6 +34,20 @@ class TestCategory(TimestampMixin, Base):
     tests: Mapped[list["LabTest"]] = relationship(back_populates="category")
 
 
+class LaboratoryDepartment(TimestampMixin, Base):
+    __tablename__ = "laboratory_departments"
+    __table_args__ = (Index("uq_laboratory_departments_code_ci", text("lower(code)"), unique=True),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(30), nullable=False)
+    name_th: Mapped[str] = mapped_column(String(150), nullable=False)
+    name_en: Mapped[str] = mapped_column(String(150), nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=true(), nullable=False
+    )
+    tests: Mapped[list["LabTest"]] = relationship(back_populates="department")
+
+
 class SpecimenType(TimestampMixin, Base):
     __tablename__ = "specimen_types"
     __table_args__ = (Index("uq_specimen_types_code_ci", text("lower(code)"), unique=True),)
@@ -63,6 +77,9 @@ class LabTest(TimestampMixin, Base):
     category_id: Mapped[int] = mapped_column(
         ForeignKey("test_categories.id", ondelete="RESTRICT"), nullable=False, index=True
     )
+    department_id: Mapped[int] = mapped_column(
+        ForeignKey("laboratory_departments.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
     specimen_type_id: Mapped[int] = mapped_column(
         ForeignKey("specimen_types.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -75,6 +92,7 @@ class LabTest(TimestampMixin, Base):
     )
 
     category: Mapped[TestCategory] = relationship(back_populates="tests")
+    department: Mapped[LaboratoryDepartment] = relationship(back_populates="tests")
     specimen_type: Mapped[SpecimenType] = relationship(back_populates="tests")
     reference_ranges: Mapped[list["ReferenceRange"]] = relationship(back_populates="test")
     qualitative_options: Mapped[list["QualitativeResultOption"]] = relationship(
@@ -85,9 +103,7 @@ class LabTest(TimestampMixin, Base):
 
 class ReferenceRange(TimestampMixin, Base):
     __tablename__ = "test_reference_ranges"
-    __table_args__ = (
-        Index("ix_reference_ranges_test_active", "test_id", "is_active"),
-    )
+    __table_args__ = (Index("ix_reference_ranges_test_active", "test_id", "is_active"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     test_id: Mapped[int] = mapped_column(
@@ -105,6 +121,9 @@ class ReferenceRange(TimestampMixin, Base):
     context_metadata: Mapped[dict[str, str] | None] = mapped_column(JSON, nullable=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true(), nullable=False, index=True
+    )
+    priority: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
     )
 
     test: Mapped[LabTest] = relationship(back_populates="reference_ranges")

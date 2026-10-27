@@ -9,9 +9,7 @@ ADMIN_HEADERS = {"X-Role": "ADMIN", "X-Actor": "catalog-admin"}
 READER_HEADERS = {"X-Role": "LAB_TECH", "X-Actor": "tech-1"}
 
 
-def create_configuration(
-    client: TestClient, path: str, code: str
-) -> dict[str, object]:
+def create_configuration(client: TestClient, path: str, code: str) -> dict[str, object]:
     response = client.post(
         path,
         json={
@@ -81,9 +79,7 @@ def test_master_data_crud_duplicate_codes_and_inactive_filtering(client: TestCli
         headers=ADMIN_HEADERS,
     )
     assert deactivated.status_code == 200
-    assert client.get(
-        "/api/v1/test-categories", headers=READER_HEADERS
-    ).json() == []
+    assert client.get("/api/v1/test-categories", headers=READER_HEADERS).json() == []
     all_categories = client.get(
         "/api/v1/test-categories",
         params={"include_inactive": True},
@@ -361,9 +357,7 @@ def test_listing_filtering_pagination_not_found_and_authorization(
     assert page.json()["total"] == 2
     assert len(page.json()["items"]) == 1
 
-    searched = client.get(
-        "/api/v1/tests", params={"search": "preg"}, headers=READER_HEADERS
-    )
+    searched = client.get("/api/v1/tests", params={"search": "preg"}, headers=READER_HEADERS)
     assert searched.status_code == 200
     assert searched.json()["items"][0]["code"] == "HCG"
 

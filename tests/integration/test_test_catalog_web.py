@@ -135,9 +135,7 @@ def test_web_configuration_activation_and_numeric_range_management(
         follow_redirects=False,
     )
     test_id = int(created.headers["location"].rsplit("/", 1)[1])
-    range_form = client.get(
-        f"/test-catalog/{test_id}/reference-ranges/new", headers=ADMIN_HEADERS
-    )
+    range_form = client.get(f"/test-catalog/{test_id}/reference-ranges/new", headers=ADMIN_HEADERS)
     assert range_form.status_code == 200
     range_response = client.post(
         f"/test-catalog/{test_id}/reference-ranges/new",

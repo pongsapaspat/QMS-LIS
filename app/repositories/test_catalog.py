@@ -2,6 +2,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.test_catalog import (
+    LaboratoryDepartment,
     LabTest,
     QualitativeResultOption,
     ReferenceRange,
@@ -24,6 +25,16 @@ class TestCatalogRepository:
 
     def get_category(self, category_id: int) -> TestCategory | None:
         return self.session.get(TestCategory, category_id)
+
+    def get_or_create_general_department(self) -> LaboratoryDepartment:
+        department = self.session.scalars(
+            select(LaboratoryDepartment).where(LaboratoryDepartment.code == "GENERAL")
+        ).first()
+        if department is None:
+            department = LaboratoryDepartment(code="GENERAL", name_th="ทั่วไป", name_en="General")
+            self.session.add(department)
+            self.session.flush()
+        return department
 
     def get_specimen_type(self, specimen_type_id: int) -> SpecimenType | None:
         return self.session.get(SpecimenType, specimen_type_id)

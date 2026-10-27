@@ -28,12 +28,8 @@ def build_service() -> tuple[
     session = MagicMock(spec=Session)
     repository = MagicMock(spec=CatalogRepository)
     audit_repository = MagicMock(spec=AuditRepository)
-    category = CatalogCategory(
-        id=1, code="CHEM", name_th="Chem", name_en="Chem", is_active=True
-    )
-    specimen = SpecimenType(
-        id=1, code="SERUM", name_th="Serum", name_en="Serum", is_active=True
-    )
+    category = CatalogCategory(id=1, code="CHEM", name_th="Chem", name_en="Chem", is_active=True)
+    specimen = SpecimenType(id=1, code="SERUM", name_th="Serum", name_en="Serum", is_active=True)
     test = LabTest(
         id=1,
         code="GLU",
@@ -77,9 +73,7 @@ def test_partial_reference_range_update_validates_merged_state() -> None:
         service.update_reference_range(
             test.id,
             reference_range.id,
-            ReferenceRangeUpdate(
-                lower_value=Decimal("120"), reason="invalid partial update"
-            ),
+            ReferenceRangeUpdate(lower_value=Decimal("120"), reason="invalid partial update"),
             actor_reference="admin-1",
         )
 
@@ -114,9 +108,7 @@ def test_changed_price_adds_history_and_audits_only_field_name() -> None:
 
     service.update_test(
         test.id,
-        CatalogTestUpdate(
-            current_price=Decimal("125.50"), reason="annual price review"
-        ),
+        CatalogTestUpdate(current_price=Decimal("125.50"), reason="annual price review"),
         actor_reference="admin-1",
     )
 

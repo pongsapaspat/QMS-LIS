@@ -43,9 +43,7 @@ class Patient(TimestampMixin, Base):
     email: Mapped[str | None] = mapped_column(String(254), nullable=True)
     blood_group: Mapped[str | None] = mapped_column(String(10), nullable=True)
     emergency_contact_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    emergency_contact_relationship: Mapped[str | None] = mapped_column(
-        String(100), nullable=True
-    )
+    emergency_contact_relationship: Mapped[str | None] = mapped_column(String(100), nullable=True)
     emergency_contact_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
     identity_document_missing: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=text("1"), nullable=False, index=True
@@ -58,10 +56,6 @@ class Patient(TimestampMixin, Base):
 
     @property
     def display_name(self) -> str:
-        thai_name = " ".join(
-            part for part in (self.first_name_th, self.last_name_th) if part
-        )
-        english_name = " ".join(
-            part for part in (self.first_name_en, self.last_name_en) if part
-        )
+        thai_name = " ".join(part for part in (self.first_name_th, self.last_name_th) if part)
+        english_name = " ".join(part for part in (self.first_name_en, self.last_name_en) if part)
         return thai_name or english_name or "Unnamed patient"

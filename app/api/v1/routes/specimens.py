@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Query, status
 
 from app.api.dependencies import SpecimenServiceDependency
@@ -30,9 +29,7 @@ def collect_specimen(
     service: SpecimenServiceDependency,
     actor: SpecimenCollectorDependency,
 ) -> SpecimenResponse:
-    return SpecimenResponse.model_validate(
-        service.collect(data, actor_reference=actor.reference)
-    )
+    return SpecimenResponse.model_validate(service.collect(data, actor_reference=actor.reference))
 
 
 @router.get("/{specimen_id:int}", response_model=SpecimenResponse)

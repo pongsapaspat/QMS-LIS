@@ -180,7 +180,9 @@ def specimen_receiving_detail(
 
 @receiving_router.post("/receiving/{specimen_id}/receipt", name="specimen_receive")
 async def specimen_receive(
-    specimen_id: int, request: Request, service: SpecimenServiceDependency,
+    specimen_id: int,
+    request: Request,
+    service: SpecimenServiceDependency,
     actor: SpecimenCollectorDependency,
 ) -> Response:
     specimen = service.get(specimen_id)
@@ -205,7 +207,9 @@ async def specimen_receive(
 
 @receiving_router.post("/receiving/{specimen_id}/reject", name="specimen_receiving_reject")
 async def specimen_receiving_reject(
-    specimen_id: int, request: Request, service: SpecimenServiceDependency,
+    specimen_id: int,
+    request: Request,
+    service: SpecimenServiceDependency,
     actor: SpecimenCollectorDependency,
 ) -> Response:
     specimen = service.get(specimen_id)
@@ -236,11 +240,16 @@ def _receiving_detail_response(
     errors: list[str],
 ) -> Response:
     return templates.TemplateResponse(
-        request=request, name="specimens/receiving_detail.html",
+        request=request,
+        name="specimens/receiving_detail.html",
         context={
-            "page_title": "Receive specimen", "specimen": specimen,
-            "reason_labels": REJECTION_REASON_LABELS, "reason_codes": RejectionReasonCode,
-            "can_mutate": actor.role in {"ADMIN", "LAB_TECH"}, "errors": errors, "values": values,
+            "page_title": "Receive specimen",
+            "specimen": specimen,
+            "reason_labels": REJECTION_REASON_LABELS,
+            "reason_codes": RejectionReasonCode,
+            "can_mutate": actor.role in {"ADMIN", "LAB_TECH"},
+            "errors": errors,
+            "values": values,
         },
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT if errors else status.HTTP_200_OK,
     )

@@ -1,4 +1,3 @@
-
 from sqlalchemy.orm import Session
 
 from app.domain.exceptions import (

@@ -1,4 +1,3 @@
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -88,9 +87,7 @@ class SpecimenRepository:
             return False
         specimens = self.list_order_specimens(order_id)
         received_type_ids = {
-            specimen.specimen_type_id
-            for specimen in specimens
-            if specimen.status == "RECEIVED"
+            specimen.specimen_type_id for specimen in specimens if specimen.status == "RECEIVED"
         }
         return required_type_ids == received_type_ids
 

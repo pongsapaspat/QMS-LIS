@@ -14,8 +14,7 @@ from pydantic import (
 from app.domain.enums import BloodGroup, Sex
 
 MISSING_VALUE_MARKERS = frozenset(
-    marker.casefold()
-    for marker in ("-", "–", "—", "N/A", "NA", "ไม่มี", "ไม่ระบุ")
+    marker.casefold() for marker in ("-", "–", "—", "N/A", "NA", "ไม่มี", "ไม่ระบุ")
 )
 PASSPORT_PATTERN = re.compile(r"^[A-Z0-9]{6,20}$")
 PHONE_PATTERN = re.compile(r"^\+?[0-9]{8,15}$")
@@ -27,8 +26,7 @@ def is_valid_thai_national_id(value: str) -> bool:
     if not re.fullmatch(r"[0-9]{13}", value) or len(set(value)) == 1:
         return False
     weighted_sum = sum(
-        int(digit) * weight
-        for digit, weight in zip(value[:12], range(13, 1, -1), strict=True)
+        int(digit) * weight for digit, weight in zip(value[:12], range(13, 1, -1), strict=True)
     )
     check_digit = (11 - (weighted_sum % 11)) % 10
     return check_digit == int(value[-1])
