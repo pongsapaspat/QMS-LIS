@@ -2,7 +2,6 @@ from typing import Any
 
 from fastapi import APIRouter, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
 from app.api.dependencies import (
@@ -18,9 +17,9 @@ from app.domain.exceptions import (
 )
 from app.models.order import OrderPriority
 from app.schemas.order import LabOrderCreate
+from app.web.templates import templates
 
 router = APIRouter(prefix="/orders")
-templates = Jinja2Templates(directory="app/templates")
 
 
 def _context(

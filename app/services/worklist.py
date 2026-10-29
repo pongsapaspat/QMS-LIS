@@ -41,6 +41,8 @@ class WorklistService:
             task_types &= PENDING_TASK_TYPES
         elif status == WorklistTaskStatus.IN_PROGRESS:
             task_types &= {WorklistTaskType.RESULT_IN_PROGRESS}
+        elif status == WorklistTaskStatus.CORRECTION_REQUIRED:
+            task_types &= {WorklistTaskType.RESULT_CORRECTION_REQUIRED}
         records = self.repository.list_records(
             task_types={item.value for item in task_types},
             department_id=department_id,
@@ -97,6 +99,11 @@ class WorklistService:
             WorklistTaskType.RESULT_IN_PROGRESS: (
                 "Laboratory result in progress",
                 "Continue result entry",
+                f"/worklist/orders/{record.order_id}",
+            ),
+            WorklistTaskType.RESULT_CORRECTION_REQUIRED: (
+                "Result correction required",
+                "Correct result",
                 f"/worklist/orders/{record.order_id}",
             ),
         }

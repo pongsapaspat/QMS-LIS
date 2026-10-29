@@ -1,12 +1,11 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from app.api.dependencies import WorklistServiceDependency
 from app.core.security import ActorDependency
 from app.web.routes import orders, patients, results, specimens, test_catalog
+from app.web.templates import templates
 
-templates = Jinja2Templates(directory="app/templates")
 web_router = APIRouter(include_in_schema=False)
 web_router.include_router(patients.router)
 web_router.include_router(test_catalog.router)

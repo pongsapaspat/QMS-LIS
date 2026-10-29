@@ -112,7 +112,7 @@
           </div>
         </td>
         <td>
-          <div>{{ task.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+          <div>{{ task.created_at | app_datetime }}</div>
           {% if task.source_actor %}<div class="small text-body-secondary">{{ task.source_actor }}</div>{% endif %}
         </td>
         <td class="text-nowrap">

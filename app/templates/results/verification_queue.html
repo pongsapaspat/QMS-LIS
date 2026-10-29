@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div><h1 class="h3 mb-1">Verification Queue</h1><p class="text-body-secondary mb-0">Completed results awaiting independent review</p></div>
+  <span class="badge text-bg-primary fs-6">{{ queue.total }} result(s)</span>
+</div>
+<form class="card card-body mb-4" method="get">
+  <div class="row g-3 align-items-end">
+    <div class="col-md-3"><label class="form-label">Department</label><select class="form-select" name="department_id"><option value="">All</option>{% for department in departments %}<option value="{{ department.id }}"{% if filters.department_id == department.id %} selected{% endif %}>{{ department.code }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label">Priority</label><select class="form-select" name="priority"><option value="">All</option>{% for priority in priorities %}<option value="{{ priority.value }}"{% if filters.priority == priority.value %} selected{% endif %}>{{ priority.value }}</option>{% endfor %}</select></div>
+    <div class="col-md-5"><label class="form-label">Search</label><input class="form-control" name="search" value="{{ filters.search }}" placeholder="Order, accession, HN, patient, test"></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Apply</button></div>
+  </div>
+</form>
+{% if queue['items'] %}
+<div class="table-responsive"><table class="table table-hover align-middle">
+  <thead><tr><th>Order / patient</th><th>Specimen / test</th><th>Result</th><th>Entered</th><th>Status</th><th></th></tr></thead>
+  <tbody>{% for item in queue['items'] %}<tr>
+    <td><strong>{{ item.order_number }}</strong><div>{{ item.patient_hn }} · {{ item.patient_name }}</div><span class="badge {% if item.priority == 'URGENT' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ item.priority }}</span></td>
+    <td>{{ item.accession_number }} · {{ item.specimen_type }}<div>{{ item.test_code }} · {{ item.test_name }}</div><small>{{ item.department_code }}</small></td>
+    <td>{{ item.result_value }} {{ item.unit or '' }}{% if item.abnormal_flag %} <span class="badge text-bg-warning">{{ item.abnormal_flag }}</span>{% endif %}{% if item.critical %} <span class="badge text-bg-danger">Critical</span>{% endif %}</td>
+    <td>{{ item.entered_by }}<div class="small text-body-secondary">{{ item.entered_at | app_datetime if item.entered_at else '' }}</div></td>
+    <td><span class="badge {% if item.status == 'VERIFICATION_REJECTED' %}text-bg-danger{% else %}text-bg-info{% endif %}">{{ item.status }}</span></td>
+    <td><a class="btn btn-sm btn-primary" href="/results/verification/orders/{{ item.order_id }}">Review</a></td>
+  </tr>{% endfor %}</tbody>
+</table></div>
+{% else %}<div class="alert alert-info">No results are awaiting verification.</div>{% endif %}
+{% endblock %}

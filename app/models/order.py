@@ -28,6 +28,8 @@ class OrderStatus(StrEnum):
     SPECIMENS_RECEIVED = "SPECIMENS_RECEIVED"
     RESULTS_IN_PROGRESS = "RESULTS_IN_PROGRESS"
     RESULTS_COMPLETED = "RESULTS_COMPLETED"
+    RESULTS_VERIFIED = "RESULTS_VERIFIED"
+    RELEASED = "RELEASED"
     CANCELLED = "CANCELLED"
 
 
@@ -38,7 +40,10 @@ class OrderPriority(StrEnum):
 
 class LabOrder(TimestampMixin, Base):
     __tablename__ = "lab_orders"
-    __table_args__ = (Index("ix_lab_orders_patient_ordered_at", "patient_id", "ordered_at"),)
+    __table_args__ = (
+        Index("ix_lab_orders_patient_ordered_at", "patient_id", "ordered_at"),
+        Index("ix_lab_orders_status_priority", "status", "priority"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     order_number: Mapped[str] = mapped_column(String(24), nullable=False, unique=True)
@@ -62,6 +67,10 @@ class LabOrder(TimestampMixin, Base):
         UTCDateTime(), default=utc_now, server_default=func.now(), nullable=False, index=True
     )
     created_by: Mapped[str] = mapped_column(String(100), nullable=False)
+    verified_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True, index=True)
+    verified_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    released_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True, index=True)
+    released_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     patient: Mapped["Patient"] = relationship()
     items: Mapped[list["LabOrderItem"]] = relationship(

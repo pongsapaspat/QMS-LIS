@@ -23,6 +23,8 @@
             href="/worklist"
             {% if request.url.path.startswith('/worklist') %}aria-current="page"{% endif %}
           >Worklist | รายการงานตรวจ</a>
+          <a class="nav-link{% if request.url.path.startswith('/results/verification') %} active{% endif %}" href="/results/verification">Verification Queue</a>
+          <a class="nav-link{% if request.url.path.startswith('/results/release') %} active{% endif %}" href="/results/release">Release Queue</a>
           <a class="nav-link" href="/docs">API Docs</a>
           <a class="nav-link" href="/api/v1/health">API Health</a>
         </div>
@@ -31,5 +33,8 @@
     <main class="container py-4">
       {% block content %}{% endblock %}
     </main>
+    <footer class="container pb-4 text-body-secondary small">
+      Timezone: {{ app_timezone }}
+    </footer>
   </body>
 </html>

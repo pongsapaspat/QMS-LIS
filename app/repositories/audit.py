@@ -20,3 +20,16 @@ class AuditRepository:
             .order_by(AuditLog.occurred_at.desc(), AuditLog.id.desc())
         )
         return list(self.session.scalars(statement))
+
+    def list_for_entities(self, entity_type: str, entity_ids: list[int]) -> list[AuditLog]:
+        if not entity_ids:
+            return []
+        statement = (
+            select(AuditLog)
+            .where(
+                AuditLog.entity_type == entity_type,
+                AuditLog.entity_id.in_(entity_ids),
+            )
+            .order_by(AuditLog.occurred_at.desc(), AuditLog.id.desc())
+        )
+        return list(self.session.scalars(statement))

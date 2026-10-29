@@ -4,6 +4,7 @@ from decimal import Decimal
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings, get_settings
 from app.domain.exceptions import (
     InvalidResultOperationError,
     OrderNotFoundError,
@@ -17,7 +18,14 @@ from app.models.specimen import Specimen, SpecimenStatus
 from app.models.test_catalog import ReferenceRange
 from app.repositories.audit import AuditRepository
 from app.repositories.result import ResultRepository
-from app.schemas.result import MultiResultSave, ResultEdit, ResultItemSave
+from app.schemas.result import (
+    MultiResultSave,
+    OrderRelease,
+    ResultEdit,
+    ResultItemSave,
+    VerificationApproval,
+    VerificationRejection,
+)
 
 
 class ResultService:
@@ -26,10 +34,12 @@ class ResultService:
         session: Session,
         repository: ResultRepository | None = None,
         audit_repository: AuditRepository | None = None,
+        settings: Settings | None = None,
     ) -> None:
         self.session = session
         self.repository = repository or ResultRepository(session)
         self.audit_repository = audit_repository or AuditRepository(session)
+        self.settings = settings or get_settings()
 
     def worklist(
         self, **filters: object
@@ -61,6 +71,10 @@ class ResultService:
                     "results may only be entered for received specimens"
                 )
             existing = item.result
+            if existing is not None and existing.status == ResultStatus.RELEASED:
+                raise InvalidResultOperationError(
+                    "released results cannot be edited; use an amendment workflow"
+                )
             if (
                 existing is not None
                 and submitted.version is not None
@@ -82,7 +96,11 @@ class ResultService:
                     prior = None
                 else:
                     prior = self._value_snapshot(existing)
-                    if existing.status == ResultStatus.COMPLETED:
+                    if existing.status in {
+                        ResultStatus.COMPLETED,
+                        ResultStatus.VERIFICATION_REJECTED,
+                        ResultStatus.VERIFIED,
+                    }:
                         event = "RESULT_CORRECTED"
                     else:
                         event = "RESULT_UPDATED"
@@ -145,7 +163,7 @@ class ResultService:
             raise
 
     def edit(self, result_id: int, data: ResultEdit, *, actor_reference: str) -> Result:
-        result = self.session.get(Result, result_id)
+        result = self.repository.get_result(result_id)
         if result is None:
             raise ResultNotFoundError("result not found")
         return self.save_multiple(
@@ -153,6 +171,238 @@ class ResultService:
             MultiResultSave(items=[data]),
             actor_reference=actor_reference,
         )[0]
+
+    def verification_queue(
+        self,
+        *,
+        department_id: int | None,
+        priority: str | None,
+        search: str | None,
+        page: int,
+        page_size: int,
+    ) -> dict[str, object]:
+        results, total = self.repository.list_verification_queue(
+            department_id=department_id,
+            priority=priority,
+            search=search,
+            offset=(page - 1) * page_size,
+            limit=page_size,
+        )
+        return {
+            "items": [self._verification_item(result) for result in results],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+
+    def verification_context(self, order_id: int) -> dict[str, object]:
+        order = self.repository.get_order(order_id)
+        if order is None:
+            raise OrderNotFoundError("lab order not found")
+        return {
+            "order": self._order_summary(order),
+            "results": self._order_result_details(order),
+        }
+
+    def verify(
+        self,
+        result_id: int,
+        data: VerificationApproval,
+        *,
+        actor_reference: str,
+        actor_role: str,
+    ) -> Result:
+        result = self.repository.get_result(result_id)
+        if result is None:
+            raise ResultNotFoundError("result not found")
+        self._check_version(result, data.version)
+        self._validate_verification(result)
+        same_actor = actor_reference in {result.entered_by, result.last_modified_by}
+        bypass = False
+        if self.settings.enforce_four_eyes_check and same_actor:
+            bypass = (
+                actor_role == "ADMIN"
+                and data.bypass_four_eyes
+                and self.settings.allow_admin_four_eyes_bypass
+            )
+            if not bypass:
+                raise InvalidResultOperationError(
+                    "self-verification is prohibited by the four-eyes policy"
+                )
+        try:
+            result.status = ResultStatus.VERIFIED
+            result.verified_at = utc_now()
+            result.verified_by = actor_reference
+            result.verification_comment = data.comment
+            result.verification_rejected_at = None
+            result.verification_rejected_by = None
+            result.verification_rejection_reason = None
+            result.version += 1
+            self._audit(
+                "RESULT_VERIFIED",
+                result,
+                {"status", "verified_at", "verified_by", "verification_comment"},
+                data.comment or "",
+                actor_reference,
+            )
+            if bypass:
+                self._audit(
+                    "ADMIN_FOUR_EYES_BYPASS",
+                    result,
+                    {"status", "verified_by"},
+                    "explicit administrative four-eyes bypass",
+                    actor_reference,
+                )
+            self._update_order_verification(result.order_item.order, actor_reference)
+            self.session.commit()
+            self.session.refresh(result)
+            return result
+        except SQLAlchemyError as exc:
+            self.session.rollback()
+            raise InvalidResultOperationError("result verification could not be completed") from exc
+        except Exception:
+            self.session.rollback()
+            raise
+
+    def reject_verification(
+        self,
+        result_id: int,
+        data: VerificationRejection,
+        *,
+        actor_reference: str,
+    ) -> Result:
+        result = self.repository.get_result(result_id)
+        if result is None:
+            raise ResultNotFoundError("result not found")
+        self._check_version(result, data.version)
+        if result.status != ResultStatus.COMPLETED:
+            raise InvalidResultOperationError(
+                "only completed results may be rejected from verification"
+            )
+        if result.order_item.order.status == OrderStatus.CANCELLED:
+            raise InvalidResultOperationError("cancelled orders cannot be reviewed")
+        try:
+            result.status = ResultStatus.VERIFICATION_REJECTED
+            result.verification_rejected_at = utc_now()
+            result.verification_rejected_by = actor_reference
+            result.verification_rejection_reason = data.reason
+            result.verification_comment = None
+            result.version += 1
+            order = result.order_item.order
+            order.status = OrderStatus.RESULTS_IN_PROGRESS
+            order.verified_at = None
+            order.verified_by = None
+            self._audit(
+                "RESULT_VERIFICATION_REJECTED",
+                result,
+                {
+                    "status",
+                    "verification_rejected_at",
+                    "verification_rejected_by",
+                    "verification_rejection_reason",
+                },
+                data.reason,
+                actor_reference,
+            )
+            self.session.commit()
+            self.session.refresh(result)
+            return result
+        except SQLAlchemyError as exc:
+            self.session.rollback()
+            raise InvalidResultOperationError(
+                "verification rejection could not be completed"
+            ) from exc
+        except Exception:
+            self.session.rollback()
+            raise
+
+    def release_queue(
+        self,
+        *,
+        priority: str | None,
+        search: str | None,
+        page: int,
+        page_size: int,
+    ) -> dict[str, object]:
+        orders, total = self.repository.list_release_queue(
+            priority=priority,
+            search=search,
+            offset=(page - 1) * page_size,
+            limit=page_size,
+        )
+        return {
+            "items": [self._release_order(order) for order in orders],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+
+    def release_preview(self, order_id: int) -> dict[str, object]:
+        order = self.repository.get_order(order_id)
+        if order is None:
+            raise OrderNotFoundError("lab order not found")
+        issues = self._release_issues(order)
+        return {
+            "order": self._order_summary(order),
+            "results": self._order_result_details(order),
+            "release_ready": not issues,
+            "issues": issues,
+        }
+
+    def release(
+        self,
+        order_id: int,
+        data: OrderRelease,
+        *,
+        actor_reference: str,
+    ) -> LabOrder:
+        order = self.repository.get_order(order_id)
+        if order is None:
+            raise OrderNotFoundError("lab order not found")
+        issues = self._release_issues(order)
+        if issues:
+            raise InvalidResultOperationError("; ".join(issues))
+        released_at = utc_now()
+        try:
+            for item in order.items:
+                result = item.result
+                if result is None:
+                    raise InvalidResultOperationError(
+                        f"required result {item.test_code} is missing"
+                    )
+                result.status = ResultStatus.RELEASED
+                result.released_at = released_at
+                result.released_by = actor_reference
+                result.version += 1
+                self._audit(
+                    "RESULT_RELEASED",
+                    result,
+                    {"status", "released_at", "released_by"},
+                    data.comment or "",
+                    actor_reference,
+                )
+            order.status = OrderStatus.RELEASED
+            order.released_at = released_at
+            order.released_by = actor_reference
+            self.audit_repository.add(
+                AuditLog(
+                    event_type="ORDER_RELEASED",
+                    entity_type="lab_order",
+                    entity_id=order.id,
+                    changed_fields=["released_at", "released_by", "status"],
+                    reason=data.comment or "",
+                    actor_reference=actor_reference,
+                )
+            )
+            self.session.commit()
+            self.session.refresh(order)
+            return order
+        except SQLAlchemyError as exc:
+            self.session.rollback()
+            raise InvalidResultOperationError("order release could not be completed") from exc
+        except Exception:
+            self.session.rollback()
+            raise
 
     def _interpret(self, item: LabOrderItem, submitted: ResultItemSave) -> dict[str, object]:
         result_type = item.result_type
@@ -240,6 +490,12 @@ class ResultService:
         result.entered_at = result.entered_at or utc_now()
         result.entered_by = result.entered_by or actor
         result.last_modified_at, result.last_modified_by = utc_now(), actor
+        result.verified_at = None
+        result.verified_by = None
+        result.verification_comment = None
+        result.verification_rejected_at = None
+        result.verification_rejected_by = None
+        result.verification_rejection_reason = None
         result.version += 1
         if result.abnormal_flag not in {"LL", "HH"}:
             result.critical_acknowledged_at, result.critical_acknowledged_by = None, None
@@ -269,13 +525,19 @@ class ResultService:
 
     def _update_order_status(self, order: LabOrder, actor: str) -> None:
         items = self.repository.order_context(order.id)
+        completed_statuses = {
+            ResultStatus.COMPLETED,
+            ResultStatus.VERIFIED,
+            ResultStatus.RELEASED,
+        }
         completed = bool(items) and all(
-            item.result is not None and item.result.status == ResultStatus.COMPLETED
-            for item in items
+            item.result is not None and item.result.status in completed_statuses for item in items
         )
         target = OrderStatus.RESULTS_COMPLETED if completed else OrderStatus.RESULTS_IN_PROGRESS
         if order.status != target:
             order.status = target
+            order.verified_at = None
+            order.verified_by = None
             self.audit_repository.add(
                 AuditLog(
                     event_type="ORDER_RESULTS_COMPLETED"
@@ -288,3 +550,220 @@ class ResultService:
                     actor_reference=actor,
                 )
             )
+
+    @staticmethod
+    def _check_version(result: Result, version: int | None) -> None:
+        if version is not None and result.version != version:
+            raise InvalidResultOperationError("concurrent result update conflict")
+
+    @staticmethod
+    def _validate_verification(result: Result) -> None:
+        if result.status != ResultStatus.COMPLETED:
+            raise InvalidResultOperationError("only completed results may be verified")
+        if result.specimen.status != SpecimenStatus.RECEIVED:
+            raise InvalidResultOperationError("the associated specimen has not been received")
+        if result.order_item.order.status == OrderStatus.CANCELLED:
+            raise InvalidResultOperationError("cancelled orders cannot be verified")
+        if result.abnormal_flag in {"LL", "HH"} and result.critical_acknowledged_at is None:
+            raise InvalidResultOperationError(
+                "critical value acknowledgement is required before verification"
+            )
+        has_value = any(
+            value is not None
+            for value in (result.numeric_value, result.text_value, result.categorical_value)
+        )
+        if not has_value:
+            raise InvalidResultOperationError("result validation has not passed")
+
+    def _update_order_verification(self, order: LabOrder, actor: str) -> None:
+        items = self.repository.order_context(order.id)
+        fully_verified = bool(items) and all(
+            item.result is not None and item.result.status == ResultStatus.VERIFIED
+            for item in items
+        )
+        specimens_received = all(
+            item.result is not None and item.result.specimen.status == SpecimenStatus.RECEIVED
+            for item in items
+        )
+        critical_resolved = all(
+            item.result is not None
+            and (
+                item.result.abnormal_flag not in {"LL", "HH"}
+                or item.result.critical_acknowledged_at is not None
+            )
+            for item in items
+        )
+        if not (fully_verified and specimens_received and critical_resolved):
+            return
+        order.status = OrderStatus.RESULTS_VERIFIED
+        order.verified_at = utc_now()
+        order.verified_by = actor
+        self.audit_repository.add(
+            AuditLog(
+                event_type="ORDER_VERIFIED",
+                entity_type="lab_order",
+                entity_id=order.id,
+                changed_fields=["status", "verified_at", "verified_by"],
+                reason="all required results verified",
+                actor_reference=actor,
+            )
+        )
+
+    def _release_issues(self, order: LabOrder) -> list[str]:
+        if order.status == OrderStatus.CANCELLED:
+            return ["cancelled orders cannot be released"]
+        if order.status == OrderStatus.RELEASED:
+            return ["order has already been released"]
+        issues: list[str] = []
+        for item in order.items:
+            result = item.result
+            if result is None:
+                issues.append(f"required result {item.test_code} is missing")
+                continue
+            if result.status == ResultStatus.VERIFICATION_REJECTED:
+                issues.append(f"result {item.test_code} requires correction")
+            elif result.status != ResultStatus.VERIFIED:
+                issues.append(f"result {item.test_code} is not verified")
+            if result.specimen.status == SpecimenStatus.REJECTED:
+                issues.append(f"specimen for {item.test_code} is rejected")
+            elif result.specimen.status != SpecimenStatus.RECEIVED:
+                issues.append(f"specimen for {item.test_code} is not received")
+            if (
+                result.abnormal_flag in {"LL", "HH"}
+                and result.critical_acknowledged_at is None
+            ):
+                issues.append(f"critical value for {item.test_code} is not acknowledged")
+        if order.status != OrderStatus.RESULTS_VERIFIED and not issues:
+            issues.append("order is not fully verified")
+        return issues
+
+    @staticmethod
+    def _result_value(result: Result) -> str | None:
+        if result.numeric_value is not None:
+            return str(result.numeric_value)
+        return result.text_value or result.categorical_value
+
+    def _verification_item(self, result: Result) -> dict[str, object]:
+        item = result.order_item
+        order = item.order
+        return {
+            "result_id": result.id,
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "patient_hn": order.patient.hn,
+            "patient_name": order.patient.display_name,
+            "accession_number": result.specimen.accession_number,
+            "specimen_type": result.specimen.specimen_type_name_en,
+            "department_id": item.lab_test.department_id,
+            "department_code": item.lab_test.department.code,
+            "test_code": item.test_code,
+            "test_name": item.test_name_en,
+            "result_value": self._result_value(result),
+            "unit": result.result_unit_snapshot,
+            "reference_range": result.reference_range_snapshot,
+            "abnormal_flag": result.abnormal_flag,
+            "critical": result.abnormal_flag in {"LL", "HH"},
+            "entered_by": result.entered_by,
+            "entered_at": result.entered_at,
+            "status": result.status,
+            "priority": order.priority,
+            "version": result.version,
+        }
+
+    def _verification_detail(
+        self, result: Result, history: list[AuditLog] | None = None
+    ) -> dict[str, object]:
+        detail = self._verification_item(result)
+        detail.update(
+            {
+                "verified_by": result.verified_by,
+                "verified_at": result.verified_at,
+                "verification_comment": result.verification_comment,
+                "verification_rejected_by": result.verification_rejected_by,
+                "verification_rejected_at": result.verification_rejected_at,
+                "verification_rejection_reason": result.verification_rejection_reason,
+                "critical_acknowledged_by": result.critical_acknowledged_by,
+                "critical_acknowledged_at": result.critical_acknowledged_at,
+                "revisions": [
+                    {
+                        "id": revision.id,
+                        "previous_value": revision.previous_value,
+                        "new_value": revision.new_value,
+                        "previous_flag": revision.previous_flag,
+                        "new_flag": revision.new_flag,
+                        "modification_reason": revision.modification_reason,
+                        "modified_at": revision.modified_at,
+                        "modified_by": revision.modified_by,
+                    }
+                    for revision in result.revisions
+                ],
+                "history": [
+                    {
+                        "event_type": event.event_type,
+                        "actor_reference": event.actor_reference,
+                        "occurred_at": event.occurred_at,
+                        "reason": event.reason,
+                    }
+                    for event in (
+                        history
+                        if history is not None
+                        else self.audit_repository.list_for_entity("result", result.id)
+                    )
+                    if event.event_type
+                    in {
+                        "CRITICAL_VALUE_ACKNOWLEDGED",
+                        "RESULT_VERIFIED",
+                        "RESULT_VERIFICATION_REJECTED",
+                        "RESULT_RELEASED",
+                        "ADMIN_FOUR_EYES_BYPASS",
+                    }
+                ],
+            }
+        )
+        return detail
+
+    def _order_result_details(self, order: LabOrder) -> list[dict[str, object]]:
+        results = [item.result for item in order.items if item.result is not None]
+        events = self.audit_repository.list_for_entities(
+            "result", [result.id for result in results]
+        )
+        history_by_result: dict[int, list[AuditLog]] = {}
+        for event in events:
+            history_by_result.setdefault(event.entity_id, []).append(event)
+        return [
+            self._verification_detail(result, history_by_result.get(result.id, []))
+            for result in results
+        ]
+
+    @staticmethod
+    def _order_summary(order: LabOrder) -> dict[str, object]:
+        accessions = sorted(
+            {
+                item.result.specimen.accession_number
+                for item in order.items
+                if item.result is not None
+            }
+        )
+        return {
+            "id": order.id,
+            "order_number": order.order_number,
+            "patient_hn": order.patient.hn,
+            "patient_name": order.patient.display_name,
+            "priority": order.priority,
+            "status": order.status,
+            "accession_numbers": accessions,
+            "verified_at": order.verified_at,
+            "verified_by": order.verified_by,
+            "released_at": order.released_at,
+            "released_by": order.released_by,
+        }
+
+    def _release_order(self, order: LabOrder) -> dict[str, object]:
+        results = [item.result for item in order.items if item.result is not None]
+        return {
+            **self._order_summary(order),
+            "result_count": len(results),
+            "has_critical": any(
+                result.abnormal_flag in {"LL", "HH"} for result in results
+            ),
+        }

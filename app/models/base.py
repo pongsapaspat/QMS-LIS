@@ -1,13 +1,17 @@
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlalchemy import DateTime, MetaData, func
 from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
 
+from app.core.time import ensure_utc
+from app.core.time import utc_now as _utc_now
+
 
 def utc_now() -> datetime:
-    return datetime.now(UTC)
+    """Backward-compatible model default backed by the central UTC clock."""
+    return _utc_now()
 
 
 class UTCDateTime(TypeDecorator[datetime]):
@@ -19,16 +23,12 @@ class UTCDateTime(TypeDecorator[datetime]):
     def process_bind_param(self, value: datetime | None, dialect: Dialect) -> datetime | None:
         if value is None:
             return None
-        if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value.astimezone(UTC)
+        return ensure_utc(value)
 
     def process_result_value(self, value: datetime | None, dialect: Dialect) -> datetime | None:
         if value is None:
             return None
-        if value.tzinfo is None:
-            return value.replace(tzinfo=UTC)
-        return value.astimezone(UTC)
+        return ensure_utc(value)
 
 
 class Base(DeclarativeBase):

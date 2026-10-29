@@ -4,7 +4,6 @@ from typing import Any
 
 from fastapi import APIRouter, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
 from app.api.dependencies import TestCatalogServiceDependency
@@ -26,9 +25,9 @@ from app.schemas.test_catalog import (
     ReferenceRangeCreate,
     ReferenceRangeUpdate,
 )
+from app.web.templates import templates
 
 router = APIRouter(prefix="/test-catalog")
-templates = Jinja2Templates(directory="app/templates")
 
 TEST_FORM_FIELDS = (
     "code",

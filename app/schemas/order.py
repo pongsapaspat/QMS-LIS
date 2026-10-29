@@ -57,6 +57,10 @@ class LabOrderResponse(BaseModel):
     clinical_note: str | None
     ordered_at: datetime
     created_by: str
+    verified_at: datetime | None
+    verified_by: str | None
+    released_at: datetime | None
+    released_by: str | None
     created_at: datetime
     updated_at: datetime
     items: list[LabOrderItemResponse]

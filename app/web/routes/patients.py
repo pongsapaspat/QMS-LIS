@@ -2,7 +2,6 @@ from typing import Any
 
 from fastapi import APIRouter, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
 from app.api.dependencies import PatientServiceDependency
@@ -15,9 +14,9 @@ from app.domain.exceptions import (
 )
 from app.models.patient import Patient
 from app.schemas.patient import PatientCreate, PatientUpdate
+from app.web.templates import templates
 
 router = APIRouter(prefix="/patients")
-templates = Jinja2Templates(directory="app/templates")
 
 PATIENT_FORM_FIELDS = (
     "title",

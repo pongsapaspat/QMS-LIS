@@ -1,11 +1,67 @@
 from fastapi import APIRouter, Query
 
 from app.api.dependencies import ResultServiceDependency
-from app.core.security import ResultMutationDependency, ResultReaderDependency
+from app.core.security import (
+    ResultMutationDependency,
+    ResultReaderDependency,
+    ResultVerifierDependency,
+)
+from app.models.order import OrderPriority
 from app.models.result import Result
-from app.schemas.result import MultiResultSave, ResultEdit, ResultResponse
+from app.schemas.result import (
+    MultiResultSave,
+    ResultEdit,
+    ResultResponse,
+    VerificationApproval,
+    VerificationRejection,
+)
 
 router = APIRouter(prefix="/results", tags=["results"])
+
+
+@router.get("/verification-queue")
+def verification_queue(
+    service: ResultServiceDependency,
+    actor: ResultReaderDependency,
+    department_id: int | None = Query(default=None, ge=1),
+    priority: OrderPriority | None = None,
+    search: str | None = Query(default=None, max_length=100),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+) -> dict[str, object]:
+    return service.verification_queue(
+        department_id=department_id,
+        priority=priority.value if priority else None,
+        search=search,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/release-queue")
+def release_queue(
+    service: ResultServiceDependency,
+    actor: ResultReaderDependency,
+    priority: OrderPriority | None = None,
+    search: str | None = Query(default=None, max_length=100),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+) -> dict[str, object]:
+    return service.release_queue(
+        priority=priority.value if priority else None,
+        search=search,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/orders/{order_id}/verification")
+def order_verification_context(
+    order_id: int,
+    service: ResultServiceDependency,
+    actor: ResultReaderDependency,
+) -> dict[str, object]:
+    return service.verification_context(order_id)
 
 
 @router.get("/worklist")
@@ -91,3 +147,28 @@ def edit_result(
     actor: ResultMutationDependency,
 ) -> Result:
     return service.edit(result_id, data, actor_reference=actor.reference)
+
+
+@router.patch("/{result_id}/verify", response_model=ResultResponse)
+def verify_result(
+    result_id: int,
+    data: VerificationApproval,
+    service: ResultServiceDependency,
+    actor: ResultVerifierDependency,
+) -> Result:
+    return service.verify(
+        result_id,
+        data,
+        actor_reference=actor.reference,
+        actor_role=actor.role,
+    )
+
+
+@router.patch("/{result_id}/verification-rejection", response_model=ResultResponse)
+def reject_result_verification(
+    result_id: int,
+    data: VerificationRejection,
+    service: ResultServiceDependency,
+    actor: ResultVerifierDependency,
+) -> Result:
+    return service.reject_verification(result_id, data, actor_reference=actor.reference)

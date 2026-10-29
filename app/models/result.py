@@ -17,6 +17,9 @@ class ResultStatus(StrEnum):
     PENDING = "PENDING"
     IN_PROGRESS = "IN_PROGRESS"
     COMPLETED = "COMPLETED"
+    VERIFICATION_REJECTED = "VERIFICATION_REJECTED"
+    VERIFIED = "VERIFIED"
+    RELEASED = "RELEASED"
 
 
 class Result(Base):
@@ -47,6 +50,16 @@ class Result(Base):
     last_modified_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     critical_acknowledged_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     critical_acknowledged_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True, index=True)
+    verified_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    verification_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    verification_rejected_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime(), nullable=True
+    )
+    verification_rejected_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    verification_rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    released_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True, index=True)
+    released_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     order_item: Mapped["LabOrderItem"] = relationship(back_populates="result")

@@ -2,7 +2,6 @@ from typing import Any
 
 from fastapi import APIRouter, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
 from app.api.dependencies import SpecimenServiceDependency
@@ -11,6 +10,7 @@ from app.core.security import (
     SpecimenCollectorDependency,
     SpecimenReceivingReaderDependency,
 )
+from app.core.time import parse_local_datetime
 from app.domain.exceptions import InvalidSpecimenOperationError, OrderNotFoundError
 from app.schemas.specimen import (
     REJECTION_REASON_LABELS,
@@ -19,10 +19,10 @@ from app.schemas.specimen import (
     SpecimenReceiptRequest,
     SpecimenRejectRequest,
 )
+from app.web.templates import templates
 
 router = APIRouter(prefix="/orders")
 receiving_router = APIRouter(prefix="/specimens")
-templates = Jinja2Templates(directory="app/templates")
 
 
 def _errors(exc: Exception) -> list[str]:
@@ -73,13 +73,28 @@ async def specimen_collect(
         "collection_note": form.get("collection_note") or None,
     }
     try:
+        collected_at = (
+            parse_local_datetime(str(values["collected_at"]))
+            if values["collected_at"]
+            else None
+        )
         service.collect(
             SpecimenCollectRequest.model_validate(
-                {"order_id": order_id, "specimen_type_id": specimen_type_id, **values}
+                {
+                    "order_id": order_id,
+                    "specimen_type_id": specimen_type_id,
+                    "collected_at": collected_at,
+                    "collection_note": values["collection_note"],
+                }
             ),
             actor_reference=actor.reference,
         )
-    except (ValidationError, InvalidSpecimenOperationError, OrderNotFoundError) as exc:
+    except (
+        ValidationError,
+        InvalidSpecimenOperationError,
+        OrderNotFoundError,
+        ValueError,
+    ) as exc:
         requirements = service.requirements(order_id)
         order = service.repository.get_order(order_id)
         if order is None:
@@ -192,12 +207,19 @@ async def specimen_receive(
         "receiving_note": form.get("receiving_note") or None,
     }
     try:
+        received_at = (
+            parse_local_datetime(str(values["received_at"]))
+            if values["received_at"]
+            else None
+        )
         service.receive(
             specimen_id,
-            SpecimenReceiptRequest.model_validate(values),
+            SpecimenReceiptRequest.model_validate(
+                {"received_at": received_at, "receiving_note": values["receiving_note"]}
+            ),
             actor_reference=actor.reference,
         )
-    except (ValidationError, InvalidSpecimenOperationError) as exc:
+    except (ValidationError, InvalidSpecimenOperationError, ValueError) as exc:
         return _receiving_detail_response(request, specimen, actor, values, _errors(exc))
     return RedirectResponse(
         f"{request.url_for('specimen_receiving_queue')}?success=received",

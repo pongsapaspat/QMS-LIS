@@ -386,3 +386,61 @@ def test_receiving_queue_receipt_and_final_order_status(
         order = session.get(LabOrder, order_id)
         assert order is not None
         assert order.status == OrderStatus.SPECIMENS_RECEIVED
+
+
+@pytest.mark.integration
+def test_web_datetime_local_uses_bangkok_but_api_remains_utc(
+    client: TestClient, db_session_factory: sessionmaker[Session]
+) -> None:
+    order_id, serum_id, _, _ = create_collection_order(client)
+
+    naive_api = client.post(
+        "/api/v1/specimens",
+        json={
+            "order_id": order_id,
+            "specimen_type_id": serum_id,
+            "collected_at": "2026-10-28T14:30",
+        },
+        headers=HEADERS,
+    )
+    assert naive_api.status_code == 422
+    assert "timezone offset is required" in naive_api.text
+
+    collected = client.post(
+        f"/orders/{order_id}/specimens/{serum_id}/collect",
+        data={"collected_at": "2026-10-28T14:30"},
+        headers=HEADERS,
+        follow_redirects=False,
+    )
+    assert collected.status_code == 303
+    with db_session_factory() as session:
+        specimen = session.scalars(
+            select(Specimen).where(
+                Specimen.order_id == order_id,
+                Specimen.specimen_type_id == serum_id,
+            )
+        ).one()
+        specimen_id = specimen.id
+        assert specimen.collected_at.isoformat() == "2026-10-28T07:30:00+00:00"
+
+    collection_page = client.get(collected.headers["location"], headers=HEADERS)
+    assert collection_page.status_code == 200
+    assert "28/10/2026 14:30 (+07:00)" in collection_page.text
+    assert "Timezone: Asia/Bangkok" in collection_page.text
+
+    received = client.post(
+        f"/specimens/receiving/{specimen_id}/receipt",
+        data={"received_at": "2026-10-28T15:00"},
+        headers=HEADERS,
+        follow_redirects=False,
+    )
+    assert received.status_code == 303
+    with db_session_factory() as session:
+        specimen = session.get(Specimen, specimen_id)
+        assert specimen is not None
+        assert specimen.received_at is not None
+        assert specimen.received_at.isoformat() == "2026-10-28T08:00:00+00:00"
+
+    detail = client.get(f"/orders/{order_id}", headers=HEADERS)
+    assert detail.status_code == 200
+    assert "28/10/2026 15:00 (+07:00)" in detail.text

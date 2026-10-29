@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -67,7 +68,69 @@ class ResultResponse(BaseModel):
     reference_range_snapshot: dict[str, object] | None
     abnormal_flag: str | None
     status: str
+    entered_at: datetime | None
+    entered_by: str | None
+    verified_at: datetime | None
+    verified_by: str | None
+    verification_comment: str | None
+    verification_rejected_at: datetime | None
+    verification_rejected_by: str | None
+    verification_rejection_reason: str | None
+    released_at: datetime | None
+    released_by: str | None
     version: int
+
+
+class VerificationApproval(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    comment: str | None = Field(default=None, max_length=1000)
+    version: int | None = Field(default=None, ge=1)
+    bypass_four_eyes: bool = False
+
+    @field_validator("comment")
+    @classmethod
+    def normalize_comment(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = " ".join(value.split())
+        return normalized or None
+
+
+class VerificationRejection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=1000)
+    version: int | None = Field(default=None, ge=1)
+
+    _reason = field_validator("reason")(_text)
+
+
+class OrderRelease(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    comment: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("comment")
+    @classmethod
+    def normalize_comment(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = " ".join(value.split())
+        return normalized or None
+
+
+class ResultRevisionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    previous_value: dict[str, object] | None
+    new_value: dict[str, object] | None
+    previous_flag: str | None
+    new_flag: str | None
+    modification_reason: str
+    modified_at: datetime
+    modified_by: str
 
 
 class WorklistItem(BaseModel):

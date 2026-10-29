@@ -1,8 +1,9 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.core.time import ensure_utc
 from app.models.specimen import SpecimenStatus
 
 
@@ -25,6 +26,11 @@ class SpecimenCollectRequest(BaseModel):
     @classmethod
     def normalize_collection_note(cls, value: object) -> str | None:
         return _normalize_optional_text(value)
+
+    @field_validator("collected_at")
+    @classmethod
+    def normalize_collected_at(cls, value: datetime | None) -> datetime | None:
+        return _normalize_api_datetime(value)
 
 
 class SpecimenRejectRequest(BaseModel):
@@ -89,9 +95,15 @@ class SpecimenReceiptRequest(BaseModel):
     @field_validator("received_at")
     @classmethod
     def normalize_received_at(cls, value: datetime | None) -> datetime | None:
-        if value is None:
-            return None
-        return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        return _normalize_api_datetime(value)
+
+
+def _normalize_api_datetime(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("timezone offset is required for API datetime values")
+    return ensure_utc(value)
 
 
 class SpecimenOrderItemResponse(BaseModel):

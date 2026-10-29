@@ -93,7 +93,11 @@ class WorklistRepository:
                     department_id=department_id, priority=priority, search=search
                 )
             )
-        result_types = task_types & {"RESULT_PENDING_ENTRY", "RESULT_IN_PROGRESS"}
+        result_types = task_types & {
+            "RESULT_PENDING_ENTRY",
+            "RESULT_IN_PROGRESS",
+            "RESULT_CORRECTION_REQUIRED",
+        }
         if result_types:
             records.extend(
                 self._pending_results(
@@ -275,6 +279,8 @@ class WorklistRepository:
             )
         if "RESULT_IN_PROGRESS" in task_types:
             result_conditions.append(Result.status == ResultStatus.IN_PROGRESS)
+        if "RESULT_CORRECTION_REQUIRED" in task_types:
+            result_conditions.append(Result.status == ResultStatus.VERIFICATION_REJECTED)
         statement = statement.where(or_(*result_conditions))
         if department_id is not None:
             statement = statement.where(LabTest.department_id == department_id)
@@ -293,10 +299,25 @@ class WorklistRepository:
             statement
         ):
             in_progress = result is not None and result.status == ResultStatus.IN_PROGRESS
+            correction_required = (
+                result is not None and result.status == ResultStatus.VERIFICATION_REJECTED
+            )
             records.append(
                 WorklistRecord(
-                    task_type="RESULT_IN_PROGRESS" if in_progress else "RESULT_PENDING_ENTRY",
-                    task_status="IN_PROGRESS" if in_progress else "PENDING",
+                    task_type=(
+                        "RESULT_CORRECTION_REQUIRED"
+                        if correction_required
+                        else "RESULT_IN_PROGRESS"
+                        if in_progress
+                        else "RESULT_PENDING_ENTRY"
+                    ),
+                    task_status=(
+                        "CORRECTION_REQUIRED"
+                        if correction_required
+                        else "IN_PROGRESS"
+                        if in_progress
+                        else "PENDING"
+                    ),
                     priority=order.priority,
                     order_id=order.id,
                     order_number=order.order_number,

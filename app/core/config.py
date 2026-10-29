@@ -1,6 +1,7 @@
 from functools import lru_cache
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +14,7 @@ class Settings(BaseSettings):
     default_branch_id: int = 1
     database_url: str = "sqlite:///./qms_lis_dev.sqlite3"
     enforce_four_eyes_check: bool = False
+    allow_admin_four_eyes_bypass: bool = False
     allow_partial_release: bool = True
     enable_dev_admin_fallback: bool = True
     log_level: str = "INFO"
@@ -24,6 +26,15 @@ class Settings(BaseSettings):
         env_prefix="QMS_LIS_",
         extra="ignore",
     )
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("timezone must be a valid IANA timezone name") from exc
+        return value
 
 
 @lru_cache
