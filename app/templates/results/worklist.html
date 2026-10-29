@@ -1,7 +1,153 @@
 {% extends "base.html" %}
+
 {% block content %}
-<h1>Laboratory worklist</h1>
-<table class="table"><thead><tr><th>Order</th><th>Accession</th><th>Test</th><th>Status</th><th></th></tr></thead><tbody>
-{% for item, specimen, result in rows %}<tr><td>{{ item.order.order_number }}</td><td>{{ specimen.accession_number }}</td><td>{{ item.test_name_en }}</td><td>{{ result.status if result else 'PENDING' }}</td><td><a href="{{ request.url_for('result_entry', order_id=item.order_id) }}">Enter</a></td></tr>{% endfor %}
-</tbody></table>
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+  <div>
+    <h1 class="h3 mb-1">Laboratory Worklist</h1>
+    <p class="text-body-secondary mb-0">รายการงานห้องปฏิบัติการ</p>
+  </div>
+  <span class="badge text-bg-primary fs-6">{{ worklist.total }} actionable task{% if worklist.total != 1 %}s{% endif %}</span>
+</div>
+
+<form class="card card-body mb-4" method="get" action="/worklist">
+  <div class="row g-3 align-items-end">
+    <div class="col-12 col-md-6 col-xl-3">
+      <label class="form-label" for="task-type">Task type</label>
+      <select class="form-select" id="task-type" name="task_type">
+        <option value="">All actionable tasks</option>
+        {% for item in task_types %}
+        <option value="{{ item.value }}"{% if filters.task_type == item.value %} selected{% endif %}>{{ item.value.replace('_', ' ').title() }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-6 col-xl-2">
+      <label class="form-label" for="department">Department</label>
+      <select class="form-select" id="department" name="department_id">
+        <option value="">All departments</option>
+        {% for department in departments %}
+        <option value="{{ department.id }}"{% if filters.department_id == department.id %} selected{% endif %}>{{ department.code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-3 col-xl-2">
+      <label class="form-label" for="priority">Priority</label>
+      <select class="form-select" id="priority" name="priority">
+        <option value="">All priorities</option>
+        {% for item in priorities %}
+        <option value="{{ item.value }}"{% if filters.priority == item.value %} selected{% endif %}>{{ item.value.title() }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-3 col-xl-2">
+      <label class="form-label" for="status">Status</label>
+      <select class="form-select" id="status" name="status">
+        <option value="">All active statuses</option>
+        {% for item in task_statuses %}
+        <option value="{{ item.value }}"{% if filters.status == item.value %} selected{% endif %}>{{ item.value.replace('_', ' ').title() }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-9 col-xl-3">
+      <label class="form-label" for="search">Search</label>
+      <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Order, accession, HN, patient, test">
+    </div>
+    <div class="col-12 d-flex flex-wrap gap-2">
+      <button class="btn btn-primary" type="submit">Apply filters</button>
+      <a class="btn btn-outline-secondary" href="/worklist">Clear</a>
+    </div>
+  </div>
+</form>
+
+<div class="row g-3 mb-4" aria-label="Task counts">
+  {% for task_type, count in worklist.counts_by_task_type.items() %}
+  <div class="col-6 col-xl-3">
+    <a class="card h-100 text-decoration-none text-body" href="/worklist?task_type={{ task_type }}">
+      <div class="card-body py-3">
+        <div class="small text-body-secondary">{{ task_type.replace('_', ' ').title() }}</div>
+        <div class="fs-4 fw-semibold">{{ count }}</div>
+      </div>
+    </a>
+  </div>
+  {% endfor %}
+</div>
+
+{% if worklist.items %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead>
+      <tr>
+        <th scope="col">Task</th>
+        <th scope="col">Order / patient</th>
+        <th scope="col">Specimen / test</th>
+        <th scope="col">Priority</th>
+        <th scope="col">Status</th>
+        <th scope="col">Time</th>
+        <th scope="col"><span class="visually-hidden">Action</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for task in worklist.items %}
+      <tr>
+        <td>
+          <div class="fw-semibold">{{ task.task_label }}</div>
+          <div class="small text-body-secondary">{{ task.task_type.value }}</div>
+        </td>
+        <td>
+          <a href="{{ task.detail_url }}">{{ task.order_number }}</a>
+          <div>{{ task.patient_hn }} · {{ task.patient_display_name }}</div>
+        </td>
+        <td>
+          {% if task.accession_number %}<div>{{ task.accession_number }}</div>{% endif %}
+          {% if task.specimen_type %}<div class="small text-body-secondary">{{ task.specimen_type }}</div>{% endif %}
+          {% if task.test_code %}<div>{{ task.test_code }} · {{ task.test_name }}</div>{% endif %}
+          {% if task.department_code %}<span class="badge text-bg-light">{{ task.department_code }}</span>{% endif %}
+        </td>
+        <td>
+          <span class="badge {% if task.priority == 'URGENT' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ task.priority }}</span>
+        </td>
+        <td>
+          <div>{{ task.task_status.value }}</div>
+          <div class="small text-body-secondary">
+            {{ task.current_result_status or task.current_specimen_status or task.current_order_status }}
+          </div>
+        </td>
+        <td>
+          <div>{{ task.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+          {% if task.source_actor %}<div class="small text-body-secondary">{{ task.source_actor }}</div>{% endif %}
+        </td>
+        <td class="text-nowrap">
+          <a class="btn btn-sm btn-primary" href="{{ task.next_action_url }}">{{ task.next_action_label }}</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if worklist.page > 1 or worklist.page * worklist.page_size < worklist.total %}
+<nav aria-label="Worklist pages">
+  <ul class="pagination">
+    <li class="page-item{% if worklist.page == 1 %} disabled{% endif %}">
+      <a class="page-link" href="?page={{ worklist.page - 1 }}">Previous</a>
+    </li>
+    <li class="page-item disabled"><span class="page-link">Page {{ worklist.page }}</span></li>
+    <li class="page-item{% if worklist.page * worklist.page_size >= worklist.total %} disabled{% endif %}">
+      <a class="page-link" href="?page={{ worklist.page + 1 }}">Next</a>
+    </li>
+  </ul>
+</nav>
+{% endif %}
+{% else %}
+<div class="alert alert-info" role="status">
+  <h2 class="h5">No actionable laboratory tasks found.</h2>
+  <p class="mb-2">Create an order, collect its required specimen, receive the specimen, and then open result entry to create worklist tasks.</p>
+  <div class="small">
+    Active orders: {{ worklist.diagnostics.active_orders }} ·
+    Orders pending collection: {{ worklist.diagnostics.orders_pending_collection }} ·
+    Collected specimens: {{ worklist.diagnostics.collected_specimens }} ·
+    Received specimens: {{ worklist.diagnostics.received_specimens }} ·
+    Pending results: {{ worklist.diagnostics.pending_results }}
+  </div>
+</div>
+{% endif %}
 {% endblock %}

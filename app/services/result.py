@@ -81,10 +81,18 @@ class ResultService:
                     event = "RESULT_ENTERED"
                     prior = None
                 else:
-                    event = "RESULT_CORRECTED"
                     prior = self._value_snapshot(existing)
-                    if not getattr(submitted, "modification_reason", ""):
+                    if existing.status == ResultStatus.COMPLETED:
+                        event = "RESULT_CORRECTED"
+                    else:
+                        event = "RESULT_UPDATED"
+                    if event == "RESULT_CORRECTED" and not getattr(
+                        submitted, "modification_reason", ""
+                    ):
                         raise InvalidResultOperationError("a modification reason is required")
+                reason = getattr(submitted, "modification_reason", "")
+                if event == "RESULT_UPDATED" and not reason:
+                    reason = "continued result entry"
                 self._apply(existing, submitted, interpretation, actor_reference)
                 if (
                     existing.status == ResultStatus.COMPLETED
@@ -112,7 +120,7 @@ class ResultService:
                             new_value=self._value_snapshot(existing),
                             previous_flag=prior.get("abnormal_flag"),
                             new_flag=existing.abnormal_flag,
-                            modification_reason=getattr(submitted, "modification_reason", ""),
+                            modification_reason=reason,
                             modified_by=actor_reference,
                         )
                     )
@@ -120,7 +128,7 @@ class ResultService:
                     event,
                     existing,
                     {"value", "abnormal_flag", "status"},
-                    getattr(submitted, "modification_reason", ""),
+                    reason,
                     actor_reference,
                 )
                 if existing.status == ResultStatus.COMPLETED:

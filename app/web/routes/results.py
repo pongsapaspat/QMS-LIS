@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from app.api.dependencies import ResultServiceDependency
+from app.api.dependencies import ResultServiceDependency, WorklistServiceDependency
 from app.core.security import ResultMutationDependency, ResultReaderDependency
-from app.models.order import LabOrderItem
+from app.models.order import LabOrderItem, OrderPriority
 from app.schemas.result import MultiResultSave, ResultItemSave
+from app.schemas.worklist import WorklistTaskStatus, WorklistTaskType
 
 templates = Jinja2Templates(directory="app/templates")
 
@@ -14,15 +15,43 @@ router = APIRouter()
 
 @router.get("/worklist", response_class=HTMLResponse, name="worklist")
 def worklist(
-    request: Request, service: ResultServiceDependency, actor: ResultReaderDependency
+    request: Request,
+    service: WorklistServiceDependency,
+    actor: ResultReaderDependency,
+    task_type: WorklistTaskType | None = None,
+    department_id: int | None = Query(default=None, ge=1),
+    priority: OrderPriority | None = None,
+    status: WorklistTaskStatus | None = None,
+    search: str | None = Query(default=None, max_length=100),
+    page: int = Query(default=1, ge=1),
 ) -> HTMLResponse:
-    rows, total = service.worklist(
-        department_id=None, status=None, search=None, offset=0, limit=100
+    response = service.list_tasks(
+        task_type=task_type,
+        department_id=department_id,
+        priority=priority,
+        status=status,
+        search=search,
+        page=page,
+        page_size=50,
     )
     return templates.TemplateResponse(
         request=request,
         name="results/worklist.html",
-        context={"page_title": "Laboratory Worklist", "rows": rows, "total": total},
+        context={
+            "page_title": "Laboratory Worklist",
+            "worklist": response,
+            "task_types": WorklistTaskType,
+            "task_statuses": WorklistTaskStatus,
+            "priorities": OrderPriority,
+            "departments": service.departments(),
+            "filters": {
+                "task_type": task_type.value if task_type else "",
+                "department_id": department_id,
+                "priority": priority.value if priority else "",
+                "status": status.value if status else "",
+                "search": search or "",
+            },
+        },
     )
 
 

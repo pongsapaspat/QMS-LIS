@@ -9,6 +9,7 @@ from app.services.patient import PatientService
 from app.services.result import ResultService
 from app.services.specimen import SpecimenService
 from app.services.test_catalog import TestCatalogService
+from app.services.worklist import WorklistService
 
 SessionDependency = Annotated[Session, Depends(get_db)]
 
@@ -46,3 +47,10 @@ def get_result_service(session: SessionDependency) -> ResultService:
 
 
 ResultServiceDependency = Annotated[ResultService, Depends(get_result_service)]
+
+
+def get_worklist_service(session: SessionDependency) -> WorklistService:
+    return WorklistService(session)
+
+
+WorklistServiceDependency = Annotated[WorklistService, Depends(get_worklist_service)]
