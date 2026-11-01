@@ -44,6 +44,7 @@
           <a class="nav-link{% if request.url.path.startswith('/audit-logs') %} active{% endif %}" href="/audit-logs">Audit Log</a>
           {% endif %}
           {% if request.session.get('actor') %}
+          <a class="nav-link{% if request.url.path == '/change-password' %} active{% endif %}" href="/change-password">เปลี่ยนรหัสผ่าน</a>
           <form method="post" action="{{ url_for('logout') }}" class="d-inline">
             <button type="submit" class="nav-link border-0 bg-transparent">ออกจากระบบ ({{ request.session.get('actor') }})</button>
           </form>

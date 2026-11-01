@@ -1,15 +1,30 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 
 from app.api.dependencies import SessionDependency
-from app.core.passwords import verify_password
+from app.core.passwords import hash_password, verify_password
+from app.core.security import ActorDependency
 from app.models.audit import AuditLog
 from app.models.base import utc_now
 from app.models.user import User
 from app.web.templates import templates
 
 router = APIRouter()
+
+
+def _session_user(request: Request, session: SessionDependency) -> User:
+    user_id = request.session.get("user_id")
+    if not isinstance(user_id, int):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
+        )
+    user = session.get(User, user_id)
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
+        )
+    return user
 
 
 @router.get("/login", response_class=HTMLResponse, name="login")
@@ -49,6 +64,65 @@ async def login(request: Request, session: SessionDependency) -> HTMLResponse | 
     request.session["actor"] = user.username
     request.session["role"] = user.role
     return RedirectResponse(request.url_for("home"), status_code=303)
+
+
+@router.get("/change-password", response_class=HTMLResponse, name="change_password")
+def change_password_form(
+    request: Request, session: SessionDependency, _: ActorDependency
+) -> HTMLResponse:
+    _session_user(request, session)
+    return templates.TemplateResponse(
+        request=request, name="auth/change_password.html", context={"error": None, "success": None}
+    )
+
+
+@router.post(
+    "/change-password",
+    response_class=HTMLResponse,
+    response_model=None,
+    name="change_password_submit",
+)
+async def change_password(
+    request: Request, session: SessionDependency, _: ActorDependency
+) -> HTMLResponse | RedirectResponse:
+    user = _session_user(request, session)
+    form = await request.form()
+    current_password = str(form.get("current_password", ""))
+    new_password = str(form.get("new_password", ""))
+    confirm_password = str(form.get("confirm_password", ""))
+    error: str | None = None
+    if not verify_password(current_password, user.password_hash):
+        error = "รหัสผ่านเดิมไม่ถูกต้อง"
+    elif len(new_password) < 8:
+        error = "รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร"
+    elif new_password != confirm_password:
+        error = "รหัสผ่านใหม่และการยืนยันไม่ตรงกัน"
+    elif verify_password(new_password, user.password_hash):
+        error = "รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม"
+    if error:
+        return templates.TemplateResponse(
+            request=request,
+            name="auth/change_password.html",
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            context={"error": error, "success": None},
+        )
+    user.password_hash = hash_password(new_password)
+    session.add(
+        AuditLog(
+            event_type="USER_PASSWORD_CHANGED",
+            entity_type="user",
+            entity_id=user.id,
+            changed_fields=["password"],
+            reason="User changed own password",
+            actor_reference=user.username,
+        )
+    )
+    session.commit()
+    return templates.TemplateResponse(
+        request=request,
+        name="auth/change_password.html",
+        context={"error": None, "success": "เปลี่ยนรหัสผ่านเรียบร้อยแล้ว"},
+    )
 
 
 @router.post("/logout", name="logout")

@@ -138,3 +138,55 @@ def test_navigation_matches_logged_in_user_role(
     forbidden = client.get("/test-catalog", headers={"Accept": "text/html"})
     assert forbidden.status_code == 403
     assert "ไม่มีสิทธิ์เข้าถึงหน้านี้" in forbidden.text
+
+
+@pytest.mark.integration
+def test_user_can_change_own_password_and_audit_it(
+    client: TestClient, db_session_factory: sessionmaker[Session]
+) -> None:
+    with db_session_factory() as session:
+        session.add(
+            User(
+                username="tech",
+                password_hash=hash_password("old-password"),
+                role="LAB_TECH",
+                display_name="Tech",
+            )
+        )
+        session.commit()
+
+    assert (
+        client.post(
+            "/login",
+            data={"username": "tech", "password": "old-password"},
+            follow_redirects=False,
+        ).status_code
+        == 303
+    )
+    changed = client.post(
+        "/change-password",
+        data={
+            "current_password": "old-password",
+            "new_password": "new-password",
+            "confirm_password": "new-password",
+        },
+    )
+    assert changed.status_code == 200
+    assert "เปลี่ยนรหัสผ่านเรียบร้อยแล้ว" in changed.text
+    client.post("/logout")
+    assert (
+        client.post(
+            "/login", data={"username": "tech", "password": "old-password"}
+        ).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            "/login",
+            data={"username": "tech", "password": "new-password"},
+            follow_redirects=False,
+        ).status_code
+        == 303
+    )
+    with db_session_factory() as session:
+        assert session.query(AuditLog).filter_by(event_type="USER_PASSWORD_CHANGED").count() == 1
