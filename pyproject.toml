@@ -3,6 +3,9 @@ name = "qms-lis"
 version = "0.1.0"
 description = "Web-based laboratory information system for a medical technology clinic"
 requires-python = ">=3.12"
+dependencies = [
+    "itsdangerous>=2.2",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -74,7 +74,7 @@ def test_department_web_navigation_crud_search_and_detail(client: TestClient) ->
     detail = client.get(created.headers["location"], headers=ADMIN_HEADERS)
     assert detail.status_code == 200
     assert "CHEMISTRY" in detail.text
-    assert "Asia/Bangkok" in detail.text
+    assert "Timezone: Asia/Bangkok" not in detail.text
     searched = client.get(
         "/test-catalog/departments",
         params={"search": "clinical"},

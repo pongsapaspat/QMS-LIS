@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="{{ url_for('static', path='/css/app.css') }}">
   </head>
   <body>
+    {% if request.url.path != '/login' %}
     <nav class="navbar navbar-expand-lg bg-body-tertiary border-bottom">
       <div class="container-fluid">
         <a class="navbar-brand" href="/">QMS-LIS</a>
@@ -28,14 +29,25 @@
           <a class="nav-link{% if request.url.path.startswith('/results/reports') %} active{% endif %}" href="{{ url_for('lab_reports') }}">รายงานผลตรวจ</a>
           <a class="nav-link" href="/docs">API Docs</a>
           <a class="nav-link" href="/api/v1/health">API Health</a>
+          {% if request.session.get('role') == 'ADMIN' %}
+          <a class="nav-link{% if request.url.path.startswith('/users') %} active{% endif %}" href="/users">Users</a>
+          {% endif %}
+          {% if request.session.get('role') in ['ADMIN', 'LAB_SUPERVISOR'] %}
+          <a class="nav-link{% if request.url.path.startswith('/audit-logs') %} active{% endif %}" href="/audit-logs">Audit Log</a>
+          {% endif %}
+          {% if request.session.get('actor') %}
+          <form method="post" action="{{ url_for('logout') }}" class="d-inline">
+            <button type="submit" class="nav-link border-0 bg-transparent">Logout ({{ request.session.get('actor') }})</button>
+          </form>
+          {% else %}
+          <a class="nav-link" href="{{ url_for('login') }}">Login</a>
+          {% endif %}
         </div>
       </div>
     </nav>
+    {% endif %}
     <main class="container py-4">
       {% block content %}{% endblock %}
     </main>
-    <footer class="container pb-4 text-body-secondary small">
-      Timezone: {{ app_timezone }}
-    </footer>
   </body>
 </html>

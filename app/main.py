@@ -1,10 +1,15 @@
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import select
+from starlette.middleware.base import RequestResponseEndpoint
+from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
+from app.core.database import SessionLocal
+from app.core.passwords import hash_password
 from app.domain.exceptions import (
     BranchNotFoundError,
     CatalogNotFoundError,
@@ -20,14 +25,48 @@ from app.domain.exceptions import (
     ResultNotFoundError,
     SpecimenNotFoundError,
 )
+from app.models.user import User
 from app.web.router import web_router
 
 settings = get_settings()
+
+
+def bootstrap_admin() -> None:
+    if not settings.bootstrap_admin_username or not settings.bootstrap_admin_password:
+        return
+    with SessionLocal() as session:
+        username = settings.bootstrap_admin_username.strip().lower()
+        if session.scalar(select(User).where(User.username == username)) is None:
+            session.add(
+                User(
+                    username=username,
+                    password_hash=hash_password(settings.bootstrap_admin_password),
+                    role="ADMIN",
+                    display_name="System Administrator",
+                )
+            )
+            session.commit()
 
 app = FastAPI(
     title=settings.app_name,
     debug=settings.debug,
     version="0.1.0",
+)
+bootstrap_admin()
+
+
+@app.middleware("http")
+async def require_web_login(request: Request, call_next: RequestResponseEndpoint) -> Response:
+    html_request = "text/html" in request.headers.get("accept", "")
+    public_path = request.url.path in {"/login", "/docs", "/redoc", "/openapi.json"}
+    static_path = request.url.path.startswith("/static/")
+    if html_request and not public_path and not static_path and not request.session.get("user_id"):
+        return RedirectResponse(url=str(request.url_for("login")), status_code=303)
+    return await call_next(request)
+
+
+app.add_middleware(
+    SessionMiddleware, secret_key=settings.session_secret, same_site="lax", https_only=False
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

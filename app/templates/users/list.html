@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-4">จัดการผู้ใช้งาน</h1>
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+<div class="card mb-4"><div class="card-body">
+  <h2 class="h5">สร้างผู้ใช้ใหม่</h2>
+  <form method="post" action="/users" class="row g-2">
+    <div class="col-md-3"><input class="form-control" name="username" placeholder="Username" required></div>
+    <div class="col-md-3"><input class="form-control" name="display_name" placeholder="ชื่อแสดงผล" required></div>
+    <div class="col-md-2"><select class="form-select" name="role">{% for role in roles|default(['ADMIN','LAB_TECH','LAB_SUPERVISOR','RECEPTION']) %}<option>{{ role }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><input class="form-control" type="password" name="password" placeholder="รหัสผ่าน" required></div>
+    <div class="col-md-1"><button class="btn btn-primary w-100">เพิ่ม</button></div>
+  </form>
+</div></div>
+<div class="table-responsive"><table class="table table-striped align-middle"><thead><tr><th>Username</th><th>ชื่อ</th><th>Role</th><th>สถานะ</th><th>การจัดการ</th></tr></thead><tbody>
+{% for user in users %}<tr><td>{{ user.username }}</td><td>{{ user.display_name }}</td><td>{{ user.role }}</td><td>{{ 'ใช้งาน' if user.is_active else 'ปิดใช้งาน' }}</td><td>
+<form method="post" action="/users/{{ user.id }}/toggle" class="d-inline"><button class="btn btn-sm btn-outline-secondary">{{ 'ปิดใช้งาน' if user.is_active else 'เปิดใช้งาน' }}</button></form>
+<form method="post" action="/users/{{ user.id }}/reset-password" class="d-inline ms-2"><input name="password" type="password" placeholder="รหัสใหม่" required><button class="btn btn-sm btn-outline-warning">รีเซ็ตรหัส</button></form>
+</td></tr>{% else %}<tr><td colspan="5">ยังไม่มีผู้ใช้งาน</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

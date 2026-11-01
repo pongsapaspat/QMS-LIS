@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     allow_admin_four_eyes_bypass: bool = False
     allow_partial_release: bool = True
     enable_dev_admin_fallback: bool = True
+    session_secret: str = "change-this-development-secret"
+    bootstrap_admin_username: str | None = None
+    bootstrap_admin_password: str | None = None
     log_level: str = "INFO"
     log_pii: bool = Field(default=False, description="PII must stay out of application logs.")
 

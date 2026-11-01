@@ -427,7 +427,7 @@ def test_web_datetime_local_uses_bangkok_but_api_remains_utc(
     collection_page = client.get(collected.headers["location"], headers=HEADERS)
     assert collection_page.status_code == 200
     assert "28/10/2026 14:30 (+07:00)" in collection_page.text
-    assert "Timezone: Asia/Bangkok" in collection_page.text
+    assert "Timezone: Asia/Bangkok" not in collection_page.text
 
     received = client.post(
         f"/specimens/receiving/{specimen_id}/receipt",

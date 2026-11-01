@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3"><h1 class="mb-0">Audit Log #{{ entry.id }}</h1><span class="badge text-bg-secondary">อ่านอย่างเดียว</span></div>
+<dl class="row card card-body mx-0">
+  <dt class="col-sm-3">วันและเวลา</dt><dd class="col-sm-9">{{ entry.occurred_at|app_datetime }}</dd>
+  <dt class="col-sm-3">ผู้กระทำ</dt><dd class="col-sm-9">{{ entry.actor_reference }}</dd>
+  <dt class="col-sm-3">เหตุการณ์</dt><dd class="col-sm-9"><code>{{ entry.event_type }}</code></dd>
+  <dt class="col-sm-3">ข้อมูล</dt><dd class="col-sm-9">{{ entry.entity_type }} #{{ entry.entity_id }}</dd>
+  <dt class="col-sm-3">ฟิลด์ที่เปลี่ยน</dt><dd class="col-sm-9">{{ entry.changed_fields|join(', ') if entry.changed_fields else '—' }}</dd>
+  <dt class="col-sm-3">เหตุผล</dt><dd class="col-sm-9">{{ entry.reason or '—' }}</dd>
+</dl>
+<a class="btn btn-outline-secondary" href="/audit-logs">กลับไป Audit Log</a>
+{% endblock %}

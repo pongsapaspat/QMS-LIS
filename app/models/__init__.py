@@ -14,6 +14,7 @@ from app.models.test_catalog import (
     TestCategory,
     TestPriceHistory,
 )
+from app.models.user import User
 
 __all__ = [
     "AuditLog",
@@ -37,4 +38,5 @@ __all__ = [
     "SpecimenType",
     "TestCategory",
     "TestPriceHistory",
+    "User",
 ]

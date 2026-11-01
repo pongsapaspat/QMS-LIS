@@ -16,8 +16,14 @@ def get_current_actor(
     request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Actor:
-    role = request.headers.get("X-Role") or request.cookies.get("qms_lis_dev_role")
-    reference = request.headers.get("X-Actor") or request.cookies.get("qms_lis_dev_actor")
+    if settings.app_env == "development":
+        role = request.headers.get("X-Role") or request.cookies.get("qms_lis_dev_role")
+        reference = request.headers.get("X-Actor") or request.cookies.get("qms_lis_dev_actor")
+    else:
+        role = None
+        reference = None
+    role = role or request.session.get("role")
+    reference = reference or request.session.get("actor")
 
     if role is None and settings.app_env == "development" and settings.enable_dev_admin_fallback:
         return Actor(reference="development-admin", role="ADMIN")
@@ -39,6 +45,18 @@ def require_admin(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
 
 
 AdminActorDependency = Annotated[Actor, Depends(require_admin)]
+
+
+def require_audit_reader(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
+    if actor.role not in {"ADMIN", "LAB_SUPERVISOR"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="LAB_SUPERVISOR or ADMIN role required",
+        )
+    return actor
+
+
+AuditReaderDependency = Annotated[Actor, Depends(require_audit_reader)]
 
 
 def require_specimen_collector(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
