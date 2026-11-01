@@ -21,6 +21,7 @@ venv/
 # Generated reports and uploads
 storage/
 generated/
+backups/
 
 # Editors and operating systems
 .vscode/*.local.json
