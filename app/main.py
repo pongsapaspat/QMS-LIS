@@ -1,4 +1,6 @@
+import logging
 import time
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -11,6 +13,12 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.database import SessionLocal
+from app.core.logging import (
+    REQUEST_ID_HEADER,
+    configure_logging,
+    reset_request_id,
+    set_request_id,
+)
 from app.core.passwords import hash_password
 from app.domain.exceptions import (
     BranchNotFoundError,
@@ -32,6 +40,8 @@ from app.web.router import web_router
 from app.web.templates import templates
 
 settings = get_settings()
+configure_logging(settings.log_level)
+request_logger = logging.getLogger("qms_lis.request")
 
 
 def bootstrap_admin() -> None:
@@ -60,6 +70,8 @@ bootstrap_admin()
 
 @app.middleware("http")
 async def require_web_login(request: Request, call_next: RequestResponseEndpoint) -> Response:
+    request_id = str(uuid4())
+    token = set_request_id(request_id)
     html_request = "text/html" in request.headers.get("accept", "")
     public_path = request.url.path in {"/login", "/docs", "/redoc", "/openapi.json"}
     static_path = request.url.path.startswith("/static/")
@@ -69,13 +81,21 @@ async def require_web_login(request: Request, call_next: RequestResponseEndpoint
         last_activity = request.session.get("last_activity_at", now)
         if isinstance(last_activity, (int, float)) and now - last_activity > settings.session_idle_timeout_seconds:
             request.session.clear()
-            if html_request and not public_path and not static_path:
-                return RedirectResponse(url=str(request.url_for("login")), status_code=303)
         else:
             request.session["last_activity_at"] = now
-    if html_request and not public_path and not static_path and not request.session.get("user_id"):
-        return RedirectResponse(url=str(request.url_for("login")), status_code=303)
-    return await call_next(request)
+    try:
+        response: Response
+        if html_request and not public_path and not static_path and not request.session.get("user_id"):
+            response = RedirectResponse(url=str(request.url_for("login")), status_code=303)
+        else:
+            response = await call_next(request)
+        response.headers[REQUEST_ID_HEADER] = request_id
+        request_logger.info(
+            "request_completed method=%s status=%s", request.method, response.status_code
+        )
+        return response
+    finally:
+        reset_request_id(token)
 
 
 app.add_middleware(

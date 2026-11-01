@@ -17,6 +17,7 @@ def test_root_health_check() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+    assert len(response.headers["x-request-id"]) == 36
 
 
 def test_versioned_health_check() -> None:
