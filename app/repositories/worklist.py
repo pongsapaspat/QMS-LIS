@@ -31,6 +31,7 @@ class WorklistRecord:
     test_name: str | None
     department_id: int | None
     department_code: str | None
+    department_name: str | None
     current_order_status: str
     current_specimen_status: str | None
     current_result_status: str | None
@@ -127,6 +128,7 @@ class WorklistRepository:
                 func.count(func.distinct(LabTest.department_id)),
                 func.min(LabTest.department_id),
                 func.min(LaboratoryDepartment.code),
+                func.min(LaboratoryDepartment.name_en),
             )
             .join(Patient, Patient.id == LabOrder.patient_id)
             .join(LabOrderItem, LabOrderItem.order_id == LabOrder.id)
@@ -146,7 +148,16 @@ class WorklistRepository:
         statement = statement.group_by(LabOrder.id, Patient.id, SpecimenType.id)
         records = []
         rows = self.session.execute(statement)
-        for order, patient, specimen_type, tat, department_count, dept_id, dept_code in rows:
+        for (
+            order,
+            patient,
+            specimen_type,
+            tat,
+            department_count,
+            dept_id,
+            dept_code,
+            dept_name,
+        ) in rows:
             records.append(
                 WorklistRecord(
                     task_type="ORDER_PENDING_COLLECTION",
@@ -165,6 +176,7 @@ class WorklistRepository:
                     test_name=None,
                     department_id=dept_id if department_count == 1 else None,
                     department_code=dept_code if department_count == 1 else None,
+                    department_name=dept_name if department_count == 1 else None,
                     current_order_status=order.status,
                     current_specimen_status=None,
                     current_result_status=None,
@@ -186,6 +198,7 @@ class WorklistRepository:
                 func.count(func.distinct(LabTest.department_id)),
                 func.min(LabTest.department_id),
                 func.min(LaboratoryDepartment.code),
+                func.min(LaboratoryDepartment.name_en),
             )
             .join(LabOrder, LabOrder.id == Specimen.order_id)
             .join(Patient, Patient.id == LabOrder.patient_id)
@@ -213,7 +226,16 @@ class WorklistRepository:
         statement = statement.group_by(Specimen.id, LabOrder.id, Patient.id)
         records = []
         rows = self.session.execute(statement)
-        for specimen, order, patient, tat, department_count, dept_id, dept_code in rows:
+        for (
+            specimen,
+            order,
+            patient,
+            tat,
+            department_count,
+            dept_id,
+            dept_code,
+            dept_name,
+        ) in rows:
             records.append(
                 WorklistRecord(
                     task_type="SPECIMEN_PENDING_RECEIVING",
@@ -232,6 +254,7 @@ class WorklistRepository:
                     test_name=None,
                     department_id=dept_id if department_count == 1 else None,
                     department_code=dept_code if department_count == 1 else None,
+                    department_name=dept_name if department_count == 1 else None,
                     current_order_status=order.status,
                     current_specimen_status=specimen.status,
                     current_result_status=None,
@@ -332,6 +355,7 @@ class WorklistRepository:
                     test_name=item.test_name_en,
                     department_id=department.id,
                     department_code=department.code,
+                    department_name=department.name_en,
                     current_order_status=order.status,
                     current_specimen_status=specimen.status,
                     current_result_status=result.status if result else ResultStatus.PENDING,
@@ -403,7 +427,8 @@ class WorklistRepository:
         return list(
             self.session.scalars(
                 select(LaboratoryDepartment)
-                .where(LaboratoryDepartment.is_active.is_(True))
-                .order_by(LaboratoryDepartment.code)
+                .order_by(
+                    LaboratoryDepartment.is_active.desc(), LaboratoryDepartment.code
+                )
             )
         )

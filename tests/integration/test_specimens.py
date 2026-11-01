@@ -67,6 +67,7 @@ def create_collection_order(client: TestClient) -> tuple[int, int, int, int]:
                 "name_th": f"{name} Thai",
                 "name_en": name,
                 "category_id": category.json()["id"],
+                "department_id": 1,
                 "specimen_type_id": specimen_id,
                 "current_price": "100.00",
                 "result_type": "NUMERIC",

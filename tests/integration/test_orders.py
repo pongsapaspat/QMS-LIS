@@ -24,6 +24,7 @@ def create_order_fixtures(client: TestClient) -> tuple[int, int, int]:
             "name_th": "กลูโคส",
             "name_en": "Glucose",
             "category_id": category.json()["id"],
+            "department_id": 1,
             "specimen_type_id": specimen.json()["id"],
             "current_price": "125.00",
             "result_type": "NUMERIC",

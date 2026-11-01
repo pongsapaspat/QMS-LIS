@@ -25,7 +25,7 @@
       <select class="form-select" id="department" name="department_id">
         <option value="">All departments</option>
         {% for department in departments %}
-        <option value="{{ department.id }}"{% if filters.department_id == department.id %} selected{% endif %}>{{ department.code }}</option>
+        <option value="{{ department.id }}"{% if filters.department_id == department.id %} selected{% endif %}>{{ department.code }} — {{ department.name_en }}{% if not department.is_active %} (inactive){% endif %}</option>
         {% endfor %}
       </select>
     </div>
@@ -100,7 +100,7 @@
           {% if task.accession_number %}<div>{{ task.accession_number }}</div>{% endif %}
           {% if task.specimen_type %}<div class="small text-body-secondary">{{ task.specimen_type }}</div>{% endif %}
           {% if task.test_code %}<div>{{ task.test_code }} · {{ task.test_name }}</div>{% endif %}
-          {% if task.department_code %}<span class="badge text-bg-light">{{ task.department_code }}</span>{% endif %}
+          {% if task.department_code %}<span class="badge text-bg-light">{{ task.department_code }}{% if task.department_name %} — {{ task.department_name }}{% endif %}</span>{% endif %}
         </td>
         <td>
           <span class="badge {% if task.priority == 'URGENT' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ task.priority }}</span>

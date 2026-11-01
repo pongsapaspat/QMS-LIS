@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.domain.enums import ResultType
 from app.domain.exceptions import InvalidCatalogOperationError
 from app.models.test_catalog import (
+    LaboratoryDepartment,
     LabTest,
     ReferenceRange,
     SpecimenType,
@@ -30,12 +31,16 @@ def build_service() -> tuple[
     audit_repository = MagicMock(spec=AuditRepository)
     category = CatalogCategory(id=1, code="CHEM", name_th="Chem", name_en="Chem", is_active=True)
     specimen = SpecimenType(id=1, code="SERUM", name_th="Serum", name_en="Serum", is_active=True)
+    department = LaboratoryDepartment(
+        id=1, code="GENERAL", name_th="General", name_en="General", is_active=True
+    )
     test = LabTest(
         id=1,
         code="GLU",
         name_th="Glucose Thai",
         name_en="Glucose",
         category_id=1,
+        department_id=1,
         specimen_type_id=1,
         current_price=Decimal("100.00"),
         result_type=ResultType.NUMERIC,
@@ -44,6 +49,7 @@ def build_service() -> tuple[
     )
     repository.get_test.return_value = test
     repository.get_category.return_value = category
+    repository.get_department.return_value = department
     repository.get_specimen_type.return_value = specimen
     return (
         CatalogService(session, repository, audit_repository),

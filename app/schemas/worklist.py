@@ -36,6 +36,7 @@ class WorklistItem(BaseModel):
     test_name: str | None = None
     department_id: int | None = None
     department_code: str | None = None
+    department_name: str | None = None
     current_order_status: str
     current_specimen_status: str | None = None
     current_result_status: str | None = None

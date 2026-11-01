@@ -38,6 +38,7 @@ def catalog_test_payload(
         "name_th": "Glucose Thai",
         "name_en": "Glucose",
         "category_id": category_id,
+        "department_id": 1,
         "specimen_type_id": specimen_type_id,
         "current_price": "100.00",
         "result_type": "NUMERIC",
@@ -47,6 +48,135 @@ def catalog_test_payload(
     }
     payload.update(overrides)
     return payload
+
+
+def create_department(client: TestClient, code: str = "CHEMISTRY") -> dict[str, object]:
+    response = client.post(
+        "/api/v1/departments",
+        json={
+            "code": code,
+            "name_th": "เคมีคลินิก",
+            "name_en": "Clinical Chemistry",
+            "reason": "laboratory organization",
+        },
+        headers=ADMIN_HEADERS,
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+@pytest.mark.integration
+def test_department_api_crud_search_activation_and_validation(client: TestClient) -> None:
+    department = create_department(client)
+    assert department["code"] == "CHEMISTRY"
+    assert department["test_count"] == 0
+
+    duplicate = client.post(
+        "/api/v1/departments",
+        json={"code": "chemistry", "name_th": "ซ้ำ", "name_en": "Duplicate"},
+        headers=ADMIN_HEADERS,
+    )
+    assert duplicate.status_code == 409
+    invalid = client.post(
+        "/api/v1/departments",
+        json={"code": "bad code!", "name_th": "ผิด", "name_en": "Invalid"},
+        headers=ADMIN_HEADERS,
+    )
+    assert invalid.status_code == 422
+    unknown = client.post(
+        "/api/v1/departments",
+        json={
+            "code": "HEMATOLOGY",
+            "name_th": "โลหิตวิทยา",
+            "name_en": "Hematology",
+            "unexpected": True,
+        },
+        headers=ADMIN_HEADERS,
+    )
+    assert unknown.status_code == 422
+
+    searched = client.get(
+        "/api/v1/departments", params={"search": "clinical"}, headers=READER_HEADERS
+    )
+    assert searched.status_code == 200
+    assert searched.json()["total"] == 1
+
+    updated = client.patch(
+        f"/api/v1/departments/{department['id']}",
+        json={"name_en": "Chemistry", "reason": "shorten display name"},
+        headers=ADMIN_HEADERS,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["name_en"] == "Chemistry"
+
+    deactivated = client.patch(
+        f"/api/v1/departments/{department['id']}/activation",
+        json={"is_active": False, "reason": "temporary closure"},
+        headers=ADMIN_HEADERS,
+    )
+    assert deactivated.status_code == 200
+    inactive = client.get(
+        "/api/v1/departments", params={"is_active": False}, headers=READER_HEADERS
+    )
+    assert inactive.json()["total"] == 1
+    assert client.patch(
+        f"/api/v1/departments/{department['id']}/activation",
+        json={"is_active": True, "reason": "reopen"},
+        headers=READER_HEADERS,
+    ).status_code == 403
+    assert client.get("/api/v1/departments/9999", headers=READER_HEADERS).status_code == 404
+
+
+@pytest.mark.integration
+def test_department_assignment_filter_inactive_history_and_audit(client: TestClient) -> None:
+    category_id, specimen_id = create_masters(client)
+    department = create_department(client)
+    department_id = int(department["id"])
+    created = client.post(
+        "/api/v1/tests",
+        json=catalog_test_payload(
+            category_id, specimen_id, department_id=department_id
+        ),
+        headers=ADMIN_HEADERS,
+    )
+    assert created.status_code == 201, created.text
+    test_id = created.json()["id"]
+    assert created.json()["department"]["code"] == "CHEMISTRY"
+    filtered = client.get(
+        "/api/v1/tests", params={"department_id": department_id}, headers=READER_HEADERS
+    )
+    assert filtered.json()["total"] == 1
+
+    assert client.patch(
+        f"/api/v1/departments/{department_id}/activation",
+        json={"is_active": False, "reason": "temporary closure"},
+        headers=ADMIN_HEADERS,
+    ).status_code == 200
+    detail = client.get(f"/api/v1/tests/{test_id}", headers=READER_HEADERS)
+    assert detail.json()["test"]["department"]["is_active"] is False
+    blocked = client.post(
+        "/api/v1/tests",
+        json=catalog_test_payload(
+            category_id, specimen_id, code="ALT", department_id=department_id
+        ),
+        headers=ADMIN_HEADERS,
+    )
+    assert blocked.status_code == 422
+
+    replacement = create_department(client, "HEMATOLOGY")
+    changed = client.patch(
+        f"/api/v1/tests/{test_id}",
+        json={
+            "department_id": replacement["id"],
+            "reason": "move test to responsible section",
+        },
+        headers=ADMIN_HEADERS,
+    )
+    assert changed.status_code == 200
+    audit = client.get(f"/api/v1/tests/{test_id}", headers=READER_HEADERS).json()[
+        "audit_history"
+    ]
+    assert audit[0]["event_type"] == "LAB_TEST_DEPARTMENT_CHANGED"
 
 
 @pytest.mark.integration

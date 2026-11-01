@@ -1,3 +1,5 @@
+from typing import cast
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -35,6 +37,85 @@ class TestCatalogRepository:
             self.session.add(department)
             self.session.flush()
         return department
+
+    def get_department(self, department_id: int) -> LaboratoryDepartment | None:
+        return self.session.get(LaboratoryDepartment, department_id)
+
+    def department_code_exists(
+        self, code: str, *, exclude_department_id: int | None = None
+    ) -> bool:
+        statement = select(LaboratoryDepartment.id).where(
+            func.lower(LaboratoryDepartment.code) == code.casefold()
+        )
+        if exclude_department_id is not None:
+            statement = statement.where(LaboratoryDepartment.id != exclude_department_id)
+        return self.session.execute(statement.limit(1)).scalar_one_or_none() is not None
+
+    def list_departments(
+        self,
+        *,
+        search: str | None,
+        is_active: bool | None,
+        offset: int,
+        limit: int,
+    ) -> tuple[list[tuple[LaboratoryDepartment, int]], int]:
+        test_counts = (
+            select(LabTest.department_id, func.count(LabTest.id).label("test_count"))
+            .group_by(LabTest.department_id)
+            .subquery()
+        )
+        statement = select(
+            LaboratoryDepartment,
+            func.coalesce(test_counts.c.test_count, 0),
+        ).outerjoin(test_counts, test_counts.c.department_id == LaboratoryDepartment.id)
+        if search:
+            term = f"%{search.strip()}%"
+            statement = statement.where(
+                or_(
+                    LaboratoryDepartment.code.ilike(term),
+                    LaboratoryDepartment.name_th.ilike(term),
+                    LaboratoryDepartment.name_en.ilike(term),
+                )
+            )
+        if is_active is not None:
+            statement = statement.where(LaboratoryDepartment.is_active.is_(is_active))
+        total = self.session.scalar(
+            select(func.count()).select_from(statement.order_by(None).subquery())
+        ) or 0
+        rows = self.session.execute(
+            statement.order_by(
+                LaboratoryDepartment.is_active.desc(), LaboratoryDepartment.code
+            )
+            .offset(offset)
+            .limit(limit)
+        )
+        results: list[tuple[LaboratoryDepartment, int]] = []
+        for department, count in rows:
+            results.append(
+                (cast(LaboratoryDepartment, department), cast(int, count))
+            )
+        return results, total
+
+    def count_department_tests(self, department_id: int) -> int:
+        return int(
+            self.session.scalar(
+                select(func.count(LabTest.id)).where(LabTest.department_id == department_id)
+            )
+            or 0
+        )
+
+    def list_department_tests(self, department_id: int) -> list[LabTest]:
+        statement = (
+            select(LabTest)
+            .options(
+                selectinload(LabTest.category),
+                selectinload(LabTest.department),
+                selectinload(LabTest.specimen_type),
+            )
+            .where(LabTest.department_id == department_id)
+            .order_by(LabTest.code)
+        )
+        return list(self.session.scalars(statement))
 
     def get_specimen_type(self, specimen_type_id: int) -> SpecimenType | None:
         return self.session.get(SpecimenType, specimen_type_id)
@@ -86,7 +167,11 @@ class TestCatalogRepository:
     def get_test(self, test_id: int) -> LabTest | None:
         statement = (
             select(LabTest)
-            .options(selectinload(LabTest.category), selectinload(LabTest.specimen_type))
+            .options(
+                selectinload(LabTest.category),
+                selectinload(LabTest.department),
+                selectinload(LabTest.specimen_type),
+            )
             .where(LabTest.id == test_id)
         )
         return self.session.scalars(statement).first()
@@ -96,6 +181,7 @@ class TestCatalogRepository:
         *,
         search: str | None,
         category_id: int | None,
+        department_id: int | None,
         specimen_type_id: int | None,
         result_type: str | None,
         is_active: bool | None,
@@ -103,7 +189,9 @@ class TestCatalogRepository:
         limit: int,
     ) -> tuple[list[LabTest], int]:
         statement = select(LabTest).options(
-            selectinload(LabTest.category), selectinload(LabTest.specimen_type)
+            selectinload(LabTest.category),
+            selectinload(LabTest.department),
+            selectinload(LabTest.specimen_type),
         )
         if search:
             term = f"%{search.strip()}%"
@@ -116,6 +204,8 @@ class TestCatalogRepository:
             )
         if category_id is not None:
             statement = statement.where(LabTest.category_id == category_id)
+        if department_id is not None:
+            statement = statement.where(LabTest.department_id == department_id)
         if specimen_type_id is not None:
             statement = statement.where(LabTest.specimen_type_id == specimen_type_id)
         if result_type is not None:

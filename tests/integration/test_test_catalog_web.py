@@ -41,6 +41,7 @@ def web_test_payload(category_id: int, specimen_id: int, **overrides: object) ->
         "name_th": "Glucose Thai",
         "name_en": "Glucose",
         "category_id": str(category_id),
+        "department_id": "1",
         "specimen_type_id": str(specimen_id),
         "current_price": "0",
         "result_type": "NUMERIC",
@@ -50,6 +51,44 @@ def web_test_payload(category_id: int, specimen_id: int, **overrides: object) ->
     }
     payload.update({key: str(value) for key, value in overrides.items()})
     return payload
+
+
+@pytest.mark.integration
+def test_department_web_navigation_crud_search_and_detail(client: TestClient) -> None:
+    listing = client.get("/test-catalog", headers=ADMIN_HEADERS)
+    assert "Departments" in listing.text
+    assert "แผนกห้องปฏิบัติการ" in listing.text
+    created = client.post(
+        "/test-catalog/departments/new",
+        data={
+            "code": " chemistry ",
+            "name_th": " เคมีคลินิก ",
+            "name_en": " Clinical Chemistry ",
+            "is_active": "on",
+            "reason": "create section",
+        },
+        headers=ADMIN_HEADERS,
+        follow_redirects=False,
+    )
+    assert created.status_code == 303
+    detail = client.get(created.headers["location"], headers=ADMIN_HEADERS)
+    assert detail.status_code == 200
+    assert "CHEMISTRY" in detail.text
+    assert "Asia/Bangkok" in detail.text
+    searched = client.get(
+        "/test-catalog/departments",
+        params={"search": "clinical"},
+        headers=ADMIN_HEADERS,
+    )
+    assert "CHEMISTRY" in searched.text
+    invalid = client.post(
+        "/test-catalog/departments/new",
+        data={"code": "!", "name_th": "", "name_en": "Clinical Chemistry"},
+        headers=ADMIN_HEADERS,
+        follow_redirects=False,
+    )
+    assert invalid.status_code == 422
+    assert 'value="!"' in invalid.text
 
 
 @pytest.mark.integration

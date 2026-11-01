@@ -12,6 +12,7 @@ from app.domain.exceptions import (
 )
 from app.models.audit import AuditLog
 from app.models.test_catalog import (
+    LaboratoryDepartment,
     LabTest,
     QualitativeResultOption,
     ReferenceRange,
@@ -27,13 +28,22 @@ from app.schemas.test_catalog import (
     CatalogTestUpdate,
     ConfigurationCreate,
     ConfigurationUpdate,
+    DepartmentCreate,
+    DepartmentUpdate,
     QualitativeOptionCreate,
     QualitativeOptionUpdate,
     ReferenceRangeCreate,
     ReferenceRangeUpdate,
 )
 
-CatalogEntity = TestCategory | SpecimenType | LabTest | ReferenceRange | QualitativeResultOption
+CatalogEntity = (
+    TestCategory
+    | SpecimenType
+    | LaboratoryDepartment
+    | LabTest
+    | ReferenceRange
+    | QualitativeResultOption
+)
 CatalogChild = TypeVar("CatalogChild", ReferenceRange, QualitativeResultOption)
 
 
@@ -112,11 +122,114 @@ class TestCatalogService:
             self._update_configuration(specimen_type, data, actor_reference=actor_reference),
         )
 
+    def create_department(
+        self, data: DepartmentCreate, *, actor_reference: str
+    ) -> LaboratoryDepartment:
+        if self.repository.department_code_exists(data.code):
+            raise DuplicateCatalogCodeError("department code already exists")
+        values = data.model_dump(exclude={"reason"})
+        department = LaboratoryDepartment(**values)
+        try:
+            self.repository.add(department)
+            self._audit(
+                "LABORATORY_DEPARTMENT_CREATED",
+                "laboratory_department",
+                department,
+                set(values),
+                data.reason,
+                actor_reference,
+            )
+            self.session.commit()
+            self.session.refresh(department)
+        except IntegrityError as exc:
+            self.session.rollback()
+            raise DuplicateCatalogCodeError("department code already exists") from exc
+        return department
+
+    def get_department(self, department_id: int) -> LaboratoryDepartment:
+        department = self.repository.get_department(department_id)
+        if department is None:
+            raise CatalogNotFoundError("laboratory department not found")
+        return department
+
+    def list_departments(
+        self,
+        *,
+        search: str | None = None,
+        is_active: bool | None = None,
+        offset: int = 0,
+        limit: int = 100,
+    ) -> tuple[list[tuple[LaboratoryDepartment, int]], int]:
+        return self.repository.list_departments(
+            search=search, is_active=is_active, offset=offset, limit=min(limit, 200)
+        )
+
+    def list_department_tests(self, department_id: int) -> list[LabTest]:
+        self.get_department(department_id)
+        return self.repository.list_department_tests(department_id)
+
+    def update_department(
+        self,
+        department_id: int,
+        data: DepartmentUpdate,
+        *,
+        actor_reference: str,
+    ) -> LaboratoryDepartment:
+        department = self.get_department(department_id)
+        changes = data.model_dump(exclude_unset=True, exclude={"reason"})
+        if "code" in changes and self.repository.department_code_exists(
+            str(changes["code"]), exclude_department_id=department.id
+        ):
+            raise DuplicateCatalogCodeError("department code already exists")
+        actual_changes = {
+            field: value
+            for field, value in changes.items()
+            if getattr(department, field) != value
+        }
+        if not actual_changes:
+            raise InvalidCatalogOperationError("no department data changed")
+        for field, value in actual_changes.items():
+            setattr(department, field, value)
+        self._finish_mutation(
+            "LABORATORY_DEPARTMENT_UPDATED",
+            "laboratory_department",
+            department,
+            set(actual_changes),
+            data.reason,
+            actor_reference,
+        )
+        return department
+
+    def set_department_activation(
+        self,
+        department_id: int,
+        data: ActivationRequest,
+        *,
+        actor_reference: str,
+    ) -> LaboratoryDepartment:
+        department = self.get_department(department_id)
+        if department.is_active == data.is_active:
+            raise InvalidCatalogOperationError("department activation state did not change")
+        department.is_active = data.is_active
+        event = (
+            "LABORATORY_DEPARTMENT_ACTIVATED"
+            if data.is_active
+            else "LABORATORY_DEPARTMENT_DEACTIVATED"
+        )
+        self._finish_mutation(
+            event,
+            "laboratory_department",
+            department,
+            {"is_active"},
+            data.reason,
+            actor_reference,
+        )
+        return department
+
     def create_test(self, data: CatalogTestCreate, *, actor_reference: str) -> LabTest:
-        if data.department_id is None:
-            department = self.repository.get_or_create_general_department()
-            data.department_id = department.id
-        self._require_active_configuration(data.category_id, data.specimen_type_id)
+        self._require_active_configuration(
+            data.category_id, data.department_id, data.specimen_type_id
+        )
         self._validate_test_configuration(data.result_type, data.result_unit)
         if self.repository.test_code_exists(data.code):
             raise DuplicateCatalogCodeError("test code already exists")
@@ -160,6 +273,7 @@ class TestCatalogService:
         *,
         search: str | None,
         category_id: int | None,
+        department_id: int | None,
         specimen_type_id: int | None,
         result_type: str | None,
         is_active: bool | None,
@@ -169,6 +283,7 @@ class TestCatalogService:
         return self.repository.list_tests(
             search=search,
             category_id=category_id,
+            department_id=department_id,
             specimen_type_id=specimen_type_id,
             result_type=result_type,
             is_active=is_active,
@@ -186,14 +301,23 @@ class TestCatalogService:
         test = self.get_test(test_id)
         changes = data.model_dump(exclude_unset=True, exclude={"reason"})
         resulting_category_id = changes.get("category_id", test.category_id)
+        resulting_department_id = changes.get("department_id", test.department_id)
         resulting_specimen_type_id = changes.get("specimen_type_id", test.specimen_type_id)
-        if not isinstance(resulting_category_id, int) or not isinstance(
-            resulting_specimen_type_id, int
+        if not all(
+            isinstance(value, int)
+            for value in (
+                resulting_category_id,
+                resulting_department_id,
+                resulting_specimen_type_id,
+            )
         ):
-            raise InvalidCatalogOperationError("category and specimen type are required")
+            raise InvalidCatalogOperationError(
+                "category, department, and specimen type are required"
+            )
         self._require_editable_configuration(
             test,
             resulting_category_id,
+            resulting_department_id,
             resulting_specimen_type_id,
         )
         if "code" in changes and self.repository.test_code_exists(
@@ -248,14 +372,25 @@ class TestCatalogService:
                         actor_reference=actor_reference,
                     )
                 )
-            self._audit(
-                "LAB_TEST_UPDATED",
-                "lab_test",
-                test,
-                set(actual_changes),
-                data.reason,
-                actor_reference,
-            )
+            ordinary_changes = set(actual_changes) - {"department_id"}
+            if ordinary_changes:
+                self._audit(
+                    "LAB_TEST_UPDATED",
+                    "lab_test",
+                    test,
+                    ordinary_changes,
+                    data.reason,
+                    actor_reference,
+                )
+            if "department_id" in actual_changes:
+                self._audit(
+                    "LAB_TEST_DEPARTMENT_CHANGED",
+                    "lab_test",
+                    test,
+                    {"department_id"},
+                    data.reason,
+                    actor_reference,
+                )
             self.session.commit()
             self.session.refresh(test)
         except IntegrityError as exc:
@@ -274,7 +409,9 @@ class TestCatalogService:
         if test.is_active == data.is_active:
             raise InvalidCatalogOperationError("test activation state did not change")
         if data.is_active:
-            self._require_active_configuration(test.category_id, test.specimen_type_id)
+            self._require_active_configuration(
+                test.category_id, test.department_id, test.specimen_type_id
+            )
         test.is_active = data.is_active
         event = "LAB_TEST_ACTIVATED" if data.is_active else "LAB_TEST_DEACTIVATED"
         self._finish_mutation(event, "lab_test", test, {"is_active"}, data.reason, actor_reference)
@@ -547,20 +684,30 @@ class TestCatalogService:
         )
         return entity
 
-    def _require_active_configuration(self, category_id: int, specimen_type_id: int) -> None:
+    def _require_active_configuration(
+        self, category_id: int, department_id: int, specimen_type_id: int
+    ) -> None:
         category = self.repository.get_category(category_id)
         if category is None or not category.is_active:
             raise CatalogNotFoundError("active test category not found")
+        department = self.repository.get_department(department_id)
+        if department is None or not department.is_active:
+            raise InvalidCatalogOperationError("active laboratory department not found")
         specimen_type = self.repository.get_specimen_type(specimen_type_id)
         if specimen_type is None or not specimen_type.is_active:
             raise CatalogNotFoundError("active specimen type not found")
 
     def _require_editable_configuration(
-        self, test: LabTest, category_id: int, specimen_type_id: int
+        self, test: LabTest, category_id: int, department_id: int, specimen_type_id: int
     ) -> None:
         category = self.repository.get_category(category_id)
         if category is None or (category_id != test.category_id and not category.is_active):
             raise CatalogNotFoundError("active test category not found")
+        department = self.repository.get_department(department_id)
+        if department is None or (
+            department_id != test.department_id and not department.is_active
+        ):
+            raise InvalidCatalogOperationError("active laboratory department not found")
         specimen_type = self.repository.get_specimen_type(specimen_type_id)
         if specimen_type is None or (
             specimen_type_id != test.specimen_type_id and not specimen_type.is_active

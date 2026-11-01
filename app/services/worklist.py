@@ -131,6 +131,7 @@ class WorklistService:
             test_name=record.test_name,
             department_id=record.department_id,
             department_code=record.department_code,
+            department_name=record.department_name,
             current_order_status=record.current_order_status,
             current_specimen_status=record.current_specimen_status,
             current_result_status=record.current_result_status,

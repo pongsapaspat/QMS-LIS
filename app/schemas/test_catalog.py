@@ -80,6 +80,56 @@ class ConfigurationResponse(BaseModel):
     updated_at: datetime
 
 
+class DepartmentCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(min_length=2, max_length=30, pattern=r"^[A-Z0-9_-]+$")
+    name_th: str = Field(min_length=1, max_length=150)
+    name_en: str = Field(min_length=1, max_length=150)
+    is_active: bool = True
+    reason: str = Field(default="", max_length=500)
+
+    _code = field_validator("code", mode="before")(normalize_code)
+    _names = field_validator("name_th", "name_en")(normalize_required_text)
+    _reason = field_validator("reason", mode="before")(normalize_reason)
+
+
+class DepartmentUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str | None = Field(
+        default=None, min_length=2, max_length=30, pattern=r"^[A-Z0-9_-]+$"
+    )
+    name_th: str | None = Field(default=None, min_length=1, max_length=150)
+    name_en: str | None = Field(default=None, min_length=1, max_length=150)
+    reason: str = Field(default="", max_length=500)
+
+    _code = field_validator("code", mode="before")(normalize_optional_code)
+    _names = field_validator("name_th", "name_en")(normalize_optional_required_text)
+    _reason = field_validator("reason", mode="before")(normalize_reason)
+
+    @model_validator(mode="after")
+    def require_change(self) -> "DepartmentUpdate":
+        if not (self.model_fields_set - {"reason"}):
+            raise ValueError("at least one field must change")
+        return self
+
+
+class DepartmentResponse(ConfigurationResponse):
+    test_count: int = 0
+
+
+class DepartmentPage(BaseModel):
+    items: list[DepartmentResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class DepartmentDetail(DepartmentResponse):
+    tests: list["CatalogTestListItem"] = Field(default_factory=list)
+
+
 class CatalogTestCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -87,7 +137,7 @@ class CatalogTestCreate(BaseModel):
     name_th: str = Field(min_length=1, max_length=200)
     name_en: str = Field(min_length=1, max_length=200)
     category_id: int = Field(ge=1)
-    department_id: int | None = Field(default=None, ge=1)
+    department_id: int = Field(ge=1)
     specimen_type_id: int = Field(ge=1)
     current_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
     result_type: ResultType
@@ -123,6 +173,7 @@ class CatalogTestUpdate(BaseModel):
     name_th: str | None = Field(default=None, min_length=1, max_length=200)
     name_en: str | None = Field(default=None, min_length=1, max_length=200)
     category_id: int | None = Field(default=None, ge=1)
+    department_id: int | None = Field(default=None, ge=1)
     specimen_type_id: int | None = Field(default=None, ge=1)
     current_price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     result_type: ResultType | None = None
@@ -168,6 +219,7 @@ class CatalogTestListItem(BaseModel):
     tat_minutes: int
     is_active: bool
     category: ConfigurationResponse
+    department: ConfigurationResponse
     specimen_type: ConfigurationResponse
 
 
@@ -335,6 +387,7 @@ class CatalogTestDetailBundle(BaseModel):
 class CatalogFilters(BaseModel):
     search: str | None = None
     category_id: int | None = None
+    department_id: int | None = None
     specimen_type_id: int | None = None
     result_type: ResultType | None = None
     is_active: bool | None = True

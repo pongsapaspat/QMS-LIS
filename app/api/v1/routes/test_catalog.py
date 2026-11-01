@@ -17,6 +17,11 @@ from app.schemas.test_catalog import (
     ConfigurationCreate,
     ConfigurationResponse,
     ConfigurationUpdate,
+    DepartmentCreate,
+    DepartmentDetail,
+    DepartmentPage,
+    DepartmentResponse,
+    DepartmentUpdate,
     PriceHistoryResponse,
     QualitativeOptionCreate,
     QualitativeOptionResponse,
@@ -28,7 +33,13 @@ from app.schemas.test_catalog import (
 
 category_router = APIRouter(prefix="/test-categories", tags=["test catalog"])
 specimen_router = APIRouter(prefix="/specimen-types", tags=["test catalog"])
+department_router = APIRouter(prefix="/departments", tags=["test catalog"])
 test_router = APIRouter(prefix="/tests", tags=["test catalog"])
+
+
+def _department_response(item: object, test_count: int) -> DepartmentResponse:
+    response = DepartmentResponse.model_validate(item)
+    return response.model_copy(update={"test_count": test_count})
 
 
 @category_router.post("", response_model=ConfigurationResponse, status_code=status.HTTP_201_CREATED)
@@ -101,6 +112,87 @@ def update_specimen_type(
     )
 
 
+@department_router.get("", response_model=DepartmentPage)
+def list_departments(
+    service: TestCatalogServiceDependency,
+    actor: ActorDependency,
+    search: str | None = None,
+    is_active: bool | None = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> DepartmentPage:
+    rows, total = service.list_departments(
+        search=search,
+        is_active=is_active,
+        offset=(page - 1) * page_size,
+        limit=page_size,
+    )
+    return DepartmentPage(
+        items=[_department_response(item, count) for item, count in rows],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@department_router.get("/{department_id}", response_model=DepartmentDetail)
+def get_department(
+    department_id: int,
+    service: TestCatalogServiceDependency,
+    actor: ActorDependency,
+) -> DepartmentDetail:
+    department = service.get_department(department_id)
+    tests = service.list_department_tests(department_id)
+    base = DepartmentDetail.model_validate(department)
+    return base.model_copy(
+        update={
+            "test_count": len(tests),
+            "tests": [CatalogTestListItem.model_validate(item) for item in tests],
+        }
+    )
+
+
+@department_router.post("", response_model=DepartmentResponse, status_code=status.HTTP_201_CREATED)
+def create_department(
+    data: DepartmentCreate,
+    service: TestCatalogServiceDependency,
+    actor: AdminActorDependency,
+) -> DepartmentResponse:
+    return _department_response(
+        service.create_department(data, actor_reference=actor.reference), 0
+    )
+
+
+@department_router.patch("/{department_id}", response_model=DepartmentResponse)
+def update_department(
+    department_id: int,
+    data: DepartmentUpdate,
+    service: TestCatalogServiceDependency,
+    actor: AdminActorDependency,
+) -> DepartmentResponse:
+    department = service.update_department(
+        department_id, data, actor_reference=actor.reference
+    )
+    return _department_response(
+        department, service.repository.count_department_tests(department.id)
+    )
+
+
+@department_router.patch("/{department_id}/activation", response_model=DepartmentResponse)
+def set_department_activation(
+    department_id: int,
+    data: ActivationRequest,
+    service: TestCatalogServiceDependency,
+    actor: AdminActorDependency,
+) -> DepartmentResponse:
+    department = service.set_department_activation(
+        department_id, data, actor_reference=actor.reference
+    )
+    return _department_response(
+        department, service.repository.count_department_tests(department.id)
+    )
+
+
 @test_router.post("", response_model=CatalogTestDetail, status_code=status.HTTP_201_CREATED)
 def create_test(
     data: CatalogTestCreate,
@@ -118,6 +210,7 @@ def list_tests(
     actor: ActorDependency,
     search: str | None = None,
     category_id: Annotated[int | None, Query(ge=1)] = None,
+    department_id: Annotated[int | None, Query(ge=1)] = None,
     specimen_type_id: Annotated[int | None, Query(ge=1)] = None,
     result_type: ResultType | None = None,
     is_active: bool | None = True,
@@ -127,6 +220,7 @@ def list_tests(
     items, total = service.list_tests(
         search=search,
         category_id=category_id,
+        department_id=department_id,
         specimen_type_id=specimen_type_id,
         result_type=result_type,
         is_active=is_active,

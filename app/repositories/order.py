@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.order import LabOrder
 from app.models.patient import Patient
-from app.models.test_catalog import LabTest
+from app.models.test_catalog import LaboratoryDepartment, LabTest
 
 
 class OrderRepository:
@@ -28,7 +28,12 @@ class OrderRepository:
     def get_active_tests(self, test_ids: list[int]) -> list[LabTest]:
         statement = (
             select(LabTest)
-            .where(LabTest.id.in_(test_ids), LabTest.is_active.is_(True))
+            .join(LaboratoryDepartment, LaboratoryDepartment.id == LabTest.department_id)
+            .where(
+                LabTest.id.in_(test_ids),
+                LabTest.is_active.is_(True),
+                LaboratoryDepartment.is_active.is_(True),
+            )
             .order_by(LabTest.code)
         )
         return list(self.session.scalars(statement))

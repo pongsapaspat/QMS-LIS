@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.database import get_db
 from app.main import app
-from app.models import Base, Branch
+from app.models import Base, Branch, LaboratoryDepartment
 
 
 @pytest.fixture
@@ -22,6 +22,14 @@ def db_session_factory() -> Generator[sessionmaker[Session], None, None]:
     factory = sessionmaker(bind=test_engine, autoflush=False, expire_on_commit=False)
     with factory() as session:
         session.add(Branch(id=1, code="MAIN", name="Main Branch"))
+        session.add(
+            LaboratoryDepartment(
+                id=1,
+                code="GENERAL",
+                name_th="ทั่วไป",
+                name_en="General",
+            )
+        )
         session.commit()
 
     yield factory

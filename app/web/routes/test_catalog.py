@@ -20,6 +20,8 @@ from app.schemas.test_catalog import (
     CatalogTestUpdate,
     ConfigurationCreate,
     ConfigurationUpdate,
+    DepartmentCreate,
+    DepartmentUpdate,
     QualitativeOptionCreate,
     QualitativeOptionUpdate,
     ReferenceRangeCreate,
@@ -34,6 +36,7 @@ TEST_FORM_FIELDS = (
     "name_th",
     "name_en",
     "category_id",
+    "department_id",
     "specimen_type_id",
     "current_price",
     "result_type",
@@ -103,16 +106,25 @@ def _detail_context(service: Any, test_id: int) -> dict[str, Any]:
     }
 
 
-def _master_context(service: Any, test: Any | None = None) -> dict[str, Any]:
+def _master_context(
+    service: Any, test: Any | None = None, *, include_inactive_departments: bool = False
+) -> dict[str, Any]:
     categories = service.list_categories()
+    department_rows, _ = service.list_departments(
+        is_active=None if include_inactive_departments else True
+    )
+    departments = [item for item, _ in department_rows]
     specimen_types = service.list_specimen_types()
     if test is not None:
         if not test.category.is_active:
             categories.append(test.category)
+        if not test.department.is_active:
+            departments.append(test.department)
         if not test.specimen_type.is_active:
             specimen_types.append(test.specimen_type)
     return {
         "categories": categories,
+        "departments": departments,
         "specimen_types": specimen_types,
     }
 
@@ -146,6 +158,7 @@ def test_catalog_list(
     actor: AdminActorDependency,
     search: str | None = None,
     category_id: int | None = None,
+    department_id: int | None = None,
     specimen_type_id: int | None = None,
     result_type: ResultType | None = None,
     is_active: str | None = "true",
@@ -157,6 +170,7 @@ def test_catalog_list(
     tests, total = service.list_tests(
         search=search,
         category_id=category_id,
+        department_id=department_id,
         specimen_type_id=specimen_type_id,
         result_type=result_type.value if result_type else None,
         is_active=active_filter,
@@ -176,11 +190,12 @@ def test_catalog_list(
             "has_next": page * page_size < total,
             "search": search or "",
             "category_id": category_id,
+            "department_id": department_id,
             "specimen_type_id": specimen_type_id,
             "result_type": result_type.value if result_type else "",
             "is_active": is_active or "all",
             "result_types": ResultType,
-            **_master_context(service),
+            **_master_context(service, include_inactive_departments=True),
         },
     )
 
@@ -423,6 +438,226 @@ async def test_catalog_specimen_create(
     )
 
 
+@router.get("/departments", response_class=HTMLResponse, name="test_catalog_departments")
+def test_catalog_departments(
+    request: Request,
+    service: TestCatalogServiceDependency,
+    actor: AdminActorDependency,
+    search: str | None = None,
+    is_active: str | None = "all",
+    page: int = 1,
+) -> Response:
+    page = max(page, 1)
+    page_size = 25
+    active_filter = None if is_active in {None, "all", ""} else is_active == "true"
+    rows, total = service.list_departments(
+        search=search,
+        is_active=active_filter,
+        offset=(page - 1) * page_size,
+        limit=page_size,
+    )
+    return templates.TemplateResponse(
+        request=request,
+        name="test_catalog/departments.html",
+        context={
+            "page_title": "Laboratory Departments",
+            "rows": rows,
+            "search": search or "",
+            "is_active": is_active or "all",
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "has_previous": page > 1,
+            "has_next": page * page_size < total,
+            "errors": [],
+        },
+    )
+
+
+@router.get("/departments/new", response_class=HTMLResponse, name="test_catalog_department_new")
+def test_catalog_department_new(request: Request, actor: AdminActorDependency) -> Response:
+    return templates.TemplateResponse(
+        request=request,
+        name="test_catalog/department_form.html",
+        context={
+            "page_title": "New Laboratory Department",
+            "mode": "create",
+            "values": _config_values(None),
+            "errors": [],
+            "form_action": request.url_for("test_catalog_department_create"),
+        },
+    )
+
+
+@router.post("/departments/new", response_class=HTMLResponse, name="test_catalog_department_create")
+async def test_catalog_department_create(
+    request: Request,
+    service: TestCatalogServiceDependency,
+    actor: AdminActorDependency,
+) -> Response:
+    form = await request.form()
+    values = _form_values(form, ("code", "name_th", "name_en", "reason"))
+    values["is_active"] = _checkbox(form, "is_active")
+    try:
+        department = service.create_department(
+            DepartmentCreate.model_validate(values), actor_reference=actor.reference
+        )
+    except (ValidationError, DuplicateCatalogCodeError, InvalidCatalogOperationError) as exc:
+        return _render_form_error(
+            request,
+            "test_catalog/department_form.html",
+            {
+                "page_title": "New Laboratory Department",
+                "mode": "create",
+                "values": values,
+                "form_action": request.url_for("test_catalog_department_create"),
+            },
+            exc,
+        )
+    return RedirectResponse(
+        request.url_for("test_catalog_department_detail", department_id=department.id),
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.get(
+    "/departments/{department_id}",
+    response_class=HTMLResponse,
+    name="test_catalog_department_detail",
+)
+def test_catalog_department_detail(
+    department_id: int,
+    request: Request,
+    service: TestCatalogServiceDependency,
+    actor: AdminActorDependency,
+) -> Response:
+    department = service.get_department(department_id)
+    tests = service.list_department_tests(department_id)
+    return templates.TemplateResponse(
+        request=request,
+        name="test_catalog/department_detail.html",
+        context={
+            "page_title": "Laboratory Department",
+            "department": department,
+            "tests": tests,
+            "test_count": len(tests),
+            "errors": [],
+        },
+    )
+
+
+@router.get(
+    "/departments/{department_id}/edit",
+    response_class=HTMLResponse,
+    name="test_catalog_department_edit",
+)
+def test_catalog_department_edit(
+    department_id: int,
+    request: Request,
+    service: TestCatalogServiceDependency,
+    actor: AdminActorDependency,
+) -> Response:
+    department = service.get_department(department_id)
+    return templates.TemplateResponse(
+        request=request,
+        name="test_catalog/department_form.html",
+        context={
+            "page_title": "Edit Laboratory Department",
+            "mode": "edit",
+            "values": _config_values(department),
+            "errors": [],
+            "form_action": request.url_for(
+                "test_catalog_department_update", department_id=department_id
+            ),
+        },
+    )
+
+
+@router.post(
+    "/departments/{department_id}/edit",
+    response_class=HTMLResponse,
+    name="test_catalog_department_update",
+)
+async def test_catalog_department_update(
+    department_id: int,
+    request: Request,
+    service: TestCatalogServiceDependency,
+    actor: AdminActorDependency,
+) -> Response:
+    form = await request.form()
+    values = _form_values(form, ("code", "name_th", "name_en", "reason"))
+    try:
+        service.update_department(
+            department_id,
+            DepartmentUpdate.model_validate(values),
+            actor_reference=actor.reference,
+        )
+    except (
+        ValidationError,
+        CatalogNotFoundError,
+        DuplicateCatalogCodeError,
+        InvalidCatalogOperationError,
+    ) as exc:
+        return _render_form_error(
+            request,
+            "test_catalog/department_form.html",
+            {
+                "page_title": "Edit Laboratory Department",
+                "mode": "edit",
+                "values": values,
+                "form_action": request.url_for(
+                    "test_catalog_department_update", department_id=department_id
+                ),
+            },
+            exc,
+        )
+    return RedirectResponse(
+        request.url_for("test_catalog_department_detail", department_id=department_id),
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+@router.post(
+    "/departments/{department_id}/activation",
+    response_class=HTMLResponse,
+    name="test_catalog_department_activation",
+)
+async def test_catalog_department_activation(
+    department_id: int,
+    request: Request,
+    service: TestCatalogServiceDependency,
+    actor: AdminActorDependency,
+) -> Response:
+    form = await request.form()
+    try:
+        service.set_department_activation(
+            department_id,
+            ActivationRequest(
+                is_active=_checkbox(form, "is_active"),
+                reason=_form_value(form, "reason") or "",
+            ),
+            actor_reference=actor.reference,
+        )
+    except (ValidationError, CatalogNotFoundError, InvalidCatalogOperationError) as exc:
+        department = service.get_department(department_id)
+        tests = service.list_department_tests(department_id)
+        return _render_form_error(
+            request,
+            "test_catalog/department_detail.html",
+            {
+                "page_title": "Laboratory Department",
+                "department": department,
+                "tests": tests,
+                "test_count": len(tests),
+            },
+            exc,
+        )
+    return RedirectResponse(
+        request.url_for("test_catalog_department_detail", department_id=department_id),
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
 @router.get(
     "/specimen-types/{specimen_type_id}/edit",
     response_class=HTMLResponse,
@@ -523,6 +758,7 @@ def test_catalog_edit(
     values.update(
         {
             "category_id": str(test.category_id),
+            "department_id": str(test.department_id),
             "specimen_type_id": str(test.specimen_type_id),
             "result_type": str(test.result_type),
         }

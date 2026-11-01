@@ -33,13 +33,19 @@ def _context(
     tests, _ = catalog_service.list_tests(
         search=None,
         category_id=None,
+        department_id=None,
         specimen_type_id=None,
         result_type=None,
         is_active=True,
         offset=0,
         limit=500,
     )
-    return {"patients": patients, "tests": tests, "priorities": OrderPriority, **values}
+    return {
+        "patients": patients,
+        "tests": [test for test in tests if test.department.is_active],
+        "priorities": OrderPriority,
+        **values,
+    }
 
 
 @router.get("/new", response_class=HTMLResponse, name="order_new")

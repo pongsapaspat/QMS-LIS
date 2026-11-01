@@ -1,24 +1,26 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
   <div><h1 class="h3 mb-1">Test Catalog</h1><p class="text-secondary mb-0">รายการตรวจทางห้องปฏิบัติการ</p></div>
-  <div><a class="btn btn-outline-secondary" href="{{ url_for('test_catalog_categories') }}">Categories | หมวด</a>
-    <a class="btn btn-outline-secondary" href="{{ url_for('test_catalog_specimens') }}">Specimens | สิ่งส่งตรวจ</a>
-    <a class="btn btn-primary" href="{{ url_for('test_catalog_new') }}">Add test | เพิ่มรายการตรวจ</a></div>
-</div>
-<form class="card card-body mb-4" method="get">
-  <div class="row g-2 align-items-end">
-    <div class="col-md-3"><label class="form-label" for="search">Search | ค้นหา</label><input class="form-control" id="search" name="search" value="{{ search }}" placeholder="Code or name"></div>
-    <div class="col-md-2"><label class="form-label" for="category_id">Category</label><select class="form-select" id="category_id" name="category_id"><option value="">All</option>{% for item in categories %}<option value="{{ item.id }}" {% if category_id == item.id %}selected{% endif %}>{{ item.code }} - {{ item.name_en }}</option>{% endfor %}</select></div>
-    <div class="col-md-2"><label class="form-label" for="specimen_type_id">Specimen</label><select class="form-select" id="specimen_type_id" name="specimen_type_id"><option value="">All</option>{% for item in specimen_types %}<option value="{{ item.id }}" {% if specimen_type_id == item.id %}selected{% endif %}>{{ item.code }} - {{ item.name_en }}</option>{% endfor %}</select></div>
-    <div class="col-md-2"><label class="form-label" for="result_type">Result type</label><select class="form-select" id="result_type" name="result_type"><option value="">All</option>{% for item in result_types %}<option value="{{ item.value }}" {% if result_type == item.value %}selected{% endif %}>{{ item.value }}</option>{% endfor %}</select></div>
-    <div class="col-md-2"><label class="form-label" for="is_active">Status</label><select class="form-select" id="is_active" name="is_active"><option value="true" {% if is_active == 'true' %}selected{% endif %}>Active</option><option value="false" {% if is_active == 'false' %}selected{% endif %}>Inactive</option><option value="all" {% if is_active == 'all' %}selected{% endif %}>All</option></select></div>
-    <div class="col-md-1"><button class="btn btn-secondary w-100" type="submit">Filter</button></div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('test_catalog_categories') }}">Categories | หมวด</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('test_catalog_specimens') }}">Specimen Types | สิ่งส่งตรวจ</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('test_catalog_departments') }}">Departments | แผนกห้องปฏิบัติการ</a>
+    <a class="btn btn-primary" href="{{ url_for('test_catalog_new') }}">Add test | เพิ่มรายการตรวจ</a>
   </div>
-</form>
-<div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Code</th><th>Test | รายการตรวจ</th><th>Category</th><th>Specimen</th><th>Result</th><th>Price</th><th>Status</th></tr></thead><tbody>
-{% for test in tests %}<tr><td><a href="{{ url_for('test_catalog_detail', test_id=test.id) }}"><strong>{{ test.code }}</strong></a></td><td>{{ test.name_en }}<br><span class="text-secondary">{{ test.name_th }}</span></td><td>{{ test.category.code }}</td><td>{{ test.specimen_type.code }}</td><td>{{ test.result_type }}{% if test.result_unit %}<br><span class="text-secondary">{{ test.result_unit }}</span>{% endif %}</td><td>{{ '%.2f'|format(test.current_price) }}</td><td>{% if test.is_active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-secondary">Inactive</span>{% endif %}</td></tr>
-{% else %}<tr><td colspan="7" class="text-center text-secondary py-4">No tests found.</td></tr>{% endfor %}
+</div>
+<form class="card card-body mb-4" method="get"><div class="row g-2 align-items-end">
+  <div class="col-md-3"><label class="form-label" for="search">Search | ค้นหา</label><input class="form-control" id="search" name="search" value="{{ search }}" placeholder="Code or name"></div>
+  <div class="col-md-2"><label class="form-label" for="category_id">Category</label><select class="form-select" id="category_id" name="category_id"><option value="">All</option>{% for item in categories %}<option value="{{ item.id }}" {% if category_id == item.id %}selected{% endif %}>{{ item.code }} - {{ item.name_en }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><label class="form-label" for="department_id">Department</label><select class="form-select" id="department_id" name="department_id"><option value="">All</option>{% for item in departments %}<option value="{{ item.id }}" {% if department_id == item.id %}selected{% endif %}>{{ item.code }} - {{ item.name_en }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><label class="form-label" for="specimen_type_id">Specimen</label><select class="form-select" id="specimen_type_id" name="specimen_type_id"><option value="">All</option>{% for item in specimen_types %}<option value="{{ item.id }}" {% if specimen_type_id == item.id %}selected{% endif %}>{{ item.code }} - {{ item.name_en }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><label class="form-label" for="result_type">Result type</label><select class="form-select" id="result_type" name="result_type"><option value="">All</option>{% for item in result_types %}<option value="{{ item.value }}" {% if result_type == item.value %}selected{% endif %}>{{ item.value }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><label class="form-label" for="is_active">Status</label><select class="form-select" id="is_active" name="is_active"><option value="true" {% if is_active == 'true' %}selected{% endif %}>Active</option><option value="false" {% if is_active == 'false' %}selected{% endif %}>Inactive</option><option value="all" {% if is_active == 'all' %}selected{% endif %}>All</option></select></div>
+  <div class="col-md-1"><button class="btn btn-secondary w-100" type="submit">Filter</button></div>
+</div></form>
+<div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Code</th><th>Test | รายการตรวจ</th><th>Category</th><th>Department</th><th>Specimen</th><th>Result</th><th>Price</th><th>Status</th></tr></thead><tbody>
+{% for test in tests %}<tr><td><a href="{{ url_for('test_catalog_detail', test_id=test.id) }}"><strong>{{ test.code }}</strong></a></td><td>{{ test.name_en }}<br><span class="text-secondary">{{ test.name_th }}</span></td><td>{{ test.category.code }}</td><td>{{ test.department.code }} - {{ test.department.name_en }}{% if not test.department.is_active %} <span class="badge text-bg-secondary">Inactive</span>{% endif %}</td><td>{{ test.specimen_type.code }}</td><td>{{ test.result_type }}{% if test.result_unit %}<br><span class="text-secondary">{{ test.result_unit }}</span>{% endif %}</td><td>{{ '%.2f'|format(test.current_price) }}</td><td>{% if test.is_active %}<span class="badge text-bg-success">Active</span>{% else %}<span class="badge text-bg-secondary">Inactive</span>{% endif %}</td></tr>
+{% else %}<tr><td colspan="8" class="text-center text-secondary py-4">No tests found.</td></tr>{% endfor %}
 </tbody></table></div>
-<div class="d-flex justify-content-between"><span class="text-secondary">{{ total }} result(s)</span><div>{% if has_previous %}<a class="btn btn-outline-secondary btn-sm" href="?page={{ page - 1 }}&search={{ search }}&category_id={{ category_id or '' }}&specimen_type_id={{ specimen_type_id or '' }}&result_type={{ result_type }}&is_active={{ is_active }}">Previous</a>{% endif %}{% if has_next %}<a class="btn btn-outline-secondary btn-sm" href="?page={{ page + 1 }}&search={{ search }}&category_id={{ category_id or '' }}&specimen_type_id={{ specimen_type_id or '' }}&result_type={{ result_type }}&is_active={{ is_active }}">Next</a>{% endif %}</div></div>
+<div class="d-flex justify-content-between"><span class="text-secondary">{{ total }} result(s)</span><div>{% if has_previous %}<a class="btn btn-outline-secondary btn-sm" href="?page={{ page - 1 }}&search={{ search }}&category_id={{ category_id or '' }}&department_id={{ department_id or '' }}&specimen_type_id={{ specimen_type_id or '' }}&result_type={{ result_type }}&is_active={{ is_active }}">Previous</a>{% endif %}{% if has_next %}<a class="btn btn-outline-secondary btn-sm" href="?page={{ page + 1 }}&search={{ search }}&category_id={{ category_id or '' }}&department_id={{ department_id or '' }}&specimen_type_id={{ specimen_type_id or '' }}&result_type={{ result_type }}&is_active={{ is_active }}">Next</a>{% endif %}</div></div>
 {% endblock %}
