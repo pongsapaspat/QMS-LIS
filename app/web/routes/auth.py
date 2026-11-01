@@ -1,8 +1,11 @@
+from datetime import timedelta
+
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 
 from app.api.dependencies import SessionDependency
+from app.core.config import get_settings
 from app.core.passwords import hash_password, verify_password
 from app.core.security import ActorDependency
 from app.models.audit import AuditLog
@@ -11,6 +14,7 @@ from app.models.user import User
 from app.web.templates import templates
 
 router = APIRouter()
+settings = get_settings()
 
 
 def _session_user(request: Request, session: SessionDependency) -> User:
@@ -40,14 +44,76 @@ async def login(request: Request, session: SessionDependency) -> HTMLResponse | 
     username = str(form.get("username", "")).strip().lower()
     password = str(form.get("password", ""))
     user = session.scalar(select(User).where(User.username == username))
-    if user is None or not user.is_active or not verify_password(password, user.password_hash):
+    now = utc_now()
+    is_locked = user is not None and user.locked_until is not None and user.locked_until > now
+    if user is not None and user.locked_until is not None and user.locked_until <= now:
+        user.locked_until = None
+        user.failed_login_count = 0
+        user.failed_login_window_started_at = None
+    invalid_login = (
+        user is None
+        or not user.is_active
+        or is_locked
+        or not verify_password(password, user.password_hash)
+    )
+    if invalid_login:
+        if user is None:
+            reason = "Login failed: unknown username"
+            entity_id = 0
+        elif not user.is_active:
+            reason = "Login failed: inactive account"
+            entity_id = user.id
+        elif is_locked:
+            reason = "Login failed: account locked"
+            entity_id = user.id
+        else:
+            reason = "Login failed: invalid password"
+            entity_id = user.id
+        session.add(
+            AuditLog(
+                event_type="USER_LOGIN_FAILED",
+                entity_type="user_login",
+                entity_id=entity_id,
+                changed_fields=[],
+                reason=reason,
+                actor_reference=username or "unknown",
+            )
+        )
+        if user is not None and user.is_active and not is_locked:
+            window_start = user.failed_login_window_started_at
+            if (
+                window_start is None
+                or now - window_start > timedelta(seconds=settings.login_failure_window_seconds)
+            ):
+                user.failed_login_count = 1
+                user.failed_login_window_started_at = now
+                
+            else:
+                user.failed_login_count += 1
+            if user.failed_login_count >= settings.login_failure_limit:
+                user.locked_until = now + timedelta(seconds=settings.account_lockout_seconds)
+                session.add(
+                    AuditLog(
+                        event_type="USER_ACCOUNT_LOCKED",
+                        entity_type="user",
+                        entity_id=user.id,
+                        changed_fields=["locked_until", "failed_login_count"],
+                        reason="Account locked after repeated failed logins",
+                        actor_reference=user.username,
+                    )
+                )
+        session.commit()
         return templates.TemplateResponse(
             request=request,
             name="auth/login.html",
             status_code=401,
             context={"error": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"},
         )
+    assert user is not None and user.is_active and not is_locked
     user.last_login_at = utc_now()
+    user.failed_login_count = 0
+    user.failed_login_window_started_at = None
+    user.locked_until = None
     session.add(
         AuditLog(
             event_type="USER_LOGGED_IN",

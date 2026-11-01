@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     session_idle_timeout_seconds: int = 1800
     session_max_age_seconds: int = 28800
     session_https_only: bool = False
+    login_failure_limit: int = 5
+    login_failure_window_seconds: int = 900
+    account_lockout_seconds: int = 900
     bootstrap_admin_username: str | None = None
     bootstrap_admin_password: str | None = None
     log_level: str = "INFO"

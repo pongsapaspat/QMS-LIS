@@ -66,6 +66,43 @@ def test_invalid_login_does_not_create_session(client: TestClient) -> None:
 
 
 @pytest.mark.integration
+def test_failed_login_is_audited_without_storing_password(
+    client: TestClient, db_session_factory: sessionmaker[Session]
+) -> None:
+    with db_session_factory() as session:
+        session.add(
+            User(
+                username="inactive",
+                password_hash=hash_password("correct-password"),
+                role="LAB_TECH",
+                display_name="Inactive",
+                is_active=False,
+            )
+        )
+        session.commit()
+
+    assert (
+        client.post("/login", data={"username": "missing", "password": "secret"}).status_code
+        == 401
+    )
+    assert (
+        client.post("/login", data={"username": "inactive", "password": "secret"}).status_code
+        == 401
+    )
+    with db_session_factory() as session:
+        events = list(
+            session.query(AuditLog)
+            .filter(AuditLog.event_type == "USER_LOGIN_FAILED")
+            .order_by(AuditLog.id)
+        )
+        assert len(events) == 2
+        assert events[0].entity_id == 0
+        assert events[0].actor_reference == "missing"
+        assert events[1].entity_id > 0
+        assert all("secret" not in event.reason for event in events)
+
+
+@pytest.mark.integration
 def test_navigation_matches_logged_in_user_role(
     client: TestClient, db_session_factory: sessionmaker[Session]
 ) -> None:

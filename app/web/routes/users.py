@@ -79,6 +79,29 @@ def user_toggle(
     return RedirectResponse("/users", status_code=303)
 
 
+@router.post("/{user_id}/unlock", name="user_unlock")
+def user_unlock(
+    user_id: int, request: Request, session: SessionDependency, actor: AdminActorDependency
+) -> RedirectResponse:
+    user = session.get(User, user_id)
+    if user is not None and user.locked_until is not None:
+        user.locked_until = None
+        user.failed_login_count = 0
+        user.failed_login_window_started_at = None
+        session.add(
+            AuditLog(
+                event_type="USER_ACCOUNT_UNLOCKED",
+                entity_type="user",
+                entity_id=user.id,
+                changed_fields=["locked_until", "failed_login_count"],
+                reason="Account unlocked by administrator",
+                actor_reference=actor.reference,
+            )
+        )
+        session.commit()
+    return RedirectResponse("/users", status_code=303)
+
+
 @router.post("/{user_id}/reset-password", name="user_reset_password")
 async def user_reset_password(
     user_id: int, request: Request, session: SessionDependency, actor: AdminActorDependency
