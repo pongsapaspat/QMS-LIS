@@ -2,48 +2,46 @@
 
 {% block content %}
 {% set role = request.session.get('role') or (request.headers.get('X-Role') if allow_dev_role_headers else none) or template_default_role %}
-<section class="p-4 border rounded bg-light">
-  <h1 class="h3 mb-3">QMS-LIS</h1>
-  <p class="mb-3">
-    Laboratory Information System scaffold is running.
-  </p>
-  <div class="d-flex flex-wrap gap-2">
-    {% if role == 'ADMIN' %}
-    <a class="btn btn-primary" href="/docs">Open API Docs</a>
-    <a class="btn btn-outline-secondary" href="/api/v1/health">Check API Health</a>
-    {% endif %}
-    <a class="btn btn-outline-primary" href="{{ url_for('order_new') }}">New laboratory order</a>
-  </div>
-</section>
+<div class="page-heading">
+  <div><p class="section-kicker">Laboratory Operations</p><h1>ภาพรวมระบบ QMS-LIS</h1><p>ติดตามงานห้องปฏิบัติการและเข้าถึงกระบวนการหลักจากหน้าเดียว</p></div>
+  <a class="btn btn-primary" href="{{ url_for('order_new') }}">สร้างคำสั่งตรวจใหม่</a>
+</div>
 
 {% if role in ['ADMIN', 'LAB_TECH', 'LAB_SUPERVISOR'] %}
-<section class="mt-4" aria-labelledby="laboratory-worklist-heading">
-  <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
-    <div>
-      <h2 class="h4 mb-1" id="laboratory-worklist-heading">Laboratory Worklist</h2>
-      <p class="text-body-secondary mb-0">รายการงานห้องปฏิบัติการ · Review actionable laboratory workflow tasks.</p>
-    </div>
-    <a class="btn btn-primary" href="/worklist">Open Worklist</a>
+<section aria-labelledby="laboratory-worklist-heading">
+  <div class="section-heading">
+    <div><h2 id="laboratory-worklist-heading">Laboratory Worklist</h2><p>รายการงานห้องปฏิบัติการที่ต้องดำเนินการในกระบวนการตรวจ</p></div>
+    <a class="btn btn-outline-primary" href="/worklist">เปิด Worklist</a>
   </div>
-  <div class="row g-3">
-    {% set summaries = [
-      ('ORDER_PENDING_COLLECTION', 'Orders pending collection'),
-      ('SPECIMEN_PENDING_RECEIVING', 'Specimens pending receiving'),
-      ('RESULT_PENDING_ENTRY', 'Results pending entry'),
-      ('RESULT_IN_PROGRESS', 'Results in progress')
-    ] %}
-    {% for task_type, label in summaries %}
-    <div class="col-12 col-sm-6 col-xl-3">
-      <a class="card h-100 shadow-sm text-decoration-none text-body" href="/worklist?task_type={{ task_type }}">
-        <div class="card-body">
-          <div class="small text-body-secondary">{{ label }}</div>
-          <div class="display-6">{{ worklist_counts[task_type] }}</div>
-          <div class="small">{% if worklist_counts[task_type] %}View tasks{% else %}No pending tasks{% endif %}</div>
-        </div>
-      </a>
-    </div>
+  {% set summaries = [
+    ('ORDER_PENDING_COLLECTION', 'รอเก็บสิ่งส่งตรวจ', 'Orders pending collection · คำสั่งตรวจที่ต้องเก็บสิ่งส่งตรวจ'),
+    ('SPECIMEN_PENDING_RECEIVING', 'รอรับสิ่งส่งตรวจ', 'สิ่งส่งตรวจที่รอยืนยันการรับ'),
+    ('RESULT_PENDING_ENTRY', 'รอบันทึกผล', 'รายการตรวจที่พร้อมบันทึกผล'),
+    ('RESULT_IN_PROGRESS', 'กำลังดำเนินการ', 'ผลตรวจที่ยังบันทึกไม่สมบูรณ์')
+  ] %}
+  <div class="row g-3 dashboard-metrics">
+    {% for task_type, label, description in summaries %}
+    <div class="col-12 col-sm-6 col-xl-3"><a class="metric-card" href="/worklist?task_type={{ task_type }}"><div class="metric-label">{{ label }}</div><div class="metric-value">{{ worklist_counts[task_type] }}</div><div class="metric-description">{{ description }}</div><div class="metric-action">ดูรายการ</div></a></div>
     {% endfor %}
   </div>
 </section>
 {% endif %}
+
+<section class="quick-actions" aria-labelledby="quick-actions-heading">
+  <div class="section-heading"><div><h2 id="quick-actions-heading">เมนูใช้งานด่วน</h2><p>เมนูที่แสดงเป็นไปตามสิทธิ์ของบัญชีผู้ใช้งาน</p></div></div>
+  <div class="row g-3">
+    <div class="col-12 col-md-6 col-xl-4"><a class="action-card" href="{{ url_for('order_new') }}"><strong>สร้างคำสั่งตรวจ</strong><span>เลือกผู้ป่วยและรายการตรวจเพื่อเริ่มกระบวนการ</span></a></div>
+    {% if role in ['ADMIN', 'LAB_TECH', 'LAB_SUPERVISOR'] %}
+    <div class="col-12 col-md-6 col-xl-4"><a class="action-card" href="/results/verification"><strong>ตรวจสอบผล</strong><span>ตรวจความครบถ้วนก่อนส่งเข้าสู่ขั้นตอนเผยแพร่</span></a></div>
+    <div class="col-12 col-md-6 col-xl-4"><a class="action-card" href="{{ url_for('lab_reports') }}"><strong>รายงานผลตรวจ</strong><span>ค้นหา เปิดดู และดาวน์โหลดรายงานที่เผยแพร่แล้ว</span></a></div>
+    {% endif %}
+    {% if role == 'ADMIN' %}
+    <div class="col-12 col-md-6 col-xl-4"><a class="action-card" href="/patients"><strong>ข้อมูลผู้ป่วย</strong><span>ค้นหา ลงทะเบียน และปรับปรุงข้อมูลผู้รับบริการ</span></a></div>
+    <div class="col-12 col-md-6 col-xl-4"><a class="action-card" href="/test-catalog"><strong>Test Catalog</strong><span>กำหนดรายการตรวจ ช่วงอ้างอิง และข้อมูลหลัก</span></a></div>
+    {% endif %}
+    {% if role in ['ADMIN', 'LAB_SUPERVISOR'] %}
+    <div class="col-12 col-md-6 col-xl-4"><a class="action-card" href="/audit-logs"><strong>Audit Log</strong><span>ตรวจสอบประวัติการดำเนินการย้อนหลัง</span></a></div>
+    {% endif %}
+  </div>
+</section>
 {% endblock %}

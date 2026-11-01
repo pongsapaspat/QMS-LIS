@@ -1,4 +1,35 @@
 {% extends "base.html" %}
-{% block content %}
-<div class="row justify-content-center"><div class="col-md-6 col-lg-4"><h1 class="h3 mb-4">เข้าสู่ระบบ QMS-LIS</h1>{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}<form method="post" class="card card-body"><label class="form-label" for="username">ชื่อผู้ใช้</label><input class="form-control mb-3" id="username" name="username" required autocomplete="username"><label class="form-label" for="password">รหัสผ่าน</label><input class="form-control mb-3" id="password" name="password" type="password" required autocomplete="current-password"><button class="btn btn-primary" type="submit">เข้าสู่ระบบ</button></form></div></div>
+
+{% block auth_content %}
+<div class="auth-shell">
+  <section class="auth-brand-panel" aria-labelledby="system-name">
+    <div class="auth-brand-content">
+      <span class="auth-brand-mark" aria-hidden="true">QL</span>
+      <p class="auth-eyebrow">Quality Management System</p>
+      <h1 id="system-name">QMS-LIS</h1>
+      <p class="auth-description">ระบบสารสนเทศทางห้องปฏิบัติการสำหรับจัดการกระบวนการตรวจอย่างเป็นระบบ ปลอดภัย และตรวจสอบย้อนหลังได้</p>
+      <div class="auth-assurance">
+        <div><strong>Traceable</strong><span>บันทึกทุกขั้นตอนสำคัญ</span></div>
+        <div><strong>Role-based</strong><span>ควบคุมสิทธิ์ตามหน้าที่</span></div>
+        <div><strong>Quality-focused</strong><span>สนับสนุนกระบวนการคุณภาพ</span></div>
+      </div>
+    </div>
+  </section>
+  <section class="auth-form-panel">
+    <div class="login-card">
+      <div class="login-heading">
+        <p class="section-kicker">QMS-LIS</p>
+        <h2>เข้าสู่ระบบ</h2>
+        <p>กรอกบัญชีผู้ใช้งานที่ได้รับอนุญาต</p>
+      </div>
+      {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+      <form method="post">
+        <div class="mb-3"><label class="form-label" for="username">ชื่อผู้ใช้</label><input class="form-control form-control-lg" id="username" name="username" required autocomplete="username" autofocus></div>
+        <div class="mb-4"><label class="form-label" for="password">รหัสผ่าน</label><input class="form-control form-control-lg" id="password" name="password" type="password" required autocomplete="current-password"></div>
+        <button class="btn btn-primary btn-lg w-100" type="submit">เข้าสู่ระบบ</button>
+      </form>
+      <p class="login-note">ห้ามใช้บัญชีร่วมกัน และควรออกจากระบบทุกครั้งเมื่อเลิกใช้งาน</p>
+    </div>
+  </section>
+</div>
 {% endblock %}
