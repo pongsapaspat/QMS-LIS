@@ -1,7 +1,7 @@
 from functools import lru_cache
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -44,6 +44,15 @@ class Settings(BaseSettings):
         except ZoneInfoNotFoundError as exc:
             raise ValueError("timezone must be a valid IANA timezone name") from exc
         return value
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        if self.app_env == "production":
+            if self.enable_dev_admin_fallback:
+                raise ValueError("enable_dev_admin_fallback must be false in production")
+            if self.session_secret == "change-this-development-secret":
+                raise ValueError("session_secret must be changed in production")
+        return self
 
 
 @lru_cache

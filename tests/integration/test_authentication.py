@@ -50,6 +50,8 @@ def test_login_session_and_logout(
         ]
         assert events == ["USER_LOGGED_IN", "USER_LOGGED_OUT"]
     monkeypatch.setenv("QMS_LIS_APP_ENV", "production")
+    monkeypatch.setenv("QMS_LIS_ENABLE_DEV_ADMIN_FALLBACK", "false")
+    monkeypatch.setenv("QMS_LIS_SESSION_SECRET", "test-production-secret")
     from app.core.config import get_settings
 
     get_settings.cache_clear()

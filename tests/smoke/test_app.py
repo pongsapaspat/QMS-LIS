@@ -27,6 +27,13 @@ def test_versioned_health_check() -> None:
     assert response.json() == {"status": "ok"}
 
 
+def test_readiness_check_includes_database() -> None:
+    response = client.get("/api/v1/health/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready", "database": "ok"}
+
+
 def test_openapi_schema_is_generated() -> None:
     response = client.get("/openapi.json")
 
