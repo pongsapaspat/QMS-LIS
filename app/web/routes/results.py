@@ -1,5 +1,8 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from pydantic import AfterValidator, BeforeValidator
 
 from app.api.dependencies import ResultServiceDependency, WorklistServiceDependency
 from app.core.security import (
@@ -20,6 +23,7 @@ from app.schemas.result import (
     VerificationRejection,
 )
 from app.schemas.worklist import WorklistTaskStatus, WorklistTaskType
+from app.web.query import empty_string_to_none, positive_int_or_none
 from app.web.templates import templates
 
 router = APIRouter()
@@ -31,8 +35,14 @@ def verification_queue(
     service: ResultServiceDependency,
     worklist_service: WorklistServiceDependency,
     actor: ResultReaderDependency,
-    department_id: int | None = Query(default=None, ge=1),
-    priority: OrderPriority | None = None,
+    department_id: Annotated[
+        int | None,
+        BeforeValidator(empty_string_to_none),
+        AfterValidator(positive_int_or_none),
+    ] = None,
+    priority: Annotated[
+        OrderPriority | None, BeforeValidator(empty_string_to_none)
+    ] = None,
     search: str | None = Query(default=None, max_length=100),
     page: int = Query(default=1, ge=1),
 ) -> HTMLResponse:
@@ -159,7 +169,9 @@ def release_queue(
     request: Request,
     service: ResultServiceDependency,
     actor: ResultReaderDependency,
-    priority: OrderPriority | None = None,
+    priority: Annotated[
+        OrderPriority | None, BeforeValidator(empty_string_to_none)
+    ] = None,
     search: str | None = Query(default=None, max_length=100),
     page: int = Query(default=1, ge=1),
 ) -> HTMLResponse:
@@ -245,10 +257,20 @@ def worklist(
     request: Request,
     service: WorklistServiceDependency,
     actor: ResultReaderDependency,
-    task_type: WorklistTaskType | None = None,
-    department_id: int | None = Query(default=None, ge=1),
-    priority: OrderPriority | None = None,
-    status: WorklistTaskStatus | None = None,
+    task_type: Annotated[
+        WorklistTaskType | None, BeforeValidator(empty_string_to_none)
+    ] = None,
+    department_id: Annotated[
+        int | None,
+        BeforeValidator(empty_string_to_none),
+        AfterValidator(positive_int_or_none),
+    ] = None,
+    priority: Annotated[
+        OrderPriority | None, BeforeValidator(empty_string_to_none)
+    ] = None,
+    status: Annotated[
+        WorklistTaskStatus | None, BeforeValidator(empty_string_to_none)
+    ] = None,
     search: str | None = Query(default=None, max_length=100),
     page: int = Query(default=1, ge=1),
 ) -> HTMLResponse:

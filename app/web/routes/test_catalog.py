@@ -1,10 +1,10 @@
 import json
 from contextlib import suppress
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from pydantic import ValidationError
+from pydantic import AfterValidator, BeforeValidator, ValidationError
 
 from app.api.dependencies import TestCatalogServiceDependency
 from app.core.security import AdminActorDependency
@@ -27,6 +27,7 @@ from app.schemas.test_catalog import (
     ReferenceRangeCreate,
     ReferenceRangeUpdate,
 )
+from app.web.query import empty_string_to_none, positive_int_or_none
 from app.web.templates import templates
 
 router = APIRouter(prefix="/test-catalog")
@@ -157,10 +158,24 @@ def test_catalog_list(
     service: TestCatalogServiceDependency,
     actor: AdminActorDependency,
     search: str | None = None,
-    category_id: int | None = None,
-    department_id: int | None = None,
-    specimen_type_id: int | None = None,
-    result_type: ResultType | None = None,
+    category_id: Annotated[
+        int | None,
+        BeforeValidator(empty_string_to_none),
+        AfterValidator(positive_int_or_none),
+    ] = None,
+    department_id: Annotated[
+        int | None,
+        BeforeValidator(empty_string_to_none),
+        AfterValidator(positive_int_or_none),
+    ] = None,
+    specimen_type_id: Annotated[
+        int | None,
+        BeforeValidator(empty_string_to_none),
+        AfterValidator(positive_int_or_none),
+    ] = None,
+    result_type: Annotated[
+        ResultType | None, BeforeValidator(empty_string_to_none)
+    ] = None,
     is_active: str | None = "true",
     page: int = 1,
 ) -> Response:
