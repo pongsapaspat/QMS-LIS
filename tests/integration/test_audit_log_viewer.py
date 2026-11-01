@@ -52,6 +52,12 @@ def test_audit_viewer_permissions_filters_and_detail(
     assert "patient #7" not in supervisor.text
     assert "แก้ไขหรือลบไม่ได้" in supervisor.text
 
+    export = client.get("/audit-logs/export.csv", headers=SUPERVISOR_HEADERS)
+    assert export.status_code == 200
+    assert "text/csv" in export.headers["content-type"]
+    assert "RESULT_VERIFIED" in export.content.decode("utf-8-sig")
+    assert "+07:00" in export.content.decode("utf-8-sig")
+
     detail = client.get(f"/audit-logs/{audit_id}", headers=SUPERVISOR_HEADERS)
     assert detail.status_code == 200
     assert "verified_at" in detail.text
