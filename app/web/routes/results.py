@@ -2,7 +2,7 @@ from datetime import date
 from typing import Annotated, cast
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from pydantic import AfterValidator, BeforeValidator
 
 from app.api.dependencies import ResultServiceDependency, WorklistServiceDependency
@@ -13,7 +13,7 @@ from app.core.security import (
     ResultVerifierDependency,
 )
 from app.domain.exceptions import InvalidResultOperationError
-from app.models.order import LabOrderItem, OrderPriority
+from app.models.order import LabOrder, LabOrderItem, OrderPriority
 from app.models.result import ResultStatus
 from app.schemas.result import (
     AmendmentOpen,
@@ -25,6 +25,7 @@ from app.schemas.result import (
     VerificationRejection,
 )
 from app.schemas.worklist import WorklistTaskStatus, WorklistTaskType
+from app.services.report_pdf import build_lab_report_pdf
 from app.web.query import empty_string_to_none, positive_int_or_none
 from app.web.templates import templates
 
@@ -313,6 +314,31 @@ def lab_report(
         request=request,
         name="results/report.html",
         context={"page_title": "รายงานผลตรวจ", "context": context},
+    )
+
+
+@router.get(
+    "/results/reports/orders/{order_id}/pdf",
+    response_class=Response,
+    name="lab_report_pdf",
+)
+def lab_report_pdf(
+    order_id: int,
+    service: ResultServiceDependency,
+    actor: ResultReaderDependency,
+) -> Response:
+    context = service.report_context(order_id, actor_reference=actor.reference)
+    pdf = build_lab_report_pdf(context)
+    service.audit_report_pdf_download(order_id, actor_reference=actor.reference)
+    order = cast(LabOrder, context["order"])
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="QMS-LIS-{order.order_number}.pdf"'
+            )
+        },
     )
 
 

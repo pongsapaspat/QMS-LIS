@@ -497,6 +497,19 @@ class ResultService:
             "page_size": page_size,
         }
 
+    def audit_report_pdf_download(self, order_id: int, *, actor_reference: str) -> None:
+        self.audit_repository.add(
+            AuditLog(
+                event_type="LAB_REPORT_PDF_DOWNLOADED",
+                entity_type="lab_order",
+                entity_id=order_id,
+                changed_fields=[],
+                reason="ดาวน์โหลดรายงานผลตรวจ PDF",
+                actor_reference=actor_reference,
+            )
+        )
+        self.session.commit()
+
     def release(
         self,
         order_id: int,

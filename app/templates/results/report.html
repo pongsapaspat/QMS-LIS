@@ -14,7 +14,7 @@
 </style>
 <div class="report-actions d-flex justify-content-between mb-3">
   <a class="btn btn-outline-secondary" href="{{ url_for('order_detail', order_id=context.order.id) }}">กลับไปยัง Order</a>
-  <button class="btn btn-primary" type="button" onclick="window.print()">พิมพ์รายงาน</button>
+  <div><a class="btn btn-success" href="{{ url_for('lab_report_pdf', order_id=context.order.id) }}">ดาวน์โหลด PDF</a> <button class="btn btn-primary" type="button" onclick="window.print()">พิมพ์รายงาน</button></div>
 </div>
 <article class="report-sheet card">
   <div class="card-body p-4 p-md-5">

@@ -225,6 +225,14 @@ def test_verification_rejection_correction_and_atomic_release(
         assert "พิมพ์รายงาน" in report.text
         assert "Glucose Thai" in report.text
 
+        pdf_report = client.get(
+            f"/results/reports/orders/{order_id}/pdf", headers=SUPERVISOR_HEADERS
+        )
+        assert pdf_report.status_code == 200
+        assert pdf_report.headers["content-type"] == "application/pdf"
+        assert pdf_report.headers["content-disposition"].endswith(".pdf\"")
+        assert pdf_report.content.startswith(b"%PDF-")
+
         report_list = client.get(
             "/results/reports",
             params={"search": released.json()["order_number"]},
@@ -334,6 +342,7 @@ def test_verification_rejection_correction_and_atomic_release(
                 "RESULT_RELEASED",
                 "ADMIN_FOUR_EYES_BYPASS",
                 "LAB_REPORT_VIEWED",
+                "LAB_REPORT_PDF_DOWNLOADED",
                 "RESULT_AMENDMENT_OPENED",
                 "ORDER_AMENDMENT_OPENED",
                 "RESULT_AMENDED",
