@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -5,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
+from app.core.time import to_app_timezone
 from app.domain.exceptions import InvalidResultOperationError
 from app.models.audit import AuditLog
 from app.models.order import LabOrder, OrderStatus
@@ -68,6 +71,16 @@ def test_verification_rejection_correction_and_atomic_release(
     try:
         order_id, results = _completed_order(client)
         result_ids = [int(result["id"]) for result in results]
+
+        unavailable_report = client.get(
+            f"/results/reports/orders/{order_id}", headers=SUPERVISOR_HEADERS
+        )
+        assert unavailable_report.status_code == 409
+        assert unavailable_report.headers["content-type"].startswith("text/html")
+        assert "รายงานผลตรวจยังไม่พร้อม" in unavailable_report.text
+        assert client.get(
+            f"/results/reports/orders/{order_id}", headers=RECEPTION_HEADERS
+        ).status_code == 403
 
         queue = client.get("/api/v1/results/verification-queue", headers=ENTRY_HEADERS)
         assert queue.status_code == 200
@@ -202,6 +215,45 @@ def test_verification_rejection_correction_and_atomic_release(
         assert released.status_code == 200
         assert released.json()["status"] == "RELEASED"
 
+        report = client.get(
+            f"/results/reports/orders/{order_id}", headers=SUPERVISOR_HEADERS
+        )
+        assert report.status_code == 200
+        assert report.headers["content-type"].startswith("text/html")
+        assert "รายงานผลการตรวจทางห้องปฏิบัติการ" in report.text
+        assert "QMS-LIS" in report.text
+        assert "พิมพ์รายงาน" in report.text
+        assert "Glucose Thai" in report.text
+
+        report_list = client.get(
+            "/results/reports",
+            params={"search": released.json()["order_number"]},
+            headers=SUPERVISOR_HEADERS,
+        )
+        assert report_list.status_code == 200
+        assert "รายงานผลตรวจ" in report_list.text
+        assert released.json()["order_number"] in report_list.text
+        assert f'/results/reports/orders/{order_id}' in report_list.text
+
+        release_date = to_app_timezone(
+            datetime.fromisoformat(released.json()["released_at"])
+        ).date()
+        filtered_reports = client.get(
+            "/results/reports",
+            params={
+                "date_from": release_date.isoformat(),
+                "date_to": release_date.isoformat(),
+            },
+            headers=SUPERVISOR_HEADERS,
+        )
+        assert released.json()["order_number"] in filtered_reports.text
+        excluded_reports = client.get(
+            "/results/reports",
+            params={"date_from": (release_date + timedelta(days=1)).isoformat()},
+            headers=SUPERVISOR_HEADERS,
+        )
+        assert released.json()["order_number"] not in excluded_reports.text
+
         edit_released = client.put(
             f"/api/v1/results/{result_ids[0]}",
             json={
@@ -230,6 +282,7 @@ def test_verification_rejection_correction_and_atomic_release(
                 "ORDER_RELEASED",
                 "RESULT_RELEASED",
                 "ADMIN_FOUR_EYES_BYPASS",
+                "LAB_REPORT_VIEWED",
             } <= events
     finally:
         get_settings.cache_clear()

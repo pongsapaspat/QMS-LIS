@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -225,6 +227,57 @@ class ResultRepository:
         ) or 0
         statement = (
             statement.order_by(LabOrder.priority.desc(), LabOrder.verified_at, LabOrder.id)
+            .offset(offset)
+            .limit(limit)
+        )
+        return list(self.session.scalars(statement)), total
+
+    def list_released_orders(
+        self,
+        *,
+        search: str | None,
+        released_from: datetime | None,
+        released_before: datetime | None,
+        offset: int,
+        limit: int,
+    ) -> tuple[list[LabOrder], int]:
+        statement = (
+            select(LabOrder)
+            .join(Patient, Patient.id == LabOrder.patient_id)
+            .options(
+                selectinload(LabOrder.patient),
+                selectinload(LabOrder.items)
+                .selectinload(LabOrderItem.result)
+                .selectinload(Result.specimen),
+            )
+            .where(LabOrder.status == "RELEASED")
+        )
+        if search:
+            term = f"%{search.strip()}%"
+            statement = statement.where(
+                or_(
+                    LabOrder.order_number.ilike(term),
+                    Patient.hn.ilike(term),
+                    Patient.first_name_th.ilike(term),
+                    Patient.last_name_th.ilike(term),
+                    Patient.first_name_en.ilike(term),
+                    Patient.last_name_en.ilike(term),
+                    LabOrder.items.any(
+                        LabOrderItem.result.has(
+                            Result.specimen.has(Specimen.accession_number.ilike(term))
+                        )
+                    ),
+                )
+            )
+        if released_from is not None:
+            statement = statement.where(LabOrder.released_at >= released_from)
+        if released_before is not None:
+            statement = statement.where(LabOrder.released_at < released_before)
+        total = self.session.scalar(
+            select(func.count()).select_from(statement.order_by(None).subquery())
+        ) or 0
+        statement = (
+            statement.order_by(LabOrder.released_at.desc(), LabOrder.id.desc())
             .offset(offset)
             .limit(limit)
         )

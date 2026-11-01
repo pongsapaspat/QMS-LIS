@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <div><h1 class="h3 mb-1">รายงานผลตรวจ</h1><p class="text-secondary mb-0">Order ที่อนุมัติและ Release แล้ว</p></div>
+  <span class="badge text-bg-primary fs-6">{{ reports.total }} รายงาน</span>
+</div>
+<form class="card card-body mb-4" method="get" action="{{ url_for('lab_reports') }}">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-6"><label class="form-label" for="report-search">ค้นหารายงาน</label><input class="form-control" id="report-search" name="search" value="{{ search }}" placeholder="เลข Order, HN, ชื่อผู้ป่วย หรือเลขสิ่งส่งตรวจ"></div>
+    <div class="col-md-2"><label class="form-label" for="date-from">ตั้งแต่วันที่</label><input class="form-control" id="date-from" type="date" name="date_from" value="{{ date_from }}"></div>
+    <div class="col-md-2"><label class="form-label" for="date-to">ถึงวันที่</label><input class="form-control" id="date-to" type="date" name="date_to" value="{{ date_to }}"></div>
+    <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">ค้นหา</button></div>
+  </div>
+</form>
+{% for error in errors %}<div class="alert alert-warning">{{ error }}</div>{% endfor %}
+{% if reports['items'] %}
+<div class="table-responsive"><table class="table table-hover align-middle">
+  <thead><tr><th>เลข Order</th><th>ผู้ป่วย</th><th>เลขสิ่งส่งตรวจ</th><th>วันที่อนุมัติ</th><th>ผู้อนุมัติ</th><th></th></tr></thead>
+  <tbody>{% for report in reports['items'] %}<tr>
+    <td><strong>{{ report.order_number }}</strong></td>
+    <td>{{ report.patient_name }}<div class="small text-secondary">HN {{ report.patient_hn }}</div></td>
+    <td>{{ report.accession_numbers|join(', ') }}</td>
+    <td>{{ report.released_at | app_datetime }}</td>
+    <td>{{ report.released_by }}</td>
+    <td><a class="btn btn-sm btn-primary" href="{{ url_for('lab_report', order_id=report.id) }}">เปิดรายงาน</a></td>
+  </tr>{% endfor %}</tbody>
+</table></div>
+{% else %}<div class="alert alert-info">ไม่พบรายงานผลตรวจ</div>{% endif %}
+<div class="d-flex justify-content-between mt-3"><span class="text-secondary">{{ reports.total }} รายการ</span><div>{% if has_previous %}<a class="btn btn-sm btn-outline-secondary" href="?page={{ reports.page - 1 }}&search={{ search }}&date_from={{ date_from }}&date_to={{ date_to }}">ก่อนหน้า</a>{% endif %} {% if has_next %}<a class="btn btn-sm btn-outline-secondary" href="?page={{ reports.page + 1 }}&search={{ search }}&date_from={{ date_from }}&date_to={{ date_to }}">ถัดไป</a>{% endif %}</div></div>
+{% endblock %}

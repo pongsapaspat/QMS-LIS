@@ -5,6 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
+from app.core.time import app_date_range_utc
 from app.domain.exceptions import (
     InvalidResultOperationError,
     OrderNotFoundError,
@@ -349,6 +350,100 @@ class ResultService:
             "issues": issues,
         }
 
+    def report_context(self, order_id: int, *, actor_reference: str) -> dict[str, object]:
+        order = self.repository.get_order(order_id)
+        if order is None:
+            raise OrderNotFoundError("lab order not found")
+        if order.status != OrderStatus.RELEASED:
+            raise InvalidResultOperationError(
+                "รายงานผลฉบับสมบูรณ์เปิดได้หลังจาก Release ผลแล้วเท่านั้น"
+            )
+        if not order.items or any(
+            item.result is None or item.result.status != ResultStatus.RELEASED
+            for item in order.items
+        ):
+            raise InvalidResultOperationError("ผลตรวจใน Order นี้ยัง Release ไม่ครบถ้วน")
+
+        accessions = list(
+            dict.fromkeys(
+                item.result.specimen.accession_number
+                for item in order.items
+                if item.result is not None
+            )
+        )
+        results = []
+        for item in order.items:
+            result = item.result
+            if result is None:
+                continue
+            reference = result.reference_range_snapshot or {}
+            results.append(
+                {
+                    "test_code": item.test_code,
+                    "test_name": item.test_name_th or item.test_name_en,
+                    "result_value": self._result_value(result),
+                    "unit": result.result_unit_snapshot,
+                    "reference_text": reference.get("display_text")
+                    or self._reference_interval(reference),
+                    "abnormal_flag": result.abnormal_flag,
+                    "verified_at": result.verified_at,
+                    "verified_by": result.verified_by,
+                    "released_at": result.released_at,
+                    "released_by": result.released_by,
+                }
+            )
+
+        try:
+            self.audit_repository.add(
+                AuditLog(
+                    event_type="LAB_REPORT_VIEWED",
+                    entity_type="lab_order",
+                    entity_id=order.id,
+                    changed_fields=[],
+                    reason="เปิดดูรายงานผลตรวจ",
+                    actor_reference=actor_reference,
+                )
+            )
+            self.session.commit()
+        except SQLAlchemyError as exc:
+            self.session.rollback()
+            raise InvalidResultOperationError("ไม่สามารถบันทึกการเปิดดูรายงานได้") from exc
+
+        return {
+            "order": order,
+            "patient": order.patient,
+            "accession_numbers": accessions,
+            "results": results,
+        }
+
+    def report_list(
+        self,
+        *,
+        search: str | None,
+        date_from: date | None,
+        date_to: date | None,
+        page: int,
+        page_size: int,
+    ) -> dict[str, object]:
+        if date_from is not None and date_to is not None and date_from > date_to:
+            raise InvalidResultOperationError("วันที่เริ่มต้นต้องไม่อยู่หลังวันที่สิ้นสุด")
+        released_from, released_before = app_date_range_utc(
+            date_from, date_to, self.settings.timezone
+        )
+        orders, total = self.repository.list_released_orders(
+            search=search,
+            released_from=released_from,
+            released_before=released_before,
+            offset=(page - 1) * page_size,
+            limit=page_size,
+        )
+        return {
+            "items": [self._release_order(order) for order in orders],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+
     def release(
         self,
         order_id: int,
@@ -642,6 +737,12 @@ class ResultService:
         if result.numeric_value is not None:
             return str(result.numeric_value)
         return result.text_value or result.categorical_value
+
+    @staticmethod
+    def _reference_interval(reference: dict[str, object]) -> str | None:
+        lower = reference.get("lower_value")
+        upper = reference.get("upper_value")
+        return f"{lower} – {upper}" if lower is not None and upper is not None else None
 
     def _verification_item(self, result: Result) -> dict[str, object]:
         item = result.order_item

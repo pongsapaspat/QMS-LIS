@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  .report-sheet { max-width: 210mm; margin: 0 auto; }
+  .report-title { letter-spacing: .04em; }
+  .result-critical { color: #b02a37; font-weight: 700; }
+  @media print {
+    nav, footer, .report-actions { display: none !important; }
+    main.container { max-width: none; padding: 0 !important; }
+    .report-sheet { max-width: none; margin: 0; font-size: 11pt; }
+    .card { border: 0 !important; }
+    @page { size: A4; margin: 14mm; }
+  }
+</style>
+<div class="report-actions d-flex justify-content-between mb-3">
+  <a class="btn btn-outline-secondary" href="{{ url_for('order_detail', order_id=context.order.id) }}">กลับไปยัง Order</a>
+  <button class="btn btn-primary" type="button" onclick="window.print()">พิมพ์รายงาน</button>
+</div>
+<article class="report-sheet card">
+  <div class="card-body p-4 p-md-5">
+    <header class="text-center border-bottom pb-3 mb-4">
+      <h1 class="h2 report-title mb-1">QMS-LIS</h1>
+      <div class="h5 mb-0">รายงานผลการตรวจทางห้องปฏิบัติการ</div>
+    </header>
+    <section class="row g-2 mb-4" aria-label="ข้อมูลผู้ป่วยและ Order">
+      <div class="col-md-8"><strong>ชื่อผู้ป่วย:</strong> {{ context.patient.display_name }}</div>
+      <div class="col-md-4"><strong>HN:</strong> {{ context.patient.hn }}</div>
+      <div class="col-md-4"><strong>วันเกิด:</strong> {{ context.patient.date_of_birth or '-' }}</div>
+      <div class="col-md-4"><strong>เพศ:</strong> {{ context.patient.sex or '-' }}</div>
+      <div class="col-md-4"><strong>ความเร่งด่วน:</strong> {{ 'ด่วน' if context.order.priority == 'URGENT' else 'ปกติ' }}</div>
+      <div class="col-md-4"><strong>เลขที่ Order:</strong> {{ context.order.order_number }}</div>
+      <div class="col-md-8"><strong>เลขสิ่งส่งตรวจ:</strong> {{ context.accession_numbers|join(', ') }}</div>
+      <div class="col-md-4"><strong>วันที่สั่งตรวจ:</strong> {{ context.order.ordered_at | app_datetime }}</div>
+      <div class="col-md-8"><strong>ข้อมูลทางคลินิก:</strong> {{ context.order.clinical_note or '-' }}</div>
+    </section>
+    <div class="table-responsive">
+      <table class="table table-bordered align-middle">
+        <thead class="table-light"><tr><th>รายการตรวจ</th><th>ผลตรวจ</th><th>หน่วย</th><th>ช่วงอ้างอิง</th><th>สถานะ</th></tr></thead>
+        <tbody>
+        {% for result in context.results %}
+          <tr>
+            <td><strong>{{ result.test_name }}</strong><div class="small text-secondary">{{ result.test_code }}</div></td>
+            <td class="{% if result.abnormal_flag in ['LL', 'HH'] %}result-critical{% endif %}">{{ result.result_value }}</td>
+            <td>{{ result.unit or '-' }}</td>
+            <td>{{ result.reference_text or '-' }}</td>
+            <td>{% if result.abnormal_flag in ['LL', 'HH'] %}ค่าวิกฤต{% elif result.abnormal_flag in ['L', 'H'] %}ผิดปกติ{% else %}ปกติ{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <section class="row mt-4 pt-3 border-top">
+      <div class="col-md-6"><strong>ตรวจสอบผลโดย:</strong> {{ context.order.verified_by or '-' }}<br><small>{{ context.order.verified_at | app_datetime if context.order.verified_at else '' }}</small></div>
+      <div class="col-md-6"><strong>อนุมัติรายงานโดย:</strong> {{ context.order.released_by or '-' }}<br><small>{{ context.order.released_at | app_datetime if context.order.released_at else '' }}</small></div>
+    </section>
+    <p class="small text-secondary text-center mt-4 mb-0">รายงานนี้สร้างจากระบบ QMS-LIS</p>
+  </div>
+</article>
+{% endblock %}

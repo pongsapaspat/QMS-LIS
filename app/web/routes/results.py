@@ -1,4 +1,5 @@
-from typing import Annotated
+from datetime import date
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -218,6 +219,80 @@ def release_order_preview(
     )
 
 
+@router.get(
+    "/results/reports",
+    response_class=HTMLResponse,
+    name="lab_reports",
+)
+def lab_reports(
+    request: Request,
+    service: ResultServiceDependency,
+    actor: ResultReaderDependency,
+    search: str | None = Query(default=None, max_length=100),
+    date_from: Annotated[date | None, BeforeValidator(empty_string_to_none)] = None,
+    date_to: Annotated[date | None, BeforeValidator(empty_string_to_none)] = None,
+    page: int = Query(default=1, ge=1),
+) -> HTMLResponse:
+    page_size = 25
+    errors: list[str] = []
+    try:
+        reports = service.report_list(
+            search=search,
+            date_from=date_from,
+            date_to=date_to,
+            page=page,
+            page_size=page_size,
+        )
+    except InvalidResultOperationError as exc:
+        errors.append(str(exc))
+        reports = {"items": [], "total": 0, "page": page, "page_size": page_size}
+    return templates.TemplateResponse(
+        request=request,
+        name="results/reports.html",
+        context={
+            "page_title": "รายงานผลตรวจ",
+            "reports": reports,
+            "search": search or "",
+            "date_from": date_from.isoformat() if date_from else "",
+            "date_to": date_to.isoformat() if date_to else "",
+            "errors": errors,
+            "has_previous": page > 1,
+            "has_next": page * page_size < cast(int, reports["total"]),
+        },
+    )
+
+
+@router.get(
+    "/results/reports/orders/{order_id}",
+    response_class=HTMLResponse,
+    name="lab_report",
+)
+def lab_report(
+    order_id: int,
+    request: Request,
+    service: ResultServiceDependency,
+    actor: ResultReaderDependency,
+) -> HTMLResponse:
+    try:
+        context = service.report_context(order_id, actor_reference=actor.reference)
+    except InvalidResultOperationError as exc:
+        return templates.TemplateResponse(
+            request=request,
+            name="results/report_unavailable.html",
+            status_code=409,
+            context={
+                "page_title": "รายงานผลตรวจยังไม่พร้อม",
+                "order_id": order_id,
+                "error": str(exc),
+            },
+        )
+    return templates.TemplateResponse(
+        request=request,
+        name="results/report.html",
+        context={"page_title": "รายงานผลตรวจ", "context": context},
+    )
+
+
 @router.post(
     "/results/release/orders/{order_id}",
     name="release_order_action",
@@ -249,7 +324,9 @@ async def release_order_action(
                 "form_values": {"comment": comment},
             },
         )
-    return RedirectResponse(request.url_for("release_queue"), status_code=303)
+    return RedirectResponse(
+        request.url_for("lab_report", order_id=order_id), status_code=303
+    )
 
 
 @router.get("/worklist", response_class=HTMLResponse, name="worklist")

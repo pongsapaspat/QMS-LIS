@@ -1,5 +1,5 @@
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.core.config import get_settings
@@ -92,3 +92,23 @@ def parse_local_datetime(value: str, timezone_name: str | None = None) -> dateti
     if len(valid) == 2 and valid[0].utcoffset() != valid[1].utcoffset():
         raise ValueError("local datetime is ambiguous in the application timezone")
     return valid[0].astimezone(UTC)
+
+
+def app_date_range_utc(
+    date_from: date | None,
+    date_to: date | None,
+    timezone_name: str | None = None,
+) -> tuple[datetime | None, datetime | None]:
+    """Convert inclusive application-local dates to half-open UTC boundaries."""
+    timezone = app_timezone(timezone_name)
+    start = (
+        datetime.combine(date_from, time.min, tzinfo=timezone).astimezone(UTC)
+        if date_from is not None
+        else None
+    )
+    end = (
+        datetime.combine(date_to + timedelta(days=1), time.min, tzinfo=timezone).astimezone(UTC)
+        if date_to is not None
+        else None
+    )
+    return start, end

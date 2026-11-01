@@ -25,6 +25,7 @@
           >Worklist | รายการงานตรวจ</a>
           <a class="nav-link{% if request.url.path.startswith('/results/verification') %} active{% endif %}" href="/results/verification">Verification Queue</a>
           <a class="nav-link{% if request.url.path.startswith('/results/release') %} active{% endif %}" href="/results/release">Release Queue</a>
+          <a class="nav-link{% if request.url.path.startswith('/results/reports') %} active{% endif %}" href="{{ url_for('lab_reports') }}">รายงานผลตรวจ</a>
           <a class="nav-link" href="/docs">API Docs</a>
           <a class="nav-link" href="/api/v1/health">API Health</a>
         </div>
