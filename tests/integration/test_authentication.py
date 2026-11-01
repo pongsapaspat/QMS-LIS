@@ -59,4 +59,82 @@ def test_invalid_login_does_not_create_session(client: TestClient) -> None:
         "/login", data={"username": "missing", "password": "wrong"}
     )
     assert response.status_code == 401
-    assert "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" in response.text
+
+
+@pytest.mark.integration
+def test_navigation_matches_logged_in_user_role(
+    client: TestClient, db_session_factory: sessionmaker[Session]
+) -> None:
+    with db_session_factory() as session:
+        for username, role in (
+            ("admin", "ADMIN"),
+            ("tech", "LAB_TECH"),
+            ("supervisor", "LAB_SUPERVISOR"),
+            ("reception", "RECEPTION"),
+        ):
+            session.add(
+                User(
+                    username=username,
+                    password_hash=hash_password("password"),
+                    role=role,
+                    display_name=username,
+                )
+            )
+        session.commit()
+
+    expected_links = {
+        "admin": [
+            'href="/patients"',
+            'href="/test-catalog"',
+            'href="/users"',
+            'href="/audit-logs"',
+            'href="/results/release"',
+        ],
+        "tech": [
+            'href="/orders/new"',
+            'href="/worklist"',
+            'href="/results/verification"',
+            "/results/reports",
+        ],
+        "supervisor": [
+            'href="/orders/new"',
+            'href="/worklist"',
+            'href="/results/release"',
+            'href="/audit-logs"',
+        ],
+        "reception": ['href="/orders/new"'],
+    }
+    hidden_links = {
+        "tech": [
+            'href="/patients"',
+            'href="/test-catalog"',
+            'href="/users"',
+            'href="/audit-logs"',
+            'href="/results/release"',
+        ],
+        "supervisor": ['href="/patients"', 'href="/test-catalog"', 'href="/users"'],
+        "reception": [
+            'href="/patients"',
+            'href="/test-catalog"',
+            'href="/worklist"',
+            'href="/results/verification"',
+        ],
+    }
+    for username in expected_links:
+        assert client.post(
+            "/login",
+            data={"username": username, "password": "password"},
+            follow_redirects=False,
+        ).status_code == 303
+        page = client.get("/")
+        assert page.status_code == 200
+        for link in expected_links[username]:
+            assert link in page.text
+        for link in hidden_links.get(username, []):
+            assert link not in page.text
+        assert client.post("/logout", follow_redirects=False).status_code == 303
+
+    client.post("/login", data={"username": "tech", "password": "password"})
+    forbidden = client.get("/test-catalog", headers={"Accept": "text/html"})
+    assert forbidden.status_code == 403
+    assert "ไม่มีสิทธิ์เข้าถึงหน้านี้" in forbidden.text
