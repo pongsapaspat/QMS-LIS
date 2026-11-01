@@ -1,3 +1,5 @@
+import time
+
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse, Response
@@ -61,13 +63,27 @@ async def require_web_login(request: Request, call_next: RequestResponseEndpoint
     html_request = "text/html" in request.headers.get("accept", "")
     public_path = request.url.path in {"/login", "/docs", "/redoc", "/openapi.json"}
     static_path = request.url.path.startswith("/static/")
+    user_id = request.session.get("user_id")
+    if isinstance(user_id, int):
+        now = time.time()
+        last_activity = request.session.get("last_activity_at", now)
+        if isinstance(last_activity, (int, float)) and now - last_activity > settings.session_idle_timeout_seconds:
+            request.session.clear()
+            if html_request and not public_path and not static_path:
+                return RedirectResponse(url=str(request.url_for("login")), status_code=303)
+        else:
+            request.session["last_activity_at"] = now
     if html_request and not public_path and not static_path and not request.session.get("user_id"):
         return RedirectResponse(url=str(request.url_for("login")), status_code=303)
     return await call_next(request)
 
 
 app.add_middleware(
-    SessionMiddleware, secret_key=settings.session_secret, same_site="lax", https_only=False
+    SessionMiddleware,
+    secret_key=settings.session_secret,
+    max_age=settings.session_max_age_seconds,
+    same_site="lax",
+    https_only=settings.session_https_only,
 )
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

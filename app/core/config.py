@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     allow_partial_release: bool = True
     enable_dev_admin_fallback: bool = True
     session_secret: str = "change-this-development-secret"
+    session_idle_timeout_seconds: int = 1800
+    session_max_age_seconds: int = 28800
+    session_https_only: bool = False
     bootstrap_admin_username: str | None = None
     bootstrap_admin_password: str | None = None
     log_level: str = "INFO"

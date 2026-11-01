@@ -63,6 +63,7 @@ async def login(request: Request, session: SessionDependency) -> HTMLResponse | 
     request.session["user_id"] = user.id
     request.session["actor"] = user.username
     request.session["role"] = user.role
+    request.session["last_activity_at"] = utc_now().timestamp()
     return RedirectResponse(request.url_for("home"), status_code=303)
 
 
