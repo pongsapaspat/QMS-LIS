@@ -19,7 +19,7 @@ from app.schemas.result import (
 router = APIRouter(prefix="/results", tags=["results"])
 
 
-@router.get("/verification-queue")
+@router.get("/verification-queue", name="api_verification_queue")
 def verification_queue(
     service: ResultServiceDependency,
     actor: ResultReaderDependency,
@@ -38,7 +38,7 @@ def verification_queue(
     )
 
 
-@router.get("/release-queue")
+@router.get("/release-queue", name="api_release_queue")
 def release_queue(
     service: ResultServiceDependency,
     actor: ResultReaderDependency,
