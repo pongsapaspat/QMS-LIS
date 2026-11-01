@@ -16,6 +16,7 @@ from app.domain.exceptions import InvalidResultOperationError
 from app.models.order import LabOrderItem, OrderPriority
 from app.models.result import ResultStatus
 from app.schemas.result import (
+    AmendmentOpen,
     MultiResultSave,
     OrderRelease,
     ResultEdit,
@@ -68,6 +69,28 @@ def verification_queue(
                 "search": search or "",
             },
         },
+    )
+
+
+@router.post(
+    "/results/{result_id}/amendments",
+    name="open_result_amendment",
+)
+async def open_result_amendment(
+    result_id: int,
+    request: Request,
+    service: ResultServiceDependency,
+    actor: ResultReaderDependency,
+) -> RedirectResponse:
+    form = await request.form()
+    result = service.open_amendment(
+        result_id,
+        AmendmentOpen(reason=str(form.get("reason", ""))),
+        actor_reference=actor.reference,
+    )
+    return RedirectResponse(
+        request.url_for("result_entry", order_id=result.order_item.order_id),
+        status_code=303,
     )
 
 
@@ -428,6 +451,7 @@ async def save(
             ResultStatus.COMPLETED,
             ResultStatus.VERIFICATION_REJECTED,
             ResultStatus.VERIFIED,
+            ResultStatus.AMENDMENT_REQUESTED,
         }:
             payload["modification_reason"] = str(
                 form.get(f"reason_{key}", "")

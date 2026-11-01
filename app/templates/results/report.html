@@ -39,7 +39,7 @@
         <tbody>
         {% for result in context.results %}
           <tr>
-            <td><strong>{{ result.test_name }}</strong><div class="small text-secondary">{{ result.test_code }}</div></td>
+            <td><strong>{{ result.test_name }}</strong><div class="small text-secondary">{{ result.test_code }}</div><form class="report-actions mt-2" method="post" action="{{ url_for('open_result_amendment', result_id=result.result_id) }}"><input class="form-control form-control-sm mb-1" name="reason" required maxlength="1000" placeholder="เหตุผลที่ขอแก้ไขผล"><button class="btn btn-sm btn-outline-warning" type="submit">เปิด Amendment</button></form></td>
             <td class="{% if result.abnormal_flag in ['LL', 'HH'] %}result-critical{% endif %}">{{ result.result_value }}</td>
             <td>{{ result.unit or '-' }}</td>
             <td>{{ result.reference_text or '-' }}</td>

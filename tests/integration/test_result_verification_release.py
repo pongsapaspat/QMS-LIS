@@ -159,7 +159,7 @@ def test_verification_rejection_correction_and_atomic_release(
             f"/worklist/orders/{order_id}", headers=ENTRY_HEADERS
         )
         assert correction_page.status_code == 200
-        assert "Correction reason" in correction_page.text
+        assert "เหตุผลการแก้ไขผล" in correction_page.text
 
         corrected = client.put(
             f"/api/v1/results/{result_ids[2]}",
@@ -254,6 +254,57 @@ def test_verification_rejection_correction_and_atomic_release(
         )
         assert released.json()["order_number"] not in excluded_reports.text
 
+        amendment = client.post(
+            f"/results/{result_ids[0]}/amendments",
+            data={"reason": "แก้ไขผลหลังตรวจสอบเครื่องมือซ้ำ"},
+            headers=ENTRY_HEADERS,
+            follow_redirects=False,
+        )
+        assert amendment.status_code == 303
+        assert amendment.headers["location"].endswith(f"/worklist/orders/{order_id}")
+        assert client.get(
+            f"/results/reports/orders/{order_id}", headers=SUPERVISOR_HEADERS
+        ).status_code == 409
+        amendment_worklist = client.get(
+            "/api/v1/worklist",
+            params={"task_type": "RESULT_CORRECTION_REQUIRED"},
+            headers=ENTRY_HEADERS,
+        ).json()
+        assert any(
+            item["order_item_id"] == results[0]["order_item_id"]
+            for item in amendment_worklist["items"]
+        )
+        amended = client.put(
+            f"/api/v1/results/{result_ids[0]}",
+            json={
+                "order_item_id": results[0]["order_item_id"],
+                "numeric_value": "99",
+                "complete": True,
+                "modification_reason": "confirmed by repeat analysis",
+            },
+            headers=ENTRY_HEADERS,
+        )
+        assert amended.status_code == 200
+        assert amended.json()["status"] == "COMPLETED"
+        assert client.patch(
+            f"/api/v1/results/{result_ids[0]}/verify",
+            json={},
+            headers=SUPERVISOR_HEADERS,
+        ).status_code == 200
+        amendment_release = client.post(
+            f"/results/release/orders/{order_id}",
+            data={"comment": "release amended result"},
+            headers=SUPERVISOR_HEADERS,
+            follow_redirects=False,
+        )
+        assert amendment_release.status_code == 303
+        amended_report = client.get(
+            amendment_release.headers["location"], headers=SUPERVISOR_HEADERS
+        )
+        assert amended_report.status_code == 200
+        assert "99.000000" in amended_report.text
+        assert "ฉบับแก้ไข" not in amended_report.text
+
         edit_released = client.put(
             f"/api/v1/results/{result_ids[0]}",
             json={
@@ -283,6 +334,10 @@ def test_verification_rejection_correction_and_atomic_release(
                 "RESULT_RELEASED",
                 "ADMIN_FOUR_EYES_BYPASS",
                 "LAB_REPORT_VIEWED",
+                "RESULT_AMENDMENT_OPENED",
+                "ORDER_AMENDMENT_OPENED",
+                "RESULT_AMENDED",
+                "RESULT_AMENDMENT_RELEASED",
             } <= events
     finally:
         get_settings.cache_clear()

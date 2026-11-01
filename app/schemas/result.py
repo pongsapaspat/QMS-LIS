@@ -120,6 +120,14 @@ class OrderRelease(BaseModel):
         return normalized or None
 
 
+class AmendmentOpen(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=1000)
+
+    _reason = field_validator("reason")(_text)
+
+
 class ResultRevisionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

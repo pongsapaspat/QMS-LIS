@@ -20,6 +20,7 @@ class ResultStatus(StrEnum):
     VERIFICATION_REJECTED = "VERIFICATION_REJECTED"
     VERIFIED = "VERIFIED"
     RELEASED = "RELEASED"
+    AMENDMENT_REQUESTED = "AMENDMENT_REQUESTED"
 
 
 class Result(Base):
@@ -60,6 +61,9 @@ class Result(Base):
     verification_rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     released_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True, index=True)
     released_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    amendment_opened_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    amendment_opened_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    amendment_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     order_item: Mapped["LabOrderItem"] = relationship(back_populates="result")

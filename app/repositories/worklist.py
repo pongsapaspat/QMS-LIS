@@ -303,7 +303,11 @@ class WorklistRepository:
         if "RESULT_IN_PROGRESS" in task_types:
             result_conditions.append(Result.status == ResultStatus.IN_PROGRESS)
         if "RESULT_CORRECTION_REQUIRED" in task_types:
-            result_conditions.append(Result.status == ResultStatus.VERIFICATION_REJECTED)
+            result_conditions.append(
+                Result.status.in_(
+                    [ResultStatus.VERIFICATION_REJECTED, ResultStatus.AMENDMENT_REQUESTED]
+                )
+            )
         statement = statement.where(or_(*result_conditions))
         if department_id is not None:
             statement = statement.where(LabTest.department_id == department_id)
@@ -323,7 +327,9 @@ class WorklistRepository:
         ):
             in_progress = result is not None and result.status == ResultStatus.IN_PROGRESS
             correction_required = (
-                result is not None and result.status == ResultStatus.VERIFICATION_REJECTED
+                result is not None
+                and result.status
+                in {ResultStatus.VERIFICATION_REJECTED, ResultStatus.AMENDMENT_REQUESTED}
             )
             records.append(
                 WorklistRecord(

@@ -20,6 +20,7 @@ from app.models.test_catalog import ReferenceRange
 from app.repositories.audit import AuditRepository
 from app.repositories.result import ResultRepository
 from app.schemas.result import (
+    AmendmentOpen,
     MultiResultSave,
     OrderRelease,
     ResultEdit,
@@ -101,11 +102,16 @@ class ResultService:
                         ResultStatus.COMPLETED,
                         ResultStatus.VERIFICATION_REJECTED,
                         ResultStatus.VERIFIED,
+                        ResultStatus.AMENDMENT_REQUESTED,
                     }:
-                        event = "RESULT_CORRECTED"
+                        event = (
+                            "RESULT_AMENDED"
+                            if existing.status == ResultStatus.AMENDMENT_REQUESTED
+                            else "RESULT_CORRECTED"
+                        )
                     else:
                         event = "RESULT_UPDATED"
-                    if event == "RESULT_CORRECTED" and not getattr(
+                    if event in {"RESULT_CORRECTED", "RESULT_AMENDED"} and not getattr(
                         submitted, "modification_reason", ""
                     ):
                         raise InvalidResultOperationError("a modification reason is required")
@@ -172,6 +178,52 @@ class ResultService:
             MultiResultSave(items=[data]),
             actor_reference=actor_reference,
         )[0]
+
+    def open_amendment(
+        self, result_id: int, data: AmendmentOpen, *, actor_reference: str
+    ) -> Result:
+        result = self.repository.get_result(result_id)
+        if result is None:
+            raise ResultNotFoundError("result not found")
+        order = result.order_item.order
+        if result.status != ResultStatus.RELEASED:
+            raise InvalidResultOperationError("only released results may be amended")
+        if order.status not in {OrderStatus.RELEASED, OrderStatus.RESULTS_IN_PROGRESS}:
+            raise InvalidResultOperationError("order is not eligible for amendment")
+        try:
+            result.status = ResultStatus.AMENDMENT_REQUESTED
+            result.amendment_opened_at = utc_now()
+            result.amendment_opened_by = actor_reference
+            result.amendment_reason = data.reason
+            result.version += 1
+            order.status = OrderStatus.RESULTS_IN_PROGRESS
+            order.verified_at = None
+            order.verified_by = None
+            order.released_at = None
+            order.released_by = None
+            self._audit(
+                "RESULT_AMENDMENT_OPENED",
+                result,
+                {"status", "amendment_opened_at", "amendment_opened_by"},
+                data.reason,
+                actor_reference,
+            )
+            self.audit_repository.add(
+                AuditLog(
+                    event_type="ORDER_AMENDMENT_OPENED",
+                    entity_type="lab_order",
+                    entity_id=order.id,
+                    changed_fields=["status", "verified_at", "released_at"],
+                    reason=data.reason,
+                    actor_reference=actor_reference,
+                )
+            )
+            self.session.commit()
+            self.session.refresh(result)
+            return result
+        except SQLAlchemyError as exc:
+            self.session.rollback()
+            raise InvalidResultOperationError("amendment could not be opened") from exc
 
     def verification_queue(
         self,
@@ -379,6 +431,7 @@ class ResultService:
             reference = result.reference_range_snapshot or {}
             results.append(
                 {
+                    "result_id": result.id,
                     "test_code": item.test_code,
                     "test_name": item.test_name_th or item.test_name_en,
                     "result_value": self._result_value(result),
@@ -465,12 +518,16 @@ class ResultService:
                     raise InvalidResultOperationError(
                         f"required result {item.test_code} is missing"
                     )
+                if result.status == ResultStatus.RELEASED:
+                    continue
                 result.status = ResultStatus.RELEASED
                 result.released_at = released_at
                 result.released_by = actor_reference
                 result.version += 1
                 self._audit(
-                    "RESULT_RELEASED",
+                    "RESULT_AMENDMENT_RELEASED"
+                    if result.amendment_opened_at is not None
+                    else "RESULT_RELEASED",
                     result,
                     {"status", "released_at", "released_by"},
                     data.comment or "",
@@ -591,6 +648,8 @@ class ResultService:
         result.verification_rejected_at = None
         result.verification_rejected_by = None
         result.verification_rejection_reason = None
+        result.released_at = None
+        result.released_by = None
         result.version += 1
         if result.abnormal_flag not in {"LL", "HH"}:
             result.critical_acknowledged_at, result.critical_acknowledged_by = None, None
@@ -672,9 +731,14 @@ class ResultService:
 
     def _update_order_verification(self, order: LabOrder, actor: str) -> None:
         items = self.repository.order_context(order.id)
-        fully_verified = bool(items) and all(
-            item.result is not None and item.result.status == ResultStatus.VERIFIED
-            for item in items
+        fully_verified = (
+            bool(items)
+            and all(
+                item.result is not None
+                and item.result.status in {ResultStatus.VERIFIED, ResultStatus.RELEASED}
+                for item in items
+            )
+            and any(item.result and item.result.status == ResultStatus.VERIFIED for item in items)
         )
         specimens_received = all(
             item.result is not None and item.result.specimen.status == SpecimenStatus.RECEIVED
@@ -717,7 +781,7 @@ class ResultService:
                 continue
             if result.status == ResultStatus.VERIFICATION_REJECTED:
                 issues.append(f"result {item.test_code} requires correction")
-            elif result.status != ResultStatus.VERIFIED:
+            elif result.status not in {ResultStatus.VERIFIED, ResultStatus.RELEASED}:
                 issues.append(f"result {item.test_code} is not verified")
             if result.specimen.status == SpecimenStatus.REJECTED:
                 issues.append(f"specimen for {item.test_code} is rejected")
