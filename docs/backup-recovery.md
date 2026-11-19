@@ -38,7 +38,33 @@ After restore, point `QMS_LIS_DATABASE_URL` at the restored file and run:
 
 ## PostgreSQL production database
 
-Use PostgreSQL native tools so roles, constraints, indexes, and transaction consistency are retained:
+Use the project utility from a trusted administrator machine. It uses PostgreSQL native tools so
+roles, constraints, indexes, and transaction consistency are retained. Set the production
+connection string in `QMS_LIS_DATABASE_URL` without committing it to Git:
+
+```powershell
+$env:QMS_LIS_DATABASE_URL = "postgresql+psycopg://..."
+.venv\Scripts\python.exe -m scripts.postgres_backup backup `
+  --output-directory backups
+```
+
+Each backup creates a `.dump` file and a matching `.json` manifest containing a SHA-256 checksum.
+Verify both before moving the backup to encrypted offsite storage:
+
+```powershell
+.venv\Scripts\python.exe -m scripts.postgres_backup verify `
+  --backup backups\qms-lis-YYYYMMDDTHHMMSSZ.dump
+```
+
+Restore only into a test or replacement database URL that you have explicitly selected:
+
+```powershell
+.venv\Scripts\python.exe -m scripts.postgres_backup restore `
+  --backup backups\qms-lis-YYYYMMDDTHHMMSSZ.dump `
+  --database-url "postgresql+psycopg://..."
+```
+
+For reference, the equivalent native commands are:
 
 ```powershell
 pg_dump --format=custom --file=qms_lis.dump --dbname=$env:QMS_LIS_DATABASE_URL
