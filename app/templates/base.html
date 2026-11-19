@@ -35,17 +35,17 @@
           <div class="nav-section">
             <div class="nav-section-label">งานหลัก</div>
             <a class="nav-link{% if request.url.path == '/' %} active{% endif %}" href="/">ภาพรวมระบบ</a>
-            {% if role in ['ADMIN', 'LAB_TECH', 'LAB_SUPERVISOR', 'RECEPTION'] %}
+            {% if role in ['ADMIN', 'IT', 'LAB_TECH', 'LAB_SUPERVISOR', 'RECEPTION'] %}
             <a class="nav-link{% if request.url.path.startswith('/orders') %} active{% endif %}" href="/orders/new">สร้างคำสั่งตรวจ</a>
             {% endif %}
-            {% if role in ['ADMIN', 'LAB_TECH', 'LAB_SUPERVISOR'] %}
+            {% if role in ['ADMIN', 'IT', 'LAB_TECH', 'LAB_SUPERVISOR'] %}
             <a class="nav-link{% if request.url.path.startswith('/worklist') %} active{% endif %}" href="/worklist"{% if request.url.path.startswith('/worklist') %} aria-current="page"{% endif %}>Worklist | รายการงานตรวจ</a>
             <a class="nav-link{% if request.url.path.startswith('/results/verification') %} active{% endif %}" href="/results/verification">รอตรวจสอบผล</a>
             {% endif %}
-            {% if role in ['ADMIN', 'LAB_SUPERVISOR'] %}
+            {% if role in ['ADMIN', 'IT', 'LAB_SUPERVISOR'] %}
             <a class="nav-link{% if request.url.path.startswith('/results/release') %} active{% endif %}" href="/results/release">รอเผยแพร่ผล</a>
             {% endif %}
-            {% if role in ['ADMIN', 'LAB_TECH', 'LAB_SUPERVISOR'] %}
+            {% if role in ['ADMIN', 'IT', 'LAB_TECH', 'LAB_SUPERVISOR'] %}
             <a class="nav-link{% if request.url.path.startswith('/results/reports') %} active{% endif %}" href="{{ url_for('lab_reports') }}">รายงานผลตรวจ</a>
             {% endif %}
           </div>
@@ -56,6 +56,19 @@
             <a class="nav-link{% if request.url.path.startswith('/patients') %} active{% endif %}" href="/patients">ผู้ป่วย</a>
             <a class="nav-link{% if request.url.path.startswith('/test-catalog') %} active{% endif %}" href="/test-catalog">รายการตรวจ</a>
             <a class="nav-link{% if request.url.path.startswith('/users') %} active{% endif %}" href="/users">ผู้ใช้งาน</a>
+          </div>
+          {% endif %}
+
+          {% if role == 'IT' %}
+          <div class="nav-section">
+            <div class="nav-section-label">à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¹à¸¥à¸°à¸à¸²à¸£à¸ˆà¸±à¸”à¸à¸²à¸£</div>
+            <a class="nav-link{% if request.url.path.startswith('/patients') %} active{% endif %}" href="/patients">à¸œà¸¹à¹‰à¸›à¹ˆà¸§à¸¢</a>
+            <a class="nav-link{% if request.url.path.startswith('/test-catalog') %} active{% endif %}" href="/test-catalog">à¸£à¸²à¸¢à¸à¸²à¸£à¸•à¸£à¸§à¸ˆ</a>
+          </div>
+          <div class="nav-section">
+            <div class="nav-section-label">Technical</div>
+            <a class="nav-link" href="/docs">API Docs</a>
+            <a class="nav-link" href="/api/v1/health">API Health</a>
           </div>
           {% endif %}
 

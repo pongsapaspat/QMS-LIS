@@ -36,6 +36,18 @@ def get_current_actor(
 
 
 def require_admin(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
+    if actor.role not in {"ADMIN", "IT"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="ADMIN or IT role required",
+        )
+    return actor
+
+
+AdminActorDependency = Annotated[Actor, Depends(require_admin)]
+
+
+def require_admin_only(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
     if actor.role != "ADMIN":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -44,7 +56,7 @@ def require_admin(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
     return actor
 
 
-AdminActorDependency = Annotated[Actor, Depends(require_admin)]
+AdminOnlyActorDependency = Annotated[Actor, Depends(require_admin_only)]
 
 
 def require_audit_reader(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
@@ -60,7 +72,7 @@ AuditReaderDependency = Annotated[Actor, Depends(require_audit_reader)]
 
 
 def require_specimen_collector(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
-    if actor.role not in {"ADMIN", "LAB_TECH"}:
+    if actor.role not in {"ADMIN", "LAB_TECH", "IT"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="LAB_TECH or ADMIN role required",
@@ -72,7 +84,7 @@ SpecimenCollectorDependency = Annotated[Actor, Depends(require_specimen_collecto
 
 
 def require_specimen_receiving_reader(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
-    if actor.role not in {"ADMIN", "LAB_TECH", "RECEPTION"}:
+    if actor.role not in {"ADMIN", "LAB_TECH", "RECEPTION", "IT"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="RECEPTION, LAB_TECH or ADMIN role required",
@@ -84,7 +96,7 @@ SpecimenReceivingReaderDependency = Annotated[Actor, Depends(require_specimen_re
 
 
 def require_result_reader(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
-    if actor.role not in {"ADMIN", "LAB_TECH", "LAB_SUPERVISOR"}:
+    if actor.role not in {"ADMIN", "LAB_TECH", "LAB_SUPERVISOR", "IT"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="LAB_TECH, LAB_SUPERVISOR or ADMIN role required",
@@ -96,7 +108,7 @@ ResultReaderDependency = Annotated[Actor, Depends(require_result_reader)]
 
 
 def require_result_mutator(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
-    if actor.role not in {"ADMIN", "LAB_TECH"}:
+    if actor.role not in {"ADMIN", "LAB_TECH", "IT"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="LAB_TECH or ADMIN role required",
@@ -109,7 +121,7 @@ ActorDependency = Annotated[Actor, Depends(get_current_actor)]
 
 
 def require_result_verifier(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
-    if actor.role not in {"ADMIN", "LAB_TECH", "LAB_SUPERVISOR"}:
+    if actor.role not in {"ADMIN", "LAB_TECH", "LAB_SUPERVISOR", "IT"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="result verification permission required",
@@ -121,7 +133,7 @@ ResultVerifierDependency = Annotated[Actor, Depends(require_result_verifier)]
 
 
 def require_result_releaser(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
-    if actor.role not in {"ADMIN", "LAB_SUPERVISOR"}:
+    if actor.role not in {"ADMIN", "LAB_SUPERVISOR", "IT"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="LAB_SUPERVISOR or ADMIN role required",

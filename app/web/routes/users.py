@@ -4,18 +4,18 @@ from sqlalchemy import select
 
 from app.api.dependencies import SessionDependency
 from app.core.passwords import hash_password
-from app.core.security import AdminActorDependency
+from app.core.security import AdminOnlyActorDependency
 from app.models.audit import AuditLog
 from app.models.user import User
 from app.web.templates import templates
 
 router = APIRouter(prefix="/users")
-ROLES = ("ADMIN", "LAB_TECH", "LAB_SUPERVISOR", "RECEPTION")
+ROLES = ("ADMIN", "IT", "LAB_TECH", "LAB_SUPERVISOR", "RECEPTION")
 
 
 @router.get("", response_class=HTMLResponse, name="users")
 def user_list(
-    request: Request, session: SessionDependency, _: AdminActorDependency
+    request: Request, session: SessionDependency, _: AdminOnlyActorDependency
 ) -> HTMLResponse:
     users = list(session.scalars(select(User).order_by(User.username)))
     return templates.TemplateResponse(
@@ -25,7 +25,7 @@ def user_list(
 
 @router.post("", response_class=HTMLResponse, response_model=None, name="user_create")
 async def user_create(
-    request: Request, session: SessionDependency, actor: AdminActorDependency
+    request: Request, session: SessionDependency, actor: AdminOnlyActorDependency
 ) -> HTMLResponse | RedirectResponse:
     form = await request.form()
     username = str(form.get("username", "")).strip().lower()
@@ -60,7 +60,7 @@ async def user_create(
 
 @router.post("/{user_id}/toggle", name="user_toggle")
 def user_toggle(
-    user_id: int, request: Request, session: SessionDependency, actor: AdminActorDependency
+    user_id: int, request: Request, session: SessionDependency, actor: AdminOnlyActorDependency
 ) -> RedirectResponse:
     user = session.get(User, user_id)
     if user is not None and user.username != actor.reference:
@@ -81,7 +81,7 @@ def user_toggle(
 
 @router.post("/{user_id}/unlock", name="user_unlock")
 def user_unlock(
-    user_id: int, request: Request, session: SessionDependency, actor: AdminActorDependency
+    user_id: int, request: Request, session: SessionDependency, actor: AdminOnlyActorDependency
 ) -> RedirectResponse:
     user = session.get(User, user_id)
     if user is not None and user.locked_until is not None:
@@ -104,7 +104,7 @@ def user_unlock(
 
 @router.post("/{user_id}/reset-password", name="user_reset_password")
 async def user_reset_password(
-    user_id: int, request: Request, session: SessionDependency, actor: AdminActorDependency
+    user_id: int, request: Request, session: SessionDependency, actor: AdminOnlyActorDependency
 ) -> RedirectResponse:
     form = await request.form()
     password = str(form.get("password", ""))
