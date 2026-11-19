@@ -70,12 +70,15 @@ def upgrade() -> None:
     op.execute("UPDATE lab_tests SET department_id = 1 WHERE department_id IS NULL")
     with op.batch_alter_table("lab_tests") as batch:
         batch.alter_column("department_id", nullable=False)
-    op.create_index(
-        "uq_lab_tests_code_ci",
-        "lab_tests",
-        [sa.text("lower(code)")],
-        unique=True,
-    )
+    # SQLite batch table recreation drops expression indexes, while PostgreSQL
+    # alters the table in place and preserves this index from revision 0005.
+    if op.get_bind().dialect.name == "sqlite":
+        op.create_index(
+            "uq_lab_tests_code_ci",
+            "lab_tests",
+            [sa.text("lower(code)")],
+            unique=True,
+        )
     with op.batch_alter_table("test_reference_ranges") as batch:
         batch.add_column(sa.Column("priority", sa.Integer(), nullable=False, server_default="0"))
     op.create_table(
@@ -133,11 +136,12 @@ def downgrade() -> None:
             "fk_lab_tests_department_id_laboratory_departments", type_="foreignkey"
         )
         batch.drop_column("department_id")
-    op.create_index(
-        "uq_lab_tests_code_ci",
-        "lab_tests",
-        [sa.text("lower(code)")],
-        unique=True,
-    )
+    if op.get_bind().dialect.name == "sqlite":
+        op.create_index(
+            "uq_lab_tests_code_ci",
+            "lab_tests",
+            [sa.text("lower(code)")],
+            unique=True,
+        )
     op.drop_index("uq_laboratory_departments_code_ci", table_name="laboratory_departments")
     op.drop_table("laboratory_departments")
