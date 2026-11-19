@@ -116,6 +116,7 @@ async def login(request: Request, session: SessionDependency) -> HTMLResponse | 
     if session.get_bind().dialect.name == "postgresql":
         session.execute(text("SELECT pg_advisory_xact_lock(7142026)"))
     session.execute(delete(LoginSession).where(LoginSession.expires_at <= now))
+    session.execute(delete(LoginSession).where(LoginSession.user_id == user.id))
     old_token = request.session.get("login_token")
     if isinstance(old_token, str):
         session.execute(delete(LoginSession).where(LoginSession.token == old_token))

@@ -1,5 +1,4 @@
 import logging
-import time
 from datetime import timedelta
 from uuid import uuid4
 
@@ -79,6 +78,9 @@ async def require_web_login(request: Request, call_next: RequestResponseEndpoint
     public_path = request.url.path in {"/login", "/docs", "/redoc", "/openapi.json"}
     static_path = request.url.path.startswith("/static/")
     user_id = request.session.get("user_id")
+    status_check = request.url.path == "/session-status"
+    session_reason = request.session.get("session_reason", "expired")
+    remaining = 0.0
     if isinstance(user_id, int):
         with SessionLocal() as session:
             record = session.get(LoginSession, request.session.get("login_token", ""))
@@ -87,25 +89,28 @@ async def require_web_login(request: Request, call_next: RequestResponseEndpoint
             if (record is None or record.user_id != user_id
                 or record.expires_at <= current or record.maximum_expires_at <= current
                 or user is None or not user.is_active):
+                session_reason = "replaced" if record is None else "expired"
                 if record is not None:
                     session.delete(record)
                 request.session.clear()
+                request.session["session_reason"] = session_reason
             else:
-                record.expires_at = min(
-                    record.maximum_expires_at,
-                    current + timedelta(seconds=settings.session_idle_timeout_seconds),
-                )
+                if not status_check and not static_path:
+                    record.expires_at = min(
+                        record.maximum_expires_at,
+                        current + timedelta(seconds=settings.session_idle_timeout_seconds),
+                    )
+                remaining = (record.expires_at - current).total_seconds()
                 request.session["role"] = user.role
             session.commit()
-        now = time.time()
-        last_activity = request.session.get("last_activity_at", now)
-        if isinstance(last_activity, (int, float)) and now - last_activity > settings.session_idle_timeout_seconds:
-            request.session.clear()
-        else:
-            request.session["last_activity_at"] = now
     try:
         response: Response
-        if html_request and not public_path and not static_path and not request.session.get("user_id"):
+        if status_check:
+            response = JSONResponse({
+                "active": bool(request.session.get("user_id")),
+                "reason": session_reason, "remaining": remaining,
+            }, headers={"Cache-Control": "no-store"})
+        elif html_request and not public_path and not static_path and not request.session.get("user_id"):
             response = RedirectResponse(url=str(request.url_for("login")), status_code=303)
         else:
             response = await call_next(request)

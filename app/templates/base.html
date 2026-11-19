@@ -103,4 +103,7 @@
     <main class="auth-main">{% block auth_content %}{% endblock %}</main>
     {% endif %}
   </body>
+  {% if request.session.get('user_id') %}
+  <script src="{{ url_for('static', path='/js/session-status.js') }}" defer></script>
+  {% endif %}
 </html>
