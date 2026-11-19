@@ -23,7 +23,7 @@ def upgrade() -> None:
         sa.Column("code", sa.String(length=20), nullable=False),
         sa.Column("name", sa.String(length=120), nullable=False),
         sa.Column("next_hn_sequence", sa.Integer(), server_default=sa.text("0"), nullable=False),
-        sa.Column("is_active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
+        sa.Column("is_active", sa.Boolean(), server_default=sa.true(), nullable=False),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),
@@ -43,7 +43,7 @@ def upgrade() -> None:
         sa.Column("date_of_birth", sa.Date(), nullable=True),
         sa.Column("thai_national_id", sa.String(length=13), nullable=True),
         sa.Column("passport_number", sa.String(length=30), nullable=True),
-        sa.Column("is_active", sa.Boolean(), server_default=sa.text("1"), nullable=False),
+        sa.Column("is_active", sa.Boolean(), server_default=sa.true(), nullable=False),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
         ),

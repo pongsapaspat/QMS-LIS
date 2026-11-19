@@ -64,7 +64,7 @@ def upgrade() -> None:
             sa.Column(
                 "identity_document_missing",
                 sa.Boolean(),
-                server_default=sa.text("1"),
+                server_default=sa.true(),
                 nullable=False,
             )
         )

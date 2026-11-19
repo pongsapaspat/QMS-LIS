@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Integer, String, text
+from sqlalchemy import Boolean, Integer, String, text, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -19,7 +19,7 @@ class Branch(TimestampMixin, Base):
         Integer, default=0, server_default=text("0"), nullable=False
     )
     is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, server_default=text("1"), nullable=False
+        Boolean, default=True, server_default=true(), nullable=False
     )
 
     patients: Mapped[list["Patient"]] = relationship(back_populates="branch")

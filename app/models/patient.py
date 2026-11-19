@@ -1,7 +1,7 @@
 from datetime import date
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Date, ForeignKey, Index, Integer, String, UniqueConstraint, text
+from sqlalchemy import Boolean, Date, ForeignKey, Index, Integer, String, UniqueConstraint, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -24,7 +24,7 @@ class Patient(TimestampMixin, Base):
     branch_id: Mapped[int | None] = mapped_column(
         ForeignKey("branches.id", ondelete="RESTRICT"),
         default=1,
-        server_default=text("1"),
+        server_default=true(),
         nullable=True,
         index=True,
     )
@@ -46,10 +46,10 @@ class Patient(TimestampMixin, Base):
     emergency_contact_relationship: Mapped[str | None] = mapped_column(String(100), nullable=True)
     emergency_contact_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
     identity_document_missing: Mapped[bool] = mapped_column(
-        Boolean, default=True, server_default=text("1"), nullable=False, index=True
+        Boolean, default=True, server_default=true(), nullable=False, index=True
     )
     is_active: Mapped[bool] = mapped_column(
-        Boolean, default=True, server_default=text("1"), nullable=False, index=True
+        Boolean, default=True, server_default=true(), nullable=False, index=True
     )
 
     branch: Mapped["Branch | None"] = relationship(back_populates="patients")
