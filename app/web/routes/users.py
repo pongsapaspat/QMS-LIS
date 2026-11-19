@@ -19,7 +19,7 @@ def user_list(
 ) -> HTMLResponse:
     users = list(session.scalars(select(User).order_by(User.username)))
     return templates.TemplateResponse(
-        request=request, name="users/list.html", context={"users": users}
+        request=request, name="users/list.html", context={"users": users, "roles": ROLES}
     )
 
 

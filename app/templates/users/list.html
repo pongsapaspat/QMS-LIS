@@ -7,7 +7,7 @@
   <form method="post" action="/users" class="row g-2">
     <div class="col-md-3"><input class="form-control" name="username" placeholder="Username" required></div>
     <div class="col-md-3"><input class="form-control" name="display_name" placeholder="ชื่อแสดงผล" required></div>
-    <div class="col-md-2"><select class="form-select" name="role">{% for role in roles|default(['ADMIN','LAB_TECH','LAB_SUPERVISOR','RECEPTION']) %}<option>{{ role }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><select class="form-select" name="role">{% for role in roles|default(['ADMIN','IT','LAB_TECH','LAB_SUPERVISOR','RECEPTION']) %}<option>{{ role }}</option>{% endfor %}</select></div>
     <div class="col-md-3"><input class="form-control" type="password" name="password" placeholder="รหัสผ่าน" required></div>
     <div class="col-md-1"><button class="btn btn-primary w-100">เพิ่ม</button></div>
   </form>
