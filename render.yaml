@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: qms-lis
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: QMS_LIS_APP_ENV
+        value: production
+      - key: QMS_LIS_DEBUG
+        value: "false"
+      - key: QMS_LIS_TIMEZONE
+        value: Asia/Bangkok
+      - key: QMS_LIS_ENABLE_DEV_ADMIN_FALLBACK
+        value: "false"
+      - key: QMS_LIS_SESSION_HTTPS_ONLY
+        value: "true"
+      - key: QMS_LIS_DATABASE_URL
+        sync: false
+      - key: QMS_LIS_SESSION_SECRET
+        sync: false
+      - key: QMS_LIS_BOOTSTRAP_ADMIN_USERNAME
+        sync: false
+      - key: QMS_LIS_BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
