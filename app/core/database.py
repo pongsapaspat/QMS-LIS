@@ -7,6 +7,10 @@ from app.core.config import get_settings
 
 
 def create_database_engine(database_url: str) -> Engine:
+    if database_url.startswith("postgres://"):
+        database_url = "postgresql+psycopg://" + database_url.removeprefix("postgres://")
+    elif database_url.startswith("postgresql://"):
+        database_url = "postgresql+psycopg://" + database_url.removeprefix("postgresql://")
     connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
     database_engine = create_engine(database_url, connect_args=connect_args, pool_pre_ping=True)
 
