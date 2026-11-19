@@ -1,8 +1,9 @@
 from datetime import timedelta
+from secrets import token_urlsafe
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import delete, func, select, text
 
 from app.api.dependencies import SessionDependency
 from app.core.config import get_settings
@@ -11,6 +12,7 @@ from app.core.security import ActorDependency
 from app.models.audit import AuditLog
 from app.models.base import utc_now
 from app.models.user import User
+from app.models.login_session import LoginSession
 from app.web.templates import templates
 
 router = APIRouter()
@@ -110,6 +112,26 @@ async def login(request: Request, session: SessionDependency) -> HTMLResponse | 
             context={"error": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"},
         )
     assert user is not None and user.is_active and not is_locked
+    # Serialize admissions across processes on PostgreSQL.
+    if session.get_bind().dialect.name == "postgresql":
+        session.execute(text("SELECT pg_advisory_xact_lock(7142026)"))
+    session.execute(delete(LoginSession).where(LoginSession.expires_at <= now))
+    old_token = request.session.get("login_token")
+    if isinstance(old_token, str):
+        session.execute(delete(LoginSession).where(LoginSession.token == old_token))
+    if (session.scalar(select(func.count()).select_from(LoginSession)) or 0) >= settings.max_active_sessions:
+        session.rollback()
+        return templates.TemplateResponse(
+            request=request, name="auth/login.html", status_code=409,
+            context={"error": "ระบบมีผู้ใช้งานครบจำนวนแล้ว กรุณาลองใหม่ภายหลัง"},
+        )
+    login_token = token_urlsafe(32)
+    maximum = now + timedelta(seconds=settings.session_max_age_seconds)
+    session.add(LoginSession(
+        token=login_token, user_id=user.id,
+        expires_at=min(maximum, now + timedelta(seconds=settings.session_idle_timeout_seconds)),
+        maximum_expires_at=maximum,
+    ))
     user.last_login_at = utc_now()
     user.failed_login_count = 0
     user.failed_login_window_started_at = None
@@ -127,6 +149,7 @@ async def login(request: Request, session: SessionDependency) -> HTMLResponse | 
     session.commit()
     request.session.clear()
     request.session["user_id"] = user.id
+    request.session["login_token"] = login_token
     request.session["actor"] = user.username
     request.session["role"] = user.role
     request.session["last_activity_at"] = utc_now().timestamp()
@@ -194,6 +217,9 @@ async def change_password(
 
 @router.post("/logout", name="logout")
 def logout(request: Request, session: SessionDependency) -> RedirectResponse:
+    session.execute(delete(LoginSession).where(
+        LoginSession.token == request.session.get("login_token", "")
+    ))
     user_id = request.session.get("user_id")
     actor = request.session.get("actor")
     if isinstance(user_id, int) and isinstance(actor, str):
@@ -208,5 +234,6 @@ def logout(request: Request, session: SessionDependency) -> RedirectResponse:
             )
         )
         session.commit()
+    session.commit()
     request.session.clear()
     return RedirectResponse(request.url_for("login"), status_code=303)

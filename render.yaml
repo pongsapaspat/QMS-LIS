@@ -5,6 +5,10 @@ services:
     plan: free
     healthCheckPath: /health
     envVars:
+      - key: QMS_LIS_MAX_ACTIVE_SESSIONS
+        value: "7"
+      - key: QMS_LIS_SESSION_IDLE_TIMEOUT_SECONDS
+        value: "1800"
       - key: QMS_LIS_APP_ENV
         value: production
       - key: QMS_LIS_DEBUG

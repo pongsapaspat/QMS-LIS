@@ -1,5 +1,6 @@
 import logging
 import time
+from datetime import timedelta
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request, status
@@ -36,6 +37,8 @@ from app.domain.exceptions import (
     SpecimenNotFoundError,
 )
 from app.models.user import User
+from app.models.login_session import LoginSession
+from app.models.base import utc_now
 from app.web.router import web_router
 from app.web.templates import templates
 
@@ -77,6 +80,23 @@ async def require_web_login(request: Request, call_next: RequestResponseEndpoint
     static_path = request.url.path.startswith("/static/")
     user_id = request.session.get("user_id")
     if isinstance(user_id, int):
+        with SessionLocal() as session:
+            record = session.get(LoginSession, request.session.get("login_token", ""))
+            current = utc_now()
+            user = session.get(User, user_id)
+            if (record is None or record.user_id != user_id
+                or record.expires_at <= current or record.maximum_expires_at <= current
+                or user is None or not user.is_active):
+                if record is not None:
+                    session.delete(record)
+                request.session.clear()
+            else:
+                record.expires_at = min(
+                    record.maximum_expires_at,
+                    current + timedelta(seconds=settings.session_idle_timeout_seconds),
+                )
+                request.session["role"] = user.role
+            session.commit()
         now = time.time()
         last_activity = request.session.get("last_activity_at", now)
         if isinstance(last_activity, (int, float)) and now - last_activity > settings.session_idle_timeout_seconds:

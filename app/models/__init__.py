@@ -15,6 +15,7 @@ from app.models.test_catalog import (
     TestPriceHistory,
 )
 from app.models.user import User
+from app.models.login_session import LoginSession
 
 __all__ = [
     "AuditLog",
@@ -39,4 +40,5 @@ __all__ = [
     "TestCategory",
     "TestPriceHistory",
     "User",
+    "LoginSession",
 ]

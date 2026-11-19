@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     enable_dev_admin_fallback: bool = True
     session_secret: str = "change-this-development-secret"
     session_idle_timeout_seconds: int = 1800
+    max_active_sessions: int = Field(default=7, ge=1)
     session_max_age_seconds: int = 28800
     session_https_only: bool = False
     login_failure_limit: int = 5
