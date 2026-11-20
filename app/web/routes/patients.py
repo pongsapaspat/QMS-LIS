@@ -59,6 +59,8 @@ def _form_context(**values: Any) -> dict[str, Any]:
         "sex_options": Sex,
         "blood_group_options": BloodGroup,
         "restrict_registration_fields": False,
+        "lock_national_id": False,
+        "lock_passport_number": False,
         **values,
     }
 
@@ -224,6 +226,10 @@ def patient_edit_form(
             candidates=[],
             patient=patient,
             restrict_registration_fields=actor.role == "RECEPTION",
+            lock_national_id=actor.role == "RECEPTION" and patient.national_id is not None,
+            lock_passport_number=(
+                actor.role == "RECEPTION" and patient.passport_number is not None
+            ),
         ),
     )
 
@@ -237,9 +243,15 @@ async def patient_update_from_form(
 ) -> Response:
     patient = service.get(patient_id)
     form = await request.form()
-    editable_fields = (
-        RECEPTION_EDITABLE_FIELDS if actor.role == "RECEPTION" else PATIENT_FORM_FIELDS
-    )
+    if actor.role == "RECEPTION":
+        reception_fields = list(RECEPTION_EDITABLE_FIELDS)
+        if patient.national_id is None:
+            reception_fields.append("national_id")
+        if patient.passport_number is None:
+            reception_fields.append("passport_number")
+        editable_fields = tuple(reception_fields)
+    else:
+        editable_fields = PATIENT_FORM_FIELDS
     values = _clean_form_data(form, editable_fields)
     values["change_reason"] = form.get("change_reason") or ""
     if actor.role != "RECEPTION":
@@ -262,6 +274,12 @@ async def patient_update_from_form(
                 candidates=[],
                 patient=patient,
                 restrict_registration_fields=actor.role == "RECEPTION",
+                lock_national_id=(
+                    actor.role == "RECEPTION" and patient.national_id is not None
+                ),
+                lock_passport_number=(
+                    actor.role == "RECEPTION" and patient.passport_number is not None
+                ),
             ),
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )

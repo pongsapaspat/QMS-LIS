@@ -102,7 +102,13 @@ def update_patient(
     actor: PatientRegistrarDependency,
 ) -> PatientDetailResponse:
     if actor.role == "RECEPTION":
-        restricted_fields = data.model_fields_set - RECEPTION_EDITABLE_FIELDS
+        patient = service.get(patient_id)
+        editable_fields = set(RECEPTION_EDITABLE_FIELDS)
+        if patient.national_id is None:
+            editable_fields.add("national_id")
+        if patient.passport_number is None:
+            editable_fields.add("passport_number")
+        restricted_fields = data.model_fields_set - editable_fields
         if restricted_fields:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

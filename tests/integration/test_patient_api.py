@@ -367,11 +367,7 @@ def test_reception_can_register_and_edit_only_demographics(client: TestClient) -
     assert allowed_update.status_code == 200
     assert allowed_update.json()["phone_number"] == "0899999999"
 
-    for restricted_update in (
-        {"national_id": SYNTHETIC_VALID_NATIONAL_ID},
-        {"blood_group": "B+"},
-        {"is_active": False},
-    ):
+    for restricted_update in ({"blood_group": "B+"}, {"is_active": False}):
         restricted_update["change_reason"] = "unauthorized change"
         response = client.patch(
             f"/api/v1/patients/{patient_id}",
@@ -379,6 +375,35 @@ def test_reception_can_register_and_edit_only_demographics(client: TestClient) -
             headers=RECEPTION_HEADERS,
         )
         assert response.status_code == 403
+
+
+@pytest.mark.integration
+def test_reception_can_add_missing_identity_but_cannot_replace_it(client: TestClient) -> None:
+    patient = client.post(
+        "/api/v1/patients",
+        json=patient_payload(national_id=None, passport_number=None),
+        headers=RECEPTION_HEADERS,
+    ).json()
+
+    added = client.patch(
+        f"/api/v1/patients/{patient['id']}",
+        json={
+            "national_id": SYNTHETIC_VALID_NATIONAL_ID,
+            "change_reason": "identity document supplied",
+        },
+        headers=RECEPTION_HEADERS,
+    )
+
+    assert added.status_code == 200
+    assert added.json()["national_id"] == SYNTHETIC_VALID_NATIONAL_ID
+    assert added.json()["identity_document_missing"] is False
+
+    replaced = client.patch(
+        f"/api/v1/patients/{patient['id']}",
+        json={"national_id": None, "change_reason": "attempted identity removal"},
+        headers=RECEPTION_HEADERS,
+    )
+    assert replaced.status_code == 403
 
 
 @pytest.mark.integration
@@ -401,6 +426,40 @@ def test_reception_patient_pages_lock_registration_only_fields(client: TestClien
     assert 'id="blood_group"' in edit_form.text
     assert 'disabled aria-disabled="true"' in edit_form.text
     assert 'id="is_active"' not in edit_form.text
+
+
+@pytest.mark.integration
+def test_reception_can_add_missing_national_id_from_patient_form(client: TestClient) -> None:
+    patient = client.post(
+        "/api/v1/patients",
+        json=patient_payload(national_id=None, passport_number=None),
+        headers=RECEPTION_HEADERS,
+    ).json()
+
+    edit_form = client.get(
+        f"/patients/{patient['id']}/edit", headers=RECEPTION_HEADERS
+    )
+    national_id_input = edit_form.text.split('id="national_id"', 1)[1].split(">", 1)[0]
+    assert "readonly" not in national_id_input
+
+    updated = client.post(
+        f"/patients/{patient['id']}/edit",
+        data={
+            "first_name_en": patient["first_name_en"],
+            "last_name_en": patient["last_name_en"],
+            "national_id": SYNTHETIC_VALID_NATIONAL_ID,
+            "change_reason": "identity document supplied",
+        },
+        headers=RECEPTION_HEADERS,
+        follow_redirects=False,
+    )
+    assert updated.status_code == 303
+
+    locked_form = client.get(
+        f"/patients/{patient['id']}/edit", headers=RECEPTION_HEADERS
+    )
+    national_id_input = locked_form.text.split('id="national_id"', 1)[1].split(">", 1)[0]
+    assert 'readonly aria-readonly="true"' in national_id_input
 
 
 @pytest.mark.integration
