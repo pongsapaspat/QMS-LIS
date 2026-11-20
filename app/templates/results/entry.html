@@ -3,14 +3,52 @@
 <h1>Result entry</h1>
 <form method="post">
   {% for item in items %}
-  <div class="card mb-3"><div class="card-body"><strong>{{ item.test_code }} — {{ item.test_name_en }}</strong>
-    {% if item.result_type == 'CATEGORICAL' or item.result_type == 'QUALITATIVE' %}
-    <select class="form-select" name="value_{{ item.id }}"{% if item.result and item.result.status == 'RELEASED' %} disabled{% endif %}><option value=""></option>{% for option in item.lab_test.qualitative_options %}<option value="{{ option.code }}"{% if item.result and item.result.categorical_value == option.code %} selected{% endif %}>{{ option.label_en }}</option>{% endfor %}</select>
-    {% else %}<input class="form-control" name="value_{{ item.id }}" type="{% if item.result_type == 'NUMERIC' %}number{% else %}text{% endif %}" step="any" value="{% if item.result %}{{ item.result.numeric_value if item.result.numeric_value is not none else item.result.text_value or '' }}{% endif %}"{% if item.result and item.result.status == 'RELEASED' %} disabled{% endif %}>{% endif %}
-    <span>{{ item.result_unit or '' }}</span><label><input type="checkbox" name="ack_{{ item.id }}"> Acknowledge critical value</label>
-    {% if item.result and item.result.status in ['COMPLETED', 'VERIFICATION_REJECTED', 'VERIFIED', 'AMENDMENT_REQUESTED'] %}<label class="form-label d-block mt-2">เหตุผลการแก้ไขผล</label><input class="form-control" name="reason_{{ item.id }}" required>{% endif %}
-    {% if item.result and item.result.status == 'RELEASED' %}<div class="alert alert-info mt-2 mb-0">Released results are locked. Use the future amendment workflow for corrections.</div>{% endif %}
-  </div></div>{% endfor %}
+  {% set saved = item.result and item.result.status in ['COMPLETED', 'VERIFICATION_REJECTED', 'VERIFIED', 'AMENDMENT_REQUESTED', 'RELEASED'] %}
+  {% set locked = item.result and item.result.status == 'RELEASED' %}
+  <div class="card mb-3"><div class="card-body">
+    <strong>{{ item.test_code }} — {{ item.test_name_en }}</strong>
+    {% if saved %}
+    <div class="small text-secondary mb-2">บันทึกแล้ว · {{ item.result.status }}</div>
+    {% if not locked %}<label class="d-block mb-2"><input type="checkbox" name="edit_{{ item.id }}" data-edit-result="{{ item.id }}" data-review="{{ 'true' if item.result.status in ['VERIFICATION_REJECTED', 'AMENDMENT_REQUESTED'] else 'false' }}"> แก้ไขผล</label>{% endif %}
+    {% endif %}
+    <fieldset id="result-fields-{{ item.id }}" class="border-0 p-0 m-0" {% if saved %}disabled{% endif %}>
+      {% if item.result_type in ['CATEGORICAL', 'QUALITATIVE'] %}
+      <select class="form-select" name="value_{{ item.id }}"><option value=""></option>{% for option in item.lab_test.qualitative_options %}<option value="{{ option.code }}"{% if item.result and item.result.categorical_value == option.code %} selected{% endif %}>{{ option.label_en }}</option>{% endfor %}</select>
+      {% else %}
+      <input class="form-control" name="value_{{ item.id }}" type="{% if item.result_type == 'NUMERIC' %}number{% else %}text{% endif %}" step="any" value="{% if item.result %}{{ item.result.numeric_value if item.result.numeric_value is not none else item.result.text_value or '' }}{% endif %}">
+      {% endif %}
+      <span>{{ item.result_unit or '' }}</span>
+      <label><input type="checkbox" name="ack_{{ item.id }}"> Acknowledge critical value</label>
+      {% if saved and not locked %}
+      <div data-reason-container hidden>
+        <label class="form-label d-block mt-2" for="reason-{{ item.id }}">เหตุผลการแก้ไขผล</label>
+        <input class="form-control" id="reason-{{ item.id }}" name="reason_{{ item.id }}" maxlength="500">
+      </div>
+      {% endif %}
+    </fieldset>
+    {% if locked %}<div class="alert alert-info mt-2 mb-0">Released results are locked. Use the amendment workflow for corrections.</div>{% endif %}
+  </div></div>
+  {% endfor %}
   <button class="btn btn-primary" type="submit">Save results</button>
 </form>
+<script>
+document.querySelectorAll('[data-edit-result]').forEach(toggle => {
+  const fields = document.getElementById(`result-fields-${toggle.dataset.editResult}`);
+  const value = fields.querySelector('[name^="value_"]');
+  const reason = fields.querySelector('[name^="reason_"]');
+  const container = fields.querySelector('[data-reason-container]');
+  const original = value.value;
+  function update() {
+    fields.disabled = !toggle.checked;
+    const changed = value.type === 'number'
+      ? Number(value.value) !== Number(original) || value.value === ''
+      : value.value.trim().replace(/\s+/g, ' ') !== original.trim().replace(/\s+/g, ' ');
+    container.hidden = !toggle.checked;
+    reason.required = toggle.checked && (changed || toggle.dataset.review === 'true');
+    if (!toggle.checked) { value.value = original; reason.value = ''; }
+  }
+  toggle.addEventListener('change', update);
+  value.addEventListener('input', update);
+});
+</script>
 {% endblock %}

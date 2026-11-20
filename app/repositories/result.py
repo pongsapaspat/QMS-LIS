@@ -130,6 +130,7 @@ class ResultRepository:
         search: str | None,
         offset: int,
         limit: int,
+        group_orders: bool = False,
     ) -> tuple[list[Result], int]:
         statement = (
             select(Result)
@@ -174,6 +175,19 @@ class ResultRepository:
                     Patient.last_name_en.ilike(term),
                 )
             )
+        if group_orders:
+            orders = statement.with_only_columns(
+                LabOrder.id.label("order_id"), LabOrder.priority,
+                func.min(Result.entered_at).label("first_entry"),
+            ).group_by(LabOrder.id, LabOrder.priority).subquery()
+            total = self.session.scalar(select(func.count()).select_from(orders)) or 0
+            page_orders = select(orders.c.order_id).order_by(
+                orders.c.priority.desc(), orders.c.first_entry, orders.c.order_id,
+            ).offset(offset).limit(limit)
+            statement = statement.where(LabOrder.id.in_(page_orders)).order_by(
+                LabOrder.priority.desc(), Result.entered_at, Result.id,
+            )
+            return list(self.session.scalars(statement)), total
         total = self.session.scalar(
             select(func.count()).select_from(statement.order_by(None).subquery())
         ) or 0

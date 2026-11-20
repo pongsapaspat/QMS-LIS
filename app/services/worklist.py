@@ -9,6 +9,7 @@ from app.repositories.worklist import WorklistRecord, WorklistRepository
 from app.schemas.worklist import (
     WorklistItem,
     WorklistResponse,
+    WorklistResultTest,
     WorklistTaskStatus,
     WorklistTaskType,
 )
@@ -35,8 +36,16 @@ class WorklistService:
         search: str | None,
         page: int,
         page_size: int,
+        group_collection_orders: bool = False,
+        result_tasks_only: bool = False,
     ) -> WorklistResponse:
         task_types = {task_type} if task_type is not None else set(ALL_TASK_TYPES)
+        if result_tasks_only:
+            task_types &= {
+                WorklistTaskType.RESULT_PENDING_ENTRY,
+                WorklistTaskType.RESULT_IN_PROGRESS,
+                WorklistTaskType.RESULT_CORRECTION_REQUIRED,
+            }
         if status == WorklistTaskStatus.PENDING:
             task_types &= PENDING_TASK_TYPES
         elif status == WorklistTaskStatus.IN_PROGRESS:
@@ -50,7 +59,11 @@ class WorklistService:
             search=search.strip() if search and search.strip() else None,
         )
         items = sorted((self._to_item(record) for record in records), key=self._sort_key)
+        if group_collection_orders:
+            items = self._group_collection_orders(items)
         counts = Counter(item.task_type.value for item in items)
+        if result_tasks_only:
+            items = self._group_result_orders(items)
         all_counts = {item.value: counts.get(item.value, 0) for item in WorklistTaskType}
         offset = (page - 1) * page_size
         return WorklistResponse(
@@ -61,6 +74,50 @@ class WorklistService:
             counts_by_task_type=all_counts,
             diagnostics=self.repository.diagnostics(),
         )
+
+    @staticmethod
+    def _group_result_orders(items: list[WorklistItem]) -> list[WorklistItem]:
+        orders: dict[int, WorklistItem] = {}
+        for item in items:
+            if item.order_id not in orders:
+                order = item.model_copy(deep=True)
+                order.task_label = "ลงผลตรวจของ Order"
+                order.next_action_label = "ลงผลตรวจ"
+                order.department_id = None
+                order.department_code = None
+                order.department_name = None
+                orders[item.order_id] = order
+            order = orders[item.order_id]
+            order.result_tests.append(
+                WorklistResultTest.model_validate(
+                    {field: getattr(item, field) for field in WorklistResultTest.model_fields}
+                )
+            )
+            key = item.task_type.value
+            order.result_status_counts[key] = order.result_status_counts.get(key, 0) + 1
+        return list(orders.values())
+
+    @staticmethod
+    def _group_collection_orders(items: list[WorklistItem]) -> list[WorklistItem]:
+        grouped: list[WorklistItem] = []
+        orders: dict[int, WorklistItem] = {}
+        for item in items:
+            if item.task_type != WorklistTaskType.ORDER_PENDING_COLLECTION:
+                grouped.append(item)
+                continue
+            if item.order_id not in orders:
+                item = item.model_copy(deep=True)
+                item.next_action_label = "Collect specimens"
+                orders[item.order_id] = item
+                grouped.append(item)
+            order = orders[item.order_id]
+            if item.specimen_type and item.specimen_type not in order.pending_specimens:
+                order.pending_specimens.append(item.specimen_type)
+            if order.department_id != item.department_id:
+                order.department_id = None
+                order.department_code = None
+                order.department_name = None
+        return grouped
 
     def summary_counts(self) -> dict[str, int]:
         response = self.list_tasks(

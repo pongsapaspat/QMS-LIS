@@ -1,23 +1,32 @@
 {% extends "base.html" %}
 
 {% block content %}
+{% set collection_queue = filters.task_type == 'ORDER_PENDING_COLLECTION' %}
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
   <div>
-    <h1 class="h3 mb-1">Laboratory Worklist</h1>
+    <h1 class="h3 mb-1">{% if result_queue %}Result entry | บันทึกผลตรวจ{% elif collection_queue %}เก็บสิ่งส่งตรวจ{% else %}Laboratory Worklist{% endif %}</h1>
     <p class="text-body-secondary mb-0">รายการงานห้องปฏิบัติการ</p>
   </div>
-  <span class="badge text-bg-primary fs-6">{{ worklist.total }} actionable task{% if worklist.total != 1 %}s{% endif %}</span>
+  {% if not result_queue %}<span class="badge text-bg-primary fs-6">{% if collection_queue %}{{ worklist.total }} order{% if worklist.total != 1 %}s{% endif %} pending collection{% else %}{{ worklist.total }} actionable task{% if worklist.total != 1 %}s{% endif %}{% endif %}</span>{% endif %}
 </div>
 
+{% if not collection_queue %}
 <form class="card card-body mb-4" method="get" action="/worklist">
+  {% if result_queue %}<input type="hidden" name="queue" value="results">{% endif %}
   <div class="row g-3 align-items-end">
     <div class="col-12 col-md-6 col-xl-3">
-      <label class="form-label" for="task-type">Task type</label>
+      <label class="form-label" for="task-type">{% if result_queue %}สถานะการลงผล{% else %}Task type{% endif %}</label>
       <select class="form-select" id="task-type" name="task_type">
-        <option value="">All actionable tasks</option>
+        <option value="">{% if result_queue %}ทั้งหมด{% else %}All actionable tasks{% endif %}</option>
+        {% if result_queue %}
+        {% for value, label in [('RESULT_PENDING_ENTRY', 'รอลงผล'), ('RESULT_IN_PROGRESS', 'กำลังลงผล'), ('RESULT_CORRECTION_REQUIRED', 'ส่งกลับแก้ไข')] %}
+        <option value="{{ value }}"{% if filters.task_type == value %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+        {% else %}
         {% for item in task_types %}
         <option value="{{ item.value }}"{% if filters.task_type == item.value %} selected{% endif %}>{{ item.value.replace('_', ' ').title() }}</option>
         {% endfor %}
+        {% endif %}
       </select>
     </div>
     <div class="col-12 col-md-6 col-xl-2">
@@ -29,6 +38,7 @@
         {% endfor %}
       </select>
     </div>
+    {% if not result_queue %}
     <div class="col-6 col-md-3 col-xl-2">
       <label class="form-label" for="priority">Priority</label>
       <select class="form-select" id="priority" name="priority">
@@ -47,17 +57,19 @@
         {% endfor %}
       </select>
     </div>
+    {% endif %}
     <div class="col-12 col-md-9 col-xl-3">
       <label class="form-label" for="search">Search</label>
       <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Order, accession, HN, patient, test">
     </div>
     <div class="col-12 d-flex flex-wrap gap-2">
       <button class="btn btn-primary" type="submit">Apply filters</button>
-      <a class="btn btn-outline-secondary" href="/worklist">Clear</a>
+      <a class="btn btn-outline-secondary" href="{% if result_queue %}/worklist?queue=results{% else %}/worklist{% endif %}">Clear</a>
     </div>
   </div>
 </form>
 
+{% if not result_queue %}
 <div class="row g-3 mb-4" aria-label="Task counts">
   {% for task_type, count in worklist.counts_by_task_type.items() %}
   <div class="col-6 col-xl-3">
@@ -70,6 +82,8 @@
   </div>
   {% endfor %}
 </div>
+{% endif %}
+{% endif %}
 
 {% if worklist.items %}
 <div class="table-responsive">
@@ -90,26 +104,45 @@
       <tr>
         <td>
           <div class="fw-semibold">{{ task.task_label }}</div>
-          <div class="small text-body-secondary">{{ task.task_type.value }}</div>
+          {% if not task.result_tests %}<div class="small text-body-secondary">{{ task.task_type.value }}</div>{% endif %}
         </td>
         <td>
           <a href="{{ task.detail_url }}">{{ task.order_number }}</a>
           <div>{{ task.patient_hn }} · {{ task.patient_display_name }}</div>
         </td>
         <td>
+          {% if task.result_tests %}
+          {% for test in task.result_tests %}
+          <div class="mb-2">
+            <div>{{ test.test_code }} · {{ test.test_name }}</div>
+            <div class="small text-body-secondary">{{ test.accession_number or '' }} · {{ test.specimen_type or '' }}</div>
+            {% if test.department_code %}<span class="badge text-bg-light">{{ test.department_code }} — {{ test.department_name or '' }}</span>{% endif %}
+          </div>
+          {% endfor %}
+          {% elif task.pending_specimens %}
+          {% for specimen_type in task.pending_specimens %}<div>{{ specimen_type }}</div>{% endfor %}
+          <div class="small text-body-secondary">{{ task.pending_specimens | length }} specimen{% if task.pending_specimens | length != 1 %}s{% endif %} pending</div>
+          {% else %}
           {% if task.accession_number %}<div>{{ task.accession_number }}</div>{% endif %}
           {% if task.specimen_type %}<div class="small text-body-secondary">{{ task.specimen_type }}</div>{% endif %}
           {% if task.test_code %}<div>{{ task.test_code }} · {{ task.test_name }}</div>{% endif %}
+          {% endif %}
           {% if task.department_code %}<span class="badge text-bg-light">{{ task.department_code }}{% if task.department_name %} — {{ task.department_name }}{% endif %}</span>{% endif %}
         </td>
         <td>
           <span class="badge {% if task.priority == 'URGENT' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ task.priority }}</span>
         </td>
         <td>
+          {% if task.result_tests %}
+          {% for value, label in [('RESULT_PENDING_ENTRY', 'รอลงผล'), ('RESULT_IN_PROGRESS', 'กำลังลงผล'), ('RESULT_CORRECTION_REQUIRED', 'ส่งกลับแก้ไข')] %}
+          {% if task.result_status_counts.get(value) %}<div>{{ label }} {{ task.result_status_counts[value] }}</div>{% endif %}
+          {% endfor %}
+          {% else %}
           <div>{{ task.task_status.value }}</div>
           <div class="small text-body-secondary">
             {{ task.current_result_status or task.current_specimen_status or task.current_order_status }}
           </div>
+          {% endif %}
         </td>
         <td>
           <div>{{ task.created_at | app_datetime }}</div>
@@ -128,17 +161,20 @@
 <nav aria-label="Worklist pages">
   <ul class="pagination">
     <li class="page-item{% if worklist.page == 1 %} disabled{% endif %}">
-      <a class="page-link" href="?page={{ worklist.page - 1 }}">Previous</a>
+      <a class="page-link" href="{{ request.url.include_query_params(page=worklist.page - 1) }}">Previous</a>
     </li>
     <li class="page-item disabled"><span class="page-link">Page {{ worklist.page }}</span></li>
     <li class="page-item{% if worklist.page * worklist.page_size >= worklist.total %} disabled{% endif %}">
-      <a class="page-link" href="?page={{ worklist.page + 1 }}">Next</a>
+      <a class="page-link" href="{{ request.url.include_query_params(page=worklist.page + 1) }}">Next</a>
     </li>
   </ul>
 </nav>
 {% endif %}
 {% else %}
 <div class="alert alert-info" role="status">
+  {% if result_queue %}
+  <h2 class="h5">ไม่พบรายการรอลงผลตรวจตามเงื่อนไขที่เลือก</h2>
+  {% else %}
   <h2 class="h5">No actionable laboratory tasks found.</h2>
   <p class="mb-2">Create an order, collect its required specimen, receive the specimen, and then open result entry to create worklist tasks.</p>
   <div class="small">
@@ -148,6 +184,7 @@
     Received specimens: {{ worklist.diagnostics.received_specimens }} ·
     Pending results: {{ worklist.diagnostics.pending_results }}
   </div>
+  {% endif %}
 </div>
 {% endif %}
 {% endblock %}

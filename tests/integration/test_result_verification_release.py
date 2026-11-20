@@ -11,7 +11,7 @@ from app.core.time import to_app_timezone
 from app.domain.exceptions import InvalidResultOperationError
 from app.models.audit import AuditLog
 from app.models.order import LabOrder, OrderStatus
-from app.models.result import ResultStatus
+from app.models.result import ResultRevision, ResultStatus
 from app.schemas.result import OrderRelease
 from app.services.result import ResultService
 from tests.integration.test_specimens import create_collection_order
@@ -20,6 +20,93 @@ ENTRY_HEADERS = {"X-Role": "LAB_TECH", "X-Actor": "entry-tech"}
 SUPERVISOR_HEADERS = {"X-Role": "LAB_SUPERVISOR", "X-Actor": "supervisor-1"}
 ADMIN_HEADERS = {"X-Role": "ADMIN", "X-Actor": "admin-1"}
 RECEPTION_HEADERS = {"X-Role": "RECEPTION", "X-Actor": "reception-1"}
+
+
+@pytest.mark.integration
+def test_web_can_continue_partial_results_without_revising_saved_value(
+    client: TestClient,
+    db_session_factory: sessionmaker[Session],
+) -> None:
+    order_id, serum_id, _, _ = create_collection_order(client)
+    specimen = client.post(
+        "/api/v1/specimens",
+        headers=ENTRY_HEADERS,
+        json={"order_id": order_id, "specimen_type_id": serum_id},
+    )
+    assert specimen.status_code == 201
+    assert (
+        client.patch(
+            f"/api/v1/specimens/{specimen.json()['id']}/receipt", headers=ENTRY_HEADERS, json={}
+        ).status_code
+        == 200
+    )
+    path = f"/worklist/orders/{order_id}"
+    context_path = f"/api/v1/results/orders/{order_id}"
+    context = client.get(context_path, headers=ENTRY_HEADERS).json()
+    entries = {item["test_code"]: item for item in context["items"]}
+    glu_id = entries["GLU"]["order_item_id"]
+    crea_id = entries["CREA"]["order_item_id"]
+    assert (
+        client.post(
+            path, headers=ENTRY_HEADERS, data={f"value_{glu_id}": "95"}, follow_redirects=False
+        ).status_code
+        == 303
+    )
+    original = next(
+        item
+        for item in client.get(context_path, headers=ENTRY_HEADERS).json()["items"]
+        if item["test_code"] == "GLU"
+    )["result"]
+    page = client.get(path, headers=ENTRY_HEADERS)
+    assert f'data-edit-result="{glu_id}"' in page.text
+    assert f'id="result-fields-{glu_id}" class="border-0 p-0 m-0" disabled' in page.text
+    # Older forms also resubmit saved values; equivalent decimal formatting is unchanged.
+    assert (
+        client.post(
+            path,
+            headers=ENTRY_HEADERS,
+            data={f"value_{glu_id}": "95.000000", f"value_{crea_id}": "1.1"},
+            follow_redirects=False,
+        ).status_code
+        == 303
+    )
+    entries = {
+        item["test_code"]: item
+        for item in client.get(context_path, headers=ENTRY_HEADERS).json()["items"]
+    }
+    assert entries["GLU"]["result"]["version"] == original["version"]
+    with db_session_factory() as session:
+        assert (
+            list(
+                session.scalars(
+                    select(ResultRevision).where(ResultRevision.result_id == original["id"])
+                )
+            )
+            == []
+        )
+    assert entries["CREA"]["result"]["status"] == "COMPLETED"
+    changed = client.post(
+        path, headers=ENTRY_HEADERS, data={f"value_{glu_id}": "97"}, follow_redirects=False
+    )
+    assert changed.status_code == 422
+    corrected = client.post(
+        path,
+        headers=ENTRY_HEADERS,
+        data={f"value_{glu_id}": "97", f"reason_{glu_id}": "Corrected entry"},
+        follow_redirects=False,
+    )
+    assert corrected.status_code == 303
+    result = next(
+        item
+        for item in client.get(context_path, headers=ENTRY_HEADERS).json()["items"]
+        if item["test_code"] == "GLU"
+    )["result"]
+    with db_session_factory() as session:
+        revisions = list(
+            session.scalars(select(ResultRevision).where(ResultRevision.result_id == result["id"]))
+        )
+        assert len(revisions) == 1
+        assert revisions[0].modification_reason == "Corrected entry"
 
 
 def _completed_order(client: TestClient) -> tuple[int, list[dict[str, object]]]:
@@ -38,9 +125,7 @@ def _completed_order(client: TestClient) -> tuple[int, list[dict[str, object]]]:
         )
         assert received.status_code == 200
 
-    context = client.get(
-        f"/api/v1/results/orders/{order_id}", headers=ENTRY_HEADERS
-    ).json()
+    context = client.get(f"/api/v1/results/orders/{order_id}", headers=ENTRY_HEADERS).json()
     values = {"GLU": "95", "CREA": "1.1", "UPRO": "12"}
     response = client.post(
         f"/api/v1/results/orders/{order_id}",
@@ -61,6 +146,38 @@ def _completed_order(client: TestClient) -> tuple[int, list[dict[str, object]]]:
 
 
 @pytest.mark.integration
+def test_verification_web_groups_orders_before_pagination(
+    client: TestClient, db_session_factory: sessionmaker[Session]
+) -> None:
+    order_id, results = _completed_order(client)
+    page = client.get('/results/verification', headers=SUPERVISOR_HEADERS)
+    assert page.status_code == 200
+    queue = page.context['queue']
+    assert queue['total'] == 1
+    assert len(queue['items']) == 1
+    assert queue['items'][0]['pending_count'] == 3
+    assert {test['test_code'] for test in queue['items'][0]['results']} == {'GLU', 'CREA', 'UPRO'}
+    assert page.text.count(f'href="/results/verification/orders/{order_id}"') == 1
+    filtered = client.get('/results/verification?search=GLU', headers=SUPERVISOR_HEADERS)
+    assert filtered.context['queue']['total'] == 1
+    assert filtered.context['queue']['items'][0]['pending_count'] == 1
+    with db_session_factory() as session:
+        service = ResultService(session)
+        first = service.verification_queue(department_id=None, priority=None, search=None,
+                                          page=1, page_size=1, group_orders=True)
+        second = service.verification_queue(department_id=None, priority=None, search=None,
+                                           page=2, page_size=1, group_orders=True)
+        assert first['total'] == second['total'] == 1
+        assert first['items'][0]['pending_count'] == 3
+        assert second['items'] == []
+    assert client.patch(f"/api/v1/results/{results[0]['id']}/verify",
+                       headers=SUPERVISOR_HEADERS, json={}).status_code == 200
+    remaining = client.get('/results/verification', headers=SUPERVISOR_HEADERS)
+    assert remaining.context['queue']['total'] == 1
+    assert remaining.context['queue']['items'][0]['pending_count'] == 2
+
+
+@pytest.mark.integration
 def test_verification_rejection_correction_and_atomic_release(
     client: TestClient,
     db_session_factory: sessionmaker[Session],
@@ -78,9 +195,10 @@ def test_verification_rejection_correction_and_atomic_release(
         assert unavailable_report.status_code == 409
         assert unavailable_report.headers["content-type"].startswith("text/html")
         assert "รายงานผลตรวจยังไม่พร้อม" in unavailable_report.text
-        assert client.get(
-            f"/results/reports/orders/{order_id}", headers=RECEPTION_HEADERS
-        ).status_code == 409
+        assert (
+            client.get(f"/results/reports/orders/{order_id}", headers=RECEPTION_HEADERS).status_code
+            == 409
+        )
 
         queue = client.get("/api/v1/results/verification-queue", headers=ENTRY_HEADERS)
         assert queue.status_code == 200
@@ -94,20 +212,24 @@ def test_verification_rejection_correction_and_atomic_release(
         )
         assert verification_detail.status_code == 200
         assert "Verify result" in verification_detail.text
-        assert client.get(
-            "/api/v1/results/verification-queue", headers=RECEPTION_HEADERS
-        ).status_code == 403
+        assert (
+            client.get("/api/v1/results/verification-queue", headers=RECEPTION_HEADERS).status_code
+            == 403
+        )
         stale = client.patch(
             f"/api/v1/results/{result_ids[0]}/verify",
             json={"version": 999999},
             headers=SUPERVISOR_HEADERS,
         )
         assert stale.status_code == 409
-        assert client.patch(
-            f"/api/v1/results/{result_ids[0]}/verify",
-            json={"actor_reference": "spoofed"},
-            headers=SUPERVISOR_HEADERS,
-        ).status_code == 422
+        assert (
+            client.patch(
+                f"/api/v1/results/{result_ids[0]}/verify",
+                json={"actor_reference": "spoofed"},
+                headers=SUPERVISOR_HEADERS,
+            ).status_code
+            == 422
+        )
 
         self_verification = client.patch(
             f"/api/v1/results/{result_ids[0]}/verify",
@@ -132,9 +254,10 @@ def test_verification_rejection_correction_and_atomic_release(
         )
         assert verified.status_code == 200
         assert verified.json()["status"] == "VERIFIED"
-        assert client.get(
-            "/api/v1/results/release-queue", headers=SUPERVISOR_HEADERS
-        ).json()["total"] == 0
+        assert (
+            client.get("/api/v1/results/release-queue", headers=SUPERVISOR_HEADERS).json()["total"]
+            == 0
+        )
 
         missing_reason = client.patch(
             f"/api/v1/results/{result_ids[2]}/verification-rejection",
@@ -152,12 +275,9 @@ def test_verification_rejection_correction_and_atomic_release(
         assert rejected.json()["numeric_value"] == "12.000000"
         correction_tasks = client.get("/api/v1/worklist", headers=ENTRY_HEADERS).json()
         assert any(
-            item["task_type"] == "RESULT_CORRECTION_REQUIRED"
-            for item in correction_tasks["items"]
+            item["task_type"] == "RESULT_CORRECTION_REQUIRED" for item in correction_tasks["items"]
         )
-        correction_page = client.get(
-            f"/worklist/orders/{order_id}", headers=ENTRY_HEADERS
-        )
+        correction_page = client.get(f"/worklist/orders/{order_id}", headers=ENTRY_HEADERS)
         assert correction_page.status_code == 200
         assert "เหตุผลการแก้ไขผล" in correction_page.text
 
@@ -181,9 +301,7 @@ def test_verification_rejection_correction_and_atomic_release(
             headers=SUPERVISOR_HEADERS,
         )
         assert final_verification.status_code == 200
-        release_queue = client.get(
-            "/api/v1/results/release-queue", headers=SUPERVISOR_HEADERS
-        )
+        release_queue = client.get("/api/v1/results/release-queue", headers=SUPERVISOR_HEADERS)
         assert release_queue.status_code == 200
         assert release_queue.json()["total"] == 1
         release_page = client.get("/results/release", headers=SUPERVISOR_HEADERS)
@@ -201,11 +319,14 @@ def test_verification_rejection_correction_and_atomic_release(
         assert preview.status_code == 200
         assert preview.json()["release_ready"] is True
         assert len(preview.json()["results"]) == 3
-        assert client.patch(
-            f"/api/v1/orders/{order_id}/release",
-            json={},
-            headers=ENTRY_HEADERS,
-        ).status_code == 403
+        assert (
+            client.patch(
+                f"/api/v1/orders/{order_id}/release",
+                json={},
+                headers=ENTRY_HEADERS,
+            ).status_code
+            == 403
+        )
 
         released = client.patch(
             f"/api/v1/orders/{order_id}/release",
@@ -215,9 +336,7 @@ def test_verification_rejection_correction_and_atomic_release(
         assert released.status_code == 200
         assert released.json()["status"] == "RELEASED"
 
-        report = client.get(
-            f"/results/reports/orders/{order_id}", headers=SUPERVISOR_HEADERS
-        )
+        report = client.get(f"/results/reports/orders/{order_id}", headers=SUPERVISOR_HEADERS)
         assert report.status_code == 200
         assert report.headers["content-type"].startswith("text/html")
         assert "รายงานผลการตรวจทางห้องปฏิบัติการ" in report.text
@@ -236,7 +355,7 @@ def test_verification_rejection_correction_and_atomic_release(
         )
         assert pdf_report.status_code == 200
         assert pdf_report.headers["content-type"] == "application/pdf"
-        assert pdf_report.headers["content-disposition"].endswith(".pdf\"")
+        assert pdf_report.headers["content-disposition"].endswith('.pdf"')
         assert pdf_report.content.startswith(b"%PDF-")
 
         reception_pdf = client.get(
@@ -253,11 +372,9 @@ def test_verification_rejection_correction_and_atomic_release(
         assert report_list.status_code == 200
         assert "รายงานผลตรวจ" in report_list.text
         assert released.json()["order_number"] in report_list.text
-        assert f'/results/reports/orders/{order_id}' in report_list.text
+        assert f"/results/reports/orders/{order_id}" in report_list.text
 
-        reception_report_list = client.get(
-            "/results/reports", headers=RECEPTION_HEADERS
-        )
+        reception_report_list = client.get("/results/reports", headers=RECEPTION_HEADERS)
         assert reception_report_list.status_code == 200
         assert released.json()["order_number"] in reception_report_list.text
 
@@ -296,9 +413,12 @@ def test_verification_rejection_correction_and_atomic_release(
         )
         assert amendment.status_code == 303
         assert amendment.headers["location"].endswith(f"/worklist/orders/{order_id}")
-        assert client.get(
-            f"/results/reports/orders/{order_id}", headers=SUPERVISOR_HEADERS
-        ).status_code == 409
+        assert (
+            client.get(
+                f"/results/reports/orders/{order_id}", headers=SUPERVISOR_HEADERS
+            ).status_code
+            == 409
+        )
         amendment_worklist = client.get(
             "/api/v1/worklist",
             params={"task_type": "RESULT_CORRECTION_REQUIRED"},
@@ -320,11 +440,14 @@ def test_verification_rejection_correction_and_atomic_release(
         )
         assert amended.status_code == 200
         assert amended.json()["status"] == "COMPLETED"
-        assert client.patch(
-            f"/api/v1/results/{result_ids[0]}/verify",
-            json={},
-            headers=SUPERVISOR_HEADERS,
-        ).status_code == 200
+        assert (
+            client.patch(
+                f"/api/v1/results/{result_ids[0]}/verify",
+                json={},
+                headers=SUPERVISOR_HEADERS,
+            ).status_code
+            == 200
+        )
         amendment_release = client.post(
             f"/results/release/orders/{order_id}",
             data={"comment": "release amended result"},
@@ -384,16 +507,21 @@ def test_incomplete_cancelled_and_unknown_release_errors(
 ) -> None:
     order_id, results = _completed_order(client)
     first_id = int(results[0]["id"])
-    assert client.get(
-        "/api/v1/results/orders/999999/verification", headers=ADMIN_HEADERS
-    ).status_code == 404
-    assert client.patch(
-        "/api/v1/orders/999999/release", json={}, headers=ADMIN_HEADERS
-    ).status_code == 404
+    assert (
+        client.get("/api/v1/results/orders/999999/verification", headers=ADMIN_HEADERS).status_code
+        == 404
+    )
+    assert (
+        client.patch("/api/v1/orders/999999/release", json={}, headers=ADMIN_HEADERS).status_code
+        == 404
+    )
 
-    assert client.patch(
-        f"/api/v1/results/{first_id}/verify", json={}, headers=SUPERVISOR_HEADERS
-    ).status_code == 200
+    assert (
+        client.patch(
+            f"/api/v1/results/{first_id}/verify", json={}, headers=SUPERVISOR_HEADERS
+        ).status_code
+        == 200
+    )
     incomplete = client.patch(
         f"/api/v1/orders/{order_id}/release", json={}, headers=SUPERVISOR_HEADERS
     )

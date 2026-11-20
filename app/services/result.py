@@ -233,6 +233,7 @@ class ResultService:
         search: str | None,
         page: int,
         page_size: int,
+        group_orders: bool = False,
     ) -> dict[str, object]:
         results, total = self.repository.list_verification_queue(
             department_id=department_id,
@@ -240,9 +241,19 @@ class ResultService:
             search=search,
             offset=(page - 1) * page_size,
             limit=page_size,
+            group_orders=group_orders,
         )
+        items = [self._verification_item(result) for result in results]
+        if group_orders:
+            orders: dict[int, list[dict[str, object]]] = {}
+            for result, item in zip(results, items, strict=True):
+                orders.setdefault(result.order_item.order_id, []).append(item)
+            items = [
+                {**tests[0], "results": tests, "pending_count": len(tests)}
+                for tests in orders.values()
+            ]
         return {
-            "items": [self._verification_item(result) for result in results],
+            "items": items,
             "total": total,
             "page": page,
             "page_size": page_size,

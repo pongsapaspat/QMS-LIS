@@ -1,4 +1,6 @@
+from contextlib import suppress
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from typing import Annotated, cast
 
 from fastapi import APIRouter, Query, Request
@@ -44,9 +46,7 @@ def verification_queue(
         BeforeValidator(empty_string_to_none),
         AfterValidator(positive_int_or_none),
     ] = None,
-    priority: Annotated[
-        OrderPriority | None, BeforeValidator(empty_string_to_none)
-    ] = None,
+    priority: Annotated[OrderPriority | None, BeforeValidator(empty_string_to_none)] = None,
     search: str | None = Query(default=None, max_length=100),
     page: int = Query(default=1, ge=1),
 ) -> HTMLResponse:
@@ -56,6 +56,7 @@ def verification_queue(
         search=search,
         page=page,
         page_size=50,
+        group_orders=True,
     )
     return templates.TemplateResponse(
         request=request,
@@ -155,7 +156,9 @@ async def verification_approve(
                 "form_values": {str(result_id): values},
             },
         )
-    return RedirectResponse(f"{request.url_for('verification_queue')}?success=result-verified", status_code=303)
+    return RedirectResponse(
+        f"{request.url_for('verification_queue')}?success=result-verified", status_code=303
+    )
 
 
 @router.post(
@@ -187,7 +190,10 @@ async def verification_reject(
                 "form_values": {str(result_id): {"reason": reason}},
             },
         )
-    return RedirectResponse(f"{request.url_for('result_entry', order_id=order_id)}?success=result-rejected", status_code=303)
+    return RedirectResponse(
+        f"{request.url_for('result_entry', order_id=order_id)}?success=result-rejected",
+        status_code=303,
+    )
 
 
 @router.get("/results/release", response_class=HTMLResponse, name="release_queue")
@@ -195,9 +201,7 @@ def release_queue(
     request: Request,
     service: ResultServiceDependency,
     actor: ResultReaderDependency,
-    priority: Annotated[
-        OrderPriority | None, BeforeValidator(empty_string_to_none)
-    ] = None,
+    priority: Annotated[OrderPriority | None, BeforeValidator(empty_string_to_none)] = None,
     search: str | None = Query(default=None, max_length=100),
     page: int = Query(default=1, ge=1),
 ) -> HTMLResponse:
@@ -336,9 +340,7 @@ def lab_report_pdf(
         content=pdf,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": (
-                f'attachment; filename="QMS-LIS-{order.order_number}.pdf"'
-            )
+            "Content-Disposition": (f'attachment; filename="QMS-LIS-{order.order_number}.pdf"')
         },
     )
 
@@ -375,7 +377,8 @@ async def release_order_action(
             },
         )
     return RedirectResponse(
-        f"{request.url_for('lab_report', order_id=order_id)}?success=results-released", status_code=303
+        f"{request.url_for('lab_report', order_id=order_id)}?success=results-released",
+        status_code=303,
     )
 
 
@@ -384,23 +387,32 @@ def worklist(
     request: Request,
     service: WorklistServiceDependency,
     actor: ResultReaderDependency,
-    task_type: Annotated[
-        WorklistTaskType | None, BeforeValidator(empty_string_to_none)
-    ] = None,
+    task_type: Annotated[WorklistTaskType | None, BeforeValidator(empty_string_to_none)] = None,
     department_id: Annotated[
         int | None,
         BeforeValidator(empty_string_to_none),
         AfterValidator(positive_int_or_none),
     ] = None,
-    priority: Annotated[
-        OrderPriority | None, BeforeValidator(empty_string_to_none)
-    ] = None,
-    status: Annotated[
-        WorklistTaskStatus | None, BeforeValidator(empty_string_to_none)
-    ] = None,
+    priority: Annotated[OrderPriority | None, BeforeValidator(empty_string_to_none)] = None,
+    status: Annotated[WorklistTaskStatus | None, BeforeValidator(empty_string_to_none)] = None,
     search: str | None = Query(default=None, max_length=100),
     page: int = Query(default=1, ge=1),
+    queue: str | None = None,
 ) -> HTMLResponse:
+    result_queue = queue == "results" or task_type in {
+        WorklistTaskType.RESULT_PENDING_ENTRY,
+        WorklistTaskType.RESULT_IN_PROGRESS,
+        WorklistTaskType.RESULT_CORRECTION_REQUIRED,
+    }
+    if result_queue:
+        if task_type not in {
+            WorklistTaskType.RESULT_PENDING_ENTRY,
+            WorklistTaskType.RESULT_IN_PROGRESS,
+            WorklistTaskType.RESULT_CORRECTION_REQUIRED,
+        }:
+            task_type = None
+        priority = None
+        status = None
     response = service.list_tasks(
         task_type=task_type,
         department_id=department_id,
@@ -409,12 +421,15 @@ def worklist(
         search=search,
         page=page,
         page_size=50,
+        group_collection_orders=task_type == WorklistTaskType.ORDER_PENDING_COLLECTION,
+        result_tasks_only=result_queue,
     )
     return templates.TemplateResponse(
         request=request,
         name="results/worklist.html",
         context={
-            "page_title": "Laboratory Worklist",
+            "page_title": "Result entry | บันทึกผลตรวจ" if result_queue else "Laboratory Worklist",
+            "result_queue": result_queue,
             "worklist": response,
             "task_types": WorklistTaskType,
             "task_statuses": WorklistTaskStatus,
@@ -462,6 +477,32 @@ async def save(
         value = str(form.get(f"value_{key}", "")).strip()
         if not value:
             continue
+        if item.result:
+            existing = item.result
+            unchanged = False
+            if item.result_type == "NUMERIC":
+                with suppress(InvalidOperation):
+                    unchanged = Decimal(value) == existing.numeric_value
+            elif item.result_type == "TEXT":
+                unchanged = " ".join(value.split()) == existing.text_value
+            else:
+                unchanged = " ".join(value.split()) == existing.categorical_value
+            if existing.status == ResultStatus.RELEASED:
+                continue
+            if (
+                unchanged
+                and existing.status
+                in {
+                    ResultStatus.COMPLETED,
+                    ResultStatus.VERIFIED,
+                    ResultStatus.VERIFICATION_REJECTED,
+                    ResultStatus.AMENDMENT_REQUESTED,
+                }
+                and form.get(f"edit_{key}") != "on"
+            ):
+                continue
+            if unchanged and existing.status in {ResultStatus.COMPLETED, ResultStatus.VERIFIED}:
+                continue
         payload: dict[str, object] = {
             "order_item_id": item.id,
             "version": item.result.version if item.result else None,
@@ -480,9 +521,9 @@ async def save(
             ResultStatus.VERIFIED,
             ResultStatus.AMENDMENT_REQUESTED,
         }:
-            payload["modification_reason"] = str(
-                form.get(f"reason_{key}", "")
-            )
+            payload["modification_reason"] = str(form.get(f"reason_{key}", "")).strip()
+            if not payload["modification_reason"]:
+                raise InvalidResultOperationError("a modification reason is required")
             items.append(ResultEdit.model_validate(payload))
         else:
             items.append(ResultItemSave.model_validate(payload))

@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class WorklistTaskType(StrEnum):
@@ -18,6 +18,16 @@ class WorklistTaskStatus(StrEnum):
     CORRECTION_REQUIRED = "CORRECTION_REQUIRED"
 
 
+class WorklistResultTest(BaseModel):
+    test_code: str | None
+    test_name: str | None
+    accession_number: str | None
+    specimen_type: str | None
+    department_code: str | None
+    department_name: str | None
+    task_type: WorklistTaskType
+
+
 class WorklistItem(BaseModel):
     task_type: WorklistTaskType
     task_status: WorklistTaskStatus
@@ -32,6 +42,9 @@ class WorklistItem(BaseModel):
     accession_number: str | None = None
     specimen_id: int | None = None
     specimen_type: str | None = None
+    pending_specimens: list[str] = Field(default_factory=list)
+    result_tests: list[WorklistResultTest] = Field(default_factory=list)
+    result_status_counts: dict[str, int] = Field(default_factory=dict)
     test_code: str | None = None
     test_name: str | None = None
     department_id: int | None = None

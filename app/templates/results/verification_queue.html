@@ -2,7 +2,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
   <div><h1 class="h3 mb-1">Verification Queue</h1><p class="text-body-secondary mb-0">Completed results awaiting independent review</p></div>
-  <span class="badge text-bg-primary fs-6">{{ queue.total }} result(s)</span>
+  <span class="badge text-bg-primary fs-6">{{ queue.total }} order(s)</span>
 </div>
 <form class="card card-body mb-4" method="get">
   <div class="row g-3 align-items-end">
@@ -14,15 +14,33 @@
 </form>
 {% if queue['items'] %}
 <div class="table-responsive"><table class="table table-hover align-middle">
-  <thead><tr><th>Order / patient</th><th>Specimen / test</th><th>Result</th><th>Entered</th><th>Status</th><th></th></tr></thead>
+  <thead><tr><th>Order / patient</th><th>Tests | รายการตรวจ</th><th>Last entered | ลงผลล่าสุด</th><th>Review status | สถานะ</th><th></th></tr></thead>
   <tbody>{% for item in queue['items'] %}<tr>
     <td><strong>{{ item.order_number }}</strong><div>{{ item.patient_hn }} · {{ item.patient_name }}</div><span class="badge {% if item.priority == 'URGENT' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ item.priority }}</span></td>
-    <td>{{ item.accession_number }} · {{ item.specimen_type }}<div>{{ item.test_code }} · {{ item.test_name }}</div><small>{{ item.department_code }}</small></td>
-    <td>{{ item.result_value }} {{ item.unit or '' }}{% if item.abnormal_flag %} <span class="badge text-bg-warning">{{ item.abnormal_flag }}</span>{% endif %}{% if item.critical %} <span class="badge text-bg-danger">Critical</span>{% endif %}</td>
-    <td>{{ item.entered_by }}<div class="small text-body-secondary">{{ item.entered_at | app_datetime if item.entered_at else '' }}</div></td>
-    <td><span class="badge {% if item.status == 'VERIFICATION_REJECTED' %}text-bg-danger{% else %}text-bg-info{% endif %}">{{ item.status }}</span></td>
+    <td>
+      {% for test in item.results[:3] %}<div class="text-truncate" style="max-width: 24rem;" title="{{ test.test_code }} · {{ test.test_name }}">{{ test.test_code }} · {{ test.test_name }}</div>{% endfor %}
+      {% if item.pending_count > 3 %}<div class="small text-body-secondary">อีก {{ item.pending_count - 3 }} รายการ</div>{% endif %}
+    </td>
+    <td>
+      {% set entered = item.results | selectattr('entered_at') | sort(attribute='entered_at') | list %}
+      {% if entered %}{% set latest = entered[-1] %}<div>{{ latest.entered_by or '-' }}</div><div class="small text-body-secondary">{{ latest.entered_at | app_datetime }}</div>{% else %}—{% endif %}
+    </td>
+    <td>
+      <div>รอ Verify {{ item.pending_count }} รายการ</div>
+      {% set critical_count = item.results | selectattr('critical') | list | length %}
+      {% set rejected_count = item.results | selectattr('status', 'equalto', 'VERIFICATION_REJECTED') | list | length %}
+      {% if critical_count %}<span class="badge text-bg-danger mt-1">Critical {{ critical_count }}</span>{% endif %}
+      {% if rejected_count %}<span class="badge text-bg-warning mt-1">ส่งกลับแก้ไข {{ rejected_count }}</span>{% endif %}
+    </td>
     <td><a class="btn btn-sm btn-primary" href="/results/verification/orders/{{ item.order_id }}">Review</a></td>
   </tr>{% endfor %}</tbody>
 </table></div>
 {% else %}<div class="alert alert-info">No results are awaiting verification.</div>{% endif %}
+{% if queue.page > 1 or queue.page * queue.page_size < queue.total %}
+<nav aria-label="Verification queue pages"><ul class="pagination">
+  {% if queue.page > 1 %}<li class="page-item"><a class="page-link" href="{{ request.url.include_query_params(page=queue.page - 1) }}">Previous</a></li>{% endif %}
+  <li class="page-item disabled"><span class="page-link">Page {{ queue.page }}</span></li>
+  {% if queue.page * queue.page_size < queue.total %}<li class="page-item"><a class="page-link" href="{{ request.url.include_query_params(page=queue.page + 1) }}">Next</a></li>{% endif %}
+</ul></nav>
+{% endif %}
 {% endblock %}

@@ -12,6 +12,170 @@ from tests.integration.test_specimens import (
 RECEPTION_HEADERS = {"X-Role": "RECEPTION", "X-Actor": "reception-1"}
 
 
+@pytest.mark.integration
+def test_result_queue_filters_stay_in_result_entry(
+    client: TestClient, db_session_factory: sessionmaker[Session]
+) -> None:
+    order_id, serum_id, _, _ = create_collection_order(client)
+    specimen = client.post(
+        "/api/v1/specimens",
+        json={"order_id": order_id, "specimen_type_id": serum_id},
+        headers=HEADERS,
+    )
+    assert specimen.status_code == 201
+    assert (
+        client.patch(
+            f"/api/v1/specimens/{specimen.json()['id']}/receipt",
+            json={},
+            headers=HEADERS,
+        ).status_code
+        == 200
+    )
+    for query in (
+        "task_type=RESULT_PENDING_ENTRY",
+        "queue=results&task_type=&department_id=&search=",
+        "queue=results",
+    ):
+        page = client.get(f"/worklist?{query}", headers=HEADERS)
+        assert page.status_code == 200
+        assert page.context["result_queue"] is True
+        assert page.context["worklist"].total == 1
+        assert len(page.context["worklist"].items) == 1
+        row = page.context["worklist"].items[0]
+        assert {test.test_code for test in row.result_tests} == {"GLU", "CREA"}
+        assert row.result_status_counts == {"RESULT_PENDING_ENTRY": 2}
+        assert page.text.count(f'href="/worklist/orders/{order_id}"') == 1
+        assert all(
+            item.task_type.value.startswith("RESULT_") for item in page.context["worklist"].items
+        )
+        assert 'name="queue" value="results"' in page.text
+        assert 'href="/worklist?queue=results"' in page.text
+        assert 'name="priority"' not in page.text
+        assert 'name="status"' not in page.text
+        assert 'aria-label="Task counts"' not in page.text
+        assert '<option value="ORDER_PENDING_COLLECTION"' not in page.text
+    progress = client.get(
+        "/worklist?queue=results&task_type=RESULT_IN_PROGRESS",
+        headers=HEADERS,
+    )
+    assert progress.context["worklist"].total == 0
+    from app.services.worklist import WorklistService
+
+    with db_session_factory() as session:
+        service = WorklistService(session)
+        for page_number in (1, 2):
+            queue = service.list_tasks(
+                task_type=None,
+                department_id=None,
+                priority=None,
+                status=None,
+                search=None,
+                page=page_number,
+                page_size=1,
+                result_tasks_only=True,
+            )
+            assert queue.total == 1
+            assert len(queue.items) == (1 if page_number == 1 else 0)
+            if queue.items:
+                assert len(queue.items[0].result_tests) == 2
+
+    context = client.get(f"/api/v1/results/orders/{order_id}", headers=HEADERS).json()
+    glu = next(item for item in context["items"] if item["test_code"] == "GLU")
+    saved = client.post(
+        f"/api/v1/results/orders/{order_id}",
+        headers=HEADERS,
+        json={
+            "items": [
+                {"order_item_id": glu["order_item_id"], "numeric_value": "96", "complete": False}
+            ]
+        },
+    )
+    assert saved.status_code == 200
+    mixed = client.get("/worklist?queue=results", headers=HEADERS).context["worklist"]
+    assert mixed.total == 1
+    assert mixed.items[0].result_status_counts == {
+        "RESULT_PENDING_ENTRY": 1,
+        "RESULT_IN_PROGRESS": 1,
+    }
+    filtered = client.get(
+        "/worklist?task_type=RESULT_IN_PROGRESS",
+        headers=HEADERS,
+    ).context["worklist"]
+    assert filtered.total == 1
+    assert [test.test_code for test in filtered.items[0].result_tests] == ["GLU"]
+
+
+@pytest.mark.integration
+def test_collection_page_groups_orders_and_keeps_only_pending_specimens(client: TestClient) -> None:
+    order_id, serum_id, urine_id, _ = create_collection_order(client)
+    page = client.get("/worklist?task_type=ORDER_PENDING_COLLECTION", headers=HEADERS)
+    queue = page.context["worklist"]
+    assert queue.total == 1
+    assert len(queue.items) == 1
+    assert set(queue.items[0].pending_specimens) == {"Serum", "Urine"}
+    assert page.text.count(">Collect specimens</a>") == 1
+    assert "Apply filters" not in page.text
+    assert 'aria-label="Task counts"' not in page.text
+    assert queue.items[0].next_action_url == f"/orders/{order_id}/specimens"
+
+    assert (
+        client.post(
+            "/api/v1/specimens",
+            json={
+                "order_id": order_id,
+                "specimen_type_id": serum_id,
+            },
+            headers=HEADERS,
+        ).status_code
+        == 201
+    )
+    partial = client.get("/worklist?task_type=ORDER_PENDING_COLLECTION", headers=HEADERS)
+    assert partial.context["worklist"].total == 1
+    assert partial.context["worklist"].items[0].pending_specimens == ["Urine"]
+    assert (
+        client.post(
+            "/api/v1/specimens",
+            json={
+                "order_id": order_id,
+                "specimen_type_id": urine_id,
+            },
+            headers=HEADERS,
+        ).status_code
+        == 201
+    )
+    complete = client.get("/worklist?task_type=ORDER_PENDING_COLLECTION", headers=HEADERS)
+    assert complete.context["worklist"].total == 0
+
+
+@pytest.mark.integration
+def test_collection_orders_are_grouped_before_pagination(
+    client: TestClient, db_session_factory: sessionmaker[Session]
+) -> None:
+    from app.schemas.worklist import WorklistTaskType
+    from app.services.worklist import WorklistService
+
+    order_id, _, _, _ = create_collection_order(client)
+    with db_session_factory() as session:
+        service = WorklistService(session)
+        for page in (1, 2):
+            queue = service.list_tasks(
+                task_type=WorklistTaskType.ORDER_PENDING_COLLECTION,
+                department_id=None,
+                priority=None,
+                status=None,
+                search=None,
+                page=page,
+                page_size=1,
+                group_collection_orders=True,
+            )
+            assert queue.total == 1
+            if page == 1:
+                assert queue.items[0].order_id == order_id
+                assert set(queue.items[0].pending_specimens) == {"Serum", "Urine"}
+            else:
+                assert queue.items == []
+
+
 def _worklist(client: TestClient, **params: object) -> dict[str, object]:
     response = client.get("/api/v1/worklist", params=params, headers=HEADERS)
     assert response.status_code == 200
@@ -135,9 +299,9 @@ def test_unified_worklist_tracks_the_complete_laboratory_workflow(
         headers=HEADERS,
     )
     assert completed_serum.status_code == 200
-    assert {
-        item["task_type"] for item in _worklist(client)["items"]
-    } == {"ORDER_PENDING_COLLECTION"}
+    assert {item["task_type"] for item in _worklist(client)["items"]} == {
+        "ORDER_PENDING_COLLECTION"
+    }
 
     urine = client.post(
         "/api/v1/specimens",
@@ -145,9 +309,12 @@ def test_unified_worklist_tracks_the_complete_laboratory_workflow(
         headers=HEADERS,
     )
     assert urine.status_code == 201
-    assert client.patch(
-        f"/api/v1/specimens/{urine.json()['id']}/receipt", json={}, headers=HEADERS
-    ).status_code == 200
+    assert (
+        client.patch(
+            f"/api/v1/specimens/{urine.json()['id']}/receipt", json={}, headers=HEADERS
+        ).status_code
+        == 200
+    )
     context = client.get(f"/api/v1/results/orders/{order_id}", headers=HEADERS).json()
     urine_item = next(item for item in context["items"] if item["test_code"] == "UPRO")
     completed_urine = client.post(
