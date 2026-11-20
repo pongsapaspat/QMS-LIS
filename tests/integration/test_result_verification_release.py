@@ -80,7 +80,7 @@ def test_verification_rejection_correction_and_atomic_release(
         assert "รายงานผลตรวจยังไม่พร้อม" in unavailable_report.text
         assert client.get(
             f"/results/reports/orders/{order_id}", headers=RECEPTION_HEADERS
-        ).status_code == 403
+        ).status_code == 409
 
         queue = client.get("/api/v1/results/verification-queue", headers=ENTRY_HEADERS)
         assert queue.status_code == 200
@@ -225,6 +225,12 @@ def test_verification_rejection_correction_and_atomic_release(
         assert "พิมพ์รายงาน" in report.text
         assert "Glucose Thai" in report.text
 
+        reception_report = client.get(
+            f"/results/reports/orders/{order_id}", headers=RECEPTION_HEADERS
+        )
+        assert reception_report.status_code == 200
+        assert "QMS-LIS" in reception_report.text
+
         pdf_report = client.get(
             f"/results/reports/orders/{order_id}/pdf", headers=SUPERVISOR_HEADERS
         )
@@ -232,6 +238,12 @@ def test_verification_rejection_correction_and_atomic_release(
         assert pdf_report.headers["content-type"] == "application/pdf"
         assert pdf_report.headers["content-disposition"].endswith(".pdf\"")
         assert pdf_report.content.startswith(b"%PDF-")
+
+        reception_pdf = client.get(
+            f"/results/reports/orders/{order_id}/pdf", headers=RECEPTION_HEADERS
+        )
+        assert reception_pdf.status_code == 200
+        assert reception_pdf.content.startswith(b"%PDF-")
 
         report_list = client.get(
             "/results/reports",
@@ -242,6 +254,12 @@ def test_verification_rejection_correction_and_atomic_release(
         assert "รายงานผลตรวจ" in report_list.text
         assert released.json()["order_number"] in report_list.text
         assert f'/results/reports/orders/{order_id}' in report_list.text
+
+        reception_report_list = client.get(
+            "/results/reports", headers=RECEPTION_HEADERS
+        )
+        assert reception_report_list.status_code == 200
+        assert released.json()["order_number"] in reception_report_list.text
 
         release_date = to_app_timezone(
             datetime.fromisoformat(released.json()["released_at"])
@@ -261,6 +279,14 @@ def test_verification_rejection_correction_and_atomic_release(
             headers=SUPERVISOR_HEADERS,
         )
         assert released.json()["order_number"] not in excluded_reports.text
+
+        reception_amendment = client.post(
+            f"/results/{result_ids[0]}/amendments",
+            data={"reason": "reception must not amend results"},
+            headers=RECEPTION_HEADERS,
+            follow_redirects=False,
+        )
+        assert reception_amendment.status_code == 403
 
         amendment = client.post(
             f"/results/{result_ids[0]}/amendments",

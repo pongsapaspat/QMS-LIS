@@ -1,9 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.dependencies import PatientServiceDependency
-from app.core.security import ActorDependency, AdminActorDependency
+from app.core.security import ActorDependency, PatientRegistrarDependency
 from app.schemas.patient import (
     DuplicateCandidateResponse,
     DuplicateCheckQuery,
@@ -17,12 +17,29 @@ from app.schemas.patient import (
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
+RECEPTION_EDITABLE_FIELDS = {
+    "title",
+    "first_name_th",
+    "last_name_th",
+    "first_name_en",
+    "last_name_en",
+    "date_of_birth",
+    "sex",
+    "phone_number",
+    "address",
+    "email",
+    "emergency_contact_name",
+    "emergency_contact_relationship",
+    "emergency_contact_phone",
+    "change_reason",
+}
+
 
 @router.post("", response_model=PatientDetailResponse, status_code=status.HTTP_201_CREATED)
 def create_patient(
     data: PatientCreate,
     service: PatientServiceDependency,
-    actor: AdminActorDependency,
+    actor: PatientRegistrarDependency,
 ) -> PatientDetailResponse:
     return PatientDetailResponse.model_validate(
         service.create(data, actor_reference=actor.reference)
@@ -82,8 +99,18 @@ def update_patient(
     patient_id: int,
     data: PatientUpdate,
     service: PatientServiceDependency,
-    actor: AdminActorDependency,
+    actor: PatientRegistrarDependency,
 ) -> PatientDetailResponse:
+    if actor.role == "RECEPTION":
+        restricted_fields = data.model_fields_set - RECEPTION_EDITABLE_FIELDS
+        if restricted_fields:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "RECEPTION cannot edit restricted patient fields: "
+                    + ", ".join(sorted(restricted_fields))
+                ),
+            )
     return PatientDetailResponse.model_validate(
         service.update(patient_id, data, actor_reference=actor.reference)
     )

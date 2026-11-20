@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from pydantic import ValidationError
 
 from app.api.dependencies import PatientServiceDependency
-from app.core.security import AdminActorDependency
+from app.core.security import PatientRegistrarDependency
 from app.domain.enums import BloodGroup, Sex
 from app.domain.exceptions import (
     DuplicatePatientIdentifierError,
@@ -37,13 +37,36 @@ PATIENT_FORM_FIELDS = (
     "emergency_contact_phone",
 )
 
+RECEPTION_EDITABLE_FIELDS = (
+    "title",
+    "first_name_th",
+    "last_name_th",
+    "first_name_en",
+    "last_name_en",
+    "date_of_birth",
+    "sex",
+    "phone_number",
+    "address",
+    "email",
+    "emergency_contact_name",
+    "emergency_contact_relationship",
+    "emergency_contact_phone",
+)
+
 
 def _form_context(**values: Any) -> dict[str, Any]:
-    return {"sex_options": Sex, "blood_group_options": BloodGroup, **values}
+    return {
+        "sex_options": Sex,
+        "blood_group_options": BloodGroup,
+        "restrict_registration_fields": False,
+        **values,
+    }
 
 
-def _clean_form_data(form: Any) -> dict[str, Any]:
-    return {field: form.get(field) or None for field in PATIENT_FORM_FIELDS}
+def _clean_form_data(
+    form: Any, fields: tuple[str, ...] = PATIENT_FORM_FIELDS
+) -> dict[str, Any]:
+    return {field: form.get(field) or None for field in fields}
 
 
 def _patient_values(patient: Patient) -> dict[str, Any]:
@@ -61,7 +84,7 @@ def _validation_messages(exc: ValidationError) -> list[str]:
 def patient_list(
     request: Request,
     service: PatientServiceDependency,
-    actor: AdminActorDependency,
+    actor: PatientRegistrarDependency,
     search: str | None = None,
     page: int = 1,
 ) -> HTMLResponse:
@@ -91,7 +114,7 @@ def patient_list(
 
 
 @router.get("/new", response_class=HTMLResponse, name="patient_new")
-def patient_new_form(request: Request, actor: AdminActorDependency) -> HTMLResponse:
+def patient_new_form(request: Request, actor: PatientRegistrarDependency) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
         name="patients/form.html",
@@ -110,7 +133,7 @@ def patient_new_form(request: Request, actor: AdminActorDependency) -> HTMLRespo
 async def patient_create_from_form(
     request: Request,
     service: PatientServiceDependency,
-    actor: AdminActorDependency,
+    actor: PatientRegistrarDependency,
 ) -> Response:
     form = await request.form()
     values = _clean_form_data(form)
@@ -172,7 +195,7 @@ def patient_detail(
     patient_id: int,
     request: Request,
     service: PatientServiceDependency,
-    actor: AdminActorDependency,
+    actor: PatientRegistrarDependency,
 ) -> HTMLResponse:
     patient = service.get(patient_id)
     return templates.TemplateResponse(
@@ -187,7 +210,7 @@ def patient_edit_form(
     patient_id: int,
     request: Request,
     service: PatientServiceDependency,
-    actor: AdminActorDependency,
+    actor: PatientRegistrarDependency,
 ) -> HTMLResponse:
     patient = service.get(patient_id)
     return templates.TemplateResponse(
@@ -200,6 +223,7 @@ def patient_edit_form(
             errors=[],
             candidates=[],
             patient=patient,
+            restrict_registration_fields=actor.role == "RECEPTION",
         ),
     )
 
@@ -209,28 +233,35 @@ async def patient_update_from_form(
     patient_id: int,
     request: Request,
     service: PatientServiceDependency,
-    actor: AdminActorDependency,
+    actor: PatientRegistrarDependency,
 ) -> Response:
     patient = service.get(patient_id)
     form = await request.form()
-    values = _clean_form_data(form)
+    editable_fields = (
+        RECEPTION_EDITABLE_FIELDS if actor.role == "RECEPTION" else PATIENT_FORM_FIELDS
+    )
+    values = _clean_form_data(form, editable_fields)
     values["change_reason"] = form.get("change_reason") or ""
-    values["is_active"] = form.get("is_active") == "on"
+    if actor.role != "RECEPTION":
+        values["is_active"] = form.get("is_active") == "on"
     try:
         data = PatientUpdate.model_validate(values)
         service.update(patient_id, data, actor_reference=actor.reference)
     except (ValidationError, InvalidPatientChangeError, DuplicatePatientIdentifierError) as exc:
         errors = _validation_messages(exc) if isinstance(exc, ValidationError) else [str(exc)]
+        rendered_values = _patient_values(patient)
+        rendered_values.update(values)
         return templates.TemplateResponse(
             request=request,
             name="patients/form.html",
             context=_form_context(
                 page_title=f"Edit {patient.hn} | แก้ไขข้อมูล",
                 mode="edit",
-                values=values,
+                values=rendered_values,
                 errors=errors,
                 candidates=[],
                 patient=patient,
+                restrict_registration_fields=actor.role == "RECEPTION",
             ),
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )

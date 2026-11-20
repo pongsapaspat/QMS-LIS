@@ -45,7 +45,7 @@
             {% if role in ['ADMIN', 'IT', 'LAB_SUPERVISOR'] %}
             <a class="nav-link{% if request.url.path.startswith('/results/release') %} active{% endif %}" href="/results/release">รอเผยแพร่ผล</a>
             {% endif %}
-            {% if role in ['ADMIN', 'IT', 'LAB_TECH', 'LAB_SUPERVISOR'] %}
+            {% if role in ['ADMIN', 'IT', 'LAB_TECH', 'LAB_SUPERVISOR', 'RECEPTION'] %}
             <a class="nav-link{% if request.url.path.startswith('/results/reports') %} active{% endif %}" href="{{ url_for('lab_reports') }}">รายงานผลตรวจ</a>
             {% endif %}
           </div>
@@ -56,6 +56,13 @@
             <a class="nav-link{% if request.url.path.startswith('/patients') %} active{% endif %}" href="/patients">ผู้ป่วย</a>
             <a class="nav-link{% if request.url.path.startswith('/test-catalog') %} active{% endif %}" href="/test-catalog">รายการตรวจ</a>
             <a class="nav-link{% if request.url.path.startswith('/users') %} active{% endif %}" href="/users">ผู้ใช้งาน</a>
+          </div>
+          {% endif %}
+
+          {% if role == 'RECEPTION' %}
+          <div class="nav-section">
+            <div class="nav-section-label">ข้อมูลผู้รับบริการ</div>
+            <a class="nav-link{% if request.url.path.startswith('/patients') %} active{% endif %}" href="/patients">ลงทะเบียนและแก้ไขข้อมูลผู้ป่วย</a>
           </div>
           {% endif %}
 

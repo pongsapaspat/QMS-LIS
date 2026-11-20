@@ -47,6 +47,18 @@ def require_admin(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
 AdminActorDependency = Annotated[Actor, Depends(require_admin)]
 
 
+def require_patient_registrar(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
+    if actor.role not in {"ADMIN", "IT", "RECEPTION"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="patient registration permission required",
+        )
+    return actor
+
+
+PatientRegistrarDependency = Annotated[Actor, Depends(require_patient_registrar)]
+
+
 def require_admin_only(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
     if actor.role != "ADMIN":
         raise HTTPException(
@@ -105,6 +117,18 @@ def require_result_reader(actor: Annotated[Actor, Depends(get_current_actor)]) -
 
 
 ResultReaderDependency = Annotated[Actor, Depends(require_result_reader)]
+
+
+def require_report_reader(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
+    if actor.role not in {"ADMIN", "IT", "LAB_TECH", "LAB_SUPERVISOR", "RECEPTION"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="released report permission required",
+        )
+    return actor
+
+
+ReportReaderDependency = Annotated[Actor, Depends(require_report_reader)]
 
 
 def require_result_mutator(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:

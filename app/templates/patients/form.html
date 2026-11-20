@@ -43,9 +43,9 @@
       <div class="col-md-6"><label class="form-label" for="last_name_en">English last name</label><input class="form-control" id="last_name_en" name="last_name_en" value="{{ values.get('last_name_en') or '' }}"></div>
       <div class="col-md-4"><label class="form-label" for="date_of_birth">Date of birth | วันเกิด</label><input class="form-control" type="date" id="date_of_birth" name="date_of_birth" value="{{ values.get('date_of_birth') or '' }}"></div>
       <div class="col-md-4"><label class="form-label" for="sex">Sex | เพศ</label><select class="form-select" id="sex" name="sex"><option value="">Select</option>{% for option in sex_options %}<option value="{{ option.value }}" {% if values.get('sex') == option.value %}selected{% endif %}>{{ option.value }}</option>{% endfor %}</select></div>
-      <div class="col-md-4"><label class="form-label" for="blood_group">Blood group | กรุ๊ปเลือด</label><select class="form-select" id="blood_group" name="blood_group"><option value="">Unknown</option>{% for option in blood_group_options %}<option value="{{ option.value }}" {% if values.get('blood_group') == option.value %}selected{% endif %}>{{ option.value }}</option>{% endfor %}</select></div>
-      <div class="col-md-6"><label class="form-label" for="national_id">Thai National ID | เลขบัตรประชาชน</label><input class="form-control" id="national_id" name="national_id" inputmode="numeric" maxlength="17" value="{{ values.get('national_id') or '' }}"></div>
-      <div class="col-md-6"><label class="form-label" for="passport_number">Passport | หนังสือเดินทาง</label><input class="form-control" id="passport_number" name="passport_number" value="{{ values.get('passport_number') or '' }}"></div>
+      <div class="col-md-4"><label class="form-label" for="blood_group">Blood group | กรุ๊ปเลือด</label><select class="form-select" id="blood_group" name="blood_group" {% if mode == 'edit' and restrict_registration_fields %}disabled aria-disabled="true"{% endif %}><option value="">Unknown</option>{% for option in blood_group_options %}<option value="{{ option.value }}" {% if values.get('blood_group') == option.value %}selected{% endif %}>{{ option.value }}</option>{% endfor %}</select></div>
+      <div class="col-md-6"><label class="form-label" for="national_id">Thai National ID | เลขบัตรประชาชน</label><input class="form-control" id="national_id" name="national_id" inputmode="numeric" maxlength="17" value="{{ values.get('national_id') or '' }}" {% if mode == 'edit' and restrict_registration_fields %}readonly aria-readonly="true"{% endif %}></div>
+      <div class="col-md-6"><label class="form-label" for="passport_number">Passport | หนังสือเดินทาง</label><input class="form-control" id="passport_number" name="passport_number" value="{{ values.get('passport_number') or '' }}" {% if mode == 'edit' and restrict_registration_fields %}readonly aria-readonly="true"{% endif %}></div>
     </div>
   </fieldset>
 
@@ -62,7 +62,7 @@
   </div></fieldset>
 
   {% if mode == "edit" %}
-  <div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="is_active" name="is_active" {% if values.get('is_active', patient.is_active) %}checked{% endif %}><label class="form-check-label" for="is_active">Active patient | ใช้งาน</label></div>
+  {% if not restrict_registration_fields %}<div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="is_active" name="is_active" {% if values.get('is_active', patient.is_active) %}checked{% endif %}><label class="form-check-label" for="is_active">Active patient | ใช้งาน</label></div>{% endif %}
   <div class="mb-4"><label class="form-label" for="change_reason">Reason for change | เหตุผลการแก้ไข <span aria-hidden="true">*</span></label><textarea class="form-control" id="change_reason" name="change_reason" required aria-required="true">{{ values.get('change_reason') or '' }}</textarea></div>
   {% endif %}
   {% if candidates %}<p class="text-danger fw-semibold">By continuing, you confirm this is a distinct patient.</p>{% endif %}

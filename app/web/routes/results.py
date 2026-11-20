@@ -7,6 +7,7 @@ from pydantic import AfterValidator, BeforeValidator
 
 from app.api.dependencies import ResultServiceDependency, WorklistServiceDependency
 from app.core.security import (
+    ReportReaderDependency,
     ResultMutationDependency,
     ResultReaderDependency,
     ResultReleaserDependency,
@@ -251,7 +252,7 @@ def release_order_preview(
 def lab_reports(
     request: Request,
     service: ResultServiceDependency,
-    actor: ResultReaderDependency,
+    actor: ReportReaderDependency,
     search: str | None = Query(default=None, max_length=100),
     date_from: Annotated[date | None, BeforeValidator(empty_string_to_none)] = None,
     date_to: Annotated[date | None, BeforeValidator(empty_string_to_none)] = None,
@@ -295,7 +296,7 @@ def lab_report(
     order_id: int,
     request: Request,
     service: ResultServiceDependency,
-    actor: ResultReaderDependency,
+    actor: ReportReaderDependency,
 ) -> HTMLResponse:
     try:
         context = service.report_context(order_id, actor_reference=actor.reference)
@@ -325,7 +326,7 @@ def lab_report(
 def lab_report_pdf(
     order_id: int,
     service: ResultServiceDependency,
-    actor: ResultReaderDependency,
+    actor: ReportReaderDependency,
 ) -> Response:
     context = service.report_context(order_id, actor_reference=actor.reference)
     pdf = build_lab_report_pdf(context)

@@ -145,7 +145,11 @@ def test_navigation_matches_logged_in_user_role(
             'href="/results/release"',
             'href="/audit-logs"',
         ],
-        "reception": ['href="/orders/new"'],
+        "reception": [
+            'href="/orders/new"',
+            'href="/patients"',
+            "/results/reports",
+        ],
     }
     hidden_links = {
         "tech": [
@@ -157,10 +161,12 @@ def test_navigation_matches_logged_in_user_role(
         ],
         "supervisor": ['href="/patients"', 'href="/test-catalog"', 'href="/users"'],
         "reception": [
-            'href="/patients"',
             'href="/test-catalog"',
             'href="/worklist"',
             'href="/results/verification"',
+            'href="/results/release"',
+            'href="/users"',
+            'href="/audit-logs"',
         ],
     }
     for username in expected_links:

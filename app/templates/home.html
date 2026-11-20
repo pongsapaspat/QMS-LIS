@@ -33,10 +33,14 @@
     <div class="col-12 col-md-6 col-xl-4"><a class="action-card" href="{{ url_for('order_new') }}"><strong>สร้างคำสั่งตรวจ</strong><span>เลือกผู้ป่วยและรายการตรวจเพื่อเริ่มกระบวนการ</span></a></div>
     {% if role in ['ADMIN', 'LAB_TECH', 'LAB_SUPERVISOR'] %}
     <div class="col-12 col-md-6 col-xl-4"><a class="action-card" href="/results/verification"><strong>ตรวจสอบผล</strong><span>ตรวจความครบถ้วนก่อนส่งเข้าสู่ขั้นตอนเผยแพร่</span></a></div>
+    {% endif %}
+    {% if role in ['ADMIN', 'LAB_TECH', 'LAB_SUPERVISOR', 'RECEPTION'] %}
     <div class="col-12 col-md-6 col-xl-4"><a class="action-card" href="{{ url_for('lab_reports') }}"><strong>รายงานผลตรวจ</strong><span>ค้นหา เปิดดู และดาวน์โหลดรายงานที่เผยแพร่แล้ว</span></a></div>
     {% endif %}
-    {% if role == 'ADMIN' %}
+    {% if role in ['ADMIN', 'RECEPTION'] %}
     <div class="col-12 col-md-6 col-xl-4"><a class="action-card" href="/patients"><strong>ข้อมูลผู้ป่วย</strong><span>ค้นหา ลงทะเบียน และปรับปรุงข้อมูลผู้รับบริการ</span></a></div>
+    {% endif %}
+    {% if role == 'ADMIN' %}
     <div class="col-12 col-md-6 col-xl-4"><a class="action-card" href="/test-catalog"><strong>Test Catalog</strong><span>กำหนดรายการตรวจ ช่วงอ้างอิง และข้อมูลหลัก</span></a></div>
     {% endif %}
     {% if role in ['ADMIN', 'LAB_SUPERVISOR'] %}

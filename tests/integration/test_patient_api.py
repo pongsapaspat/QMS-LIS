@@ -7,6 +7,7 @@ from app.models.audit import AuditLog
 from app.models.patient import Patient
 
 ADMIN_HEADERS = {"X-Role": "ADMIN", "X-Actor": "admin-test"}
+RECEPTION_HEADERS = {"X-Role": "RECEPTION", "X-Actor": "reception-test"}
 SYNTHETIC_VALID_NATIONAL_ID = "0123456789016"
 
 
@@ -336,11 +337,70 @@ def test_audit_log_contains_field_names_not_pii_values(
 
 
 @pytest.mark.integration
-def test_patient_mutations_require_admin(client: TestClient) -> None:
+def test_patient_mutations_require_registration_permission(client: TestClient) -> None:
     non_admin_headers = {"X-Role": "LAB_TECH", "X-Actor": "tech-1"}
     response = client.post("/api/v1/patients", json=patient_payload(), headers=non_admin_headers)
 
     assert response.status_code == 403
+
+
+@pytest.mark.integration
+def test_reception_can_register_and_edit_only_demographics(client: TestClient) -> None:
+    created_response = client.post(
+        "/api/v1/patients",
+        json=patient_payload(),
+        headers=RECEPTION_HEADERS,
+    )
+    assert created_response.status_code == 201
+    patient_id = created_response.json()["id"]
+
+    allowed_update = client.patch(
+        f"/api/v1/patients/{patient_id}",
+        json={
+            "phone_number": "0899999999",
+            "address": "Updated address",
+            "emergency_contact_phone": "0888888888",
+            "change_reason": "patient confirmed demographics",
+        },
+        headers=RECEPTION_HEADERS,
+    )
+    assert allowed_update.status_code == 200
+    assert allowed_update.json()["phone_number"] == "0899999999"
+
+    for restricted_update in (
+        {"national_id": SYNTHETIC_VALID_NATIONAL_ID},
+        {"blood_group": "B+"},
+        {"is_active": False},
+    ):
+        restricted_update["change_reason"] = "unauthorized change"
+        response = client.patch(
+            f"/api/v1/patients/{patient_id}",
+            json=restricted_update,
+            headers=RECEPTION_HEADERS,
+        )
+        assert response.status_code == 403
+
+
+@pytest.mark.integration
+def test_reception_patient_pages_lock_registration_only_fields(client: TestClient) -> None:
+    patient = client.post(
+        "/api/v1/patients", json=patient_payload(), headers=RECEPTION_HEADERS
+    ).json()
+
+    list_response = client.get("/patients", headers=RECEPTION_HEADERS)
+    create_form = client.get("/patients/new", headers=RECEPTION_HEADERS)
+    edit_form = client.get(
+        f"/patients/{patient['id']}/edit", headers=RECEPTION_HEADERS
+    )
+
+    assert list_response.status_code == 200
+    assert create_form.status_code == 200
+    assert 'id="national_id"' in create_form.text
+    assert 'id="national_id"' in edit_form.text
+    assert 'readonly aria-readonly="true"' in edit_form.text
+    assert 'id="blood_group"' in edit_form.text
+    assert 'disabled aria-disabled="true"' in edit_form.text
+    assert 'id="is_active"' not in edit_form.text
 
 
 @pytest.mark.integration
