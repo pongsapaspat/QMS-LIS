@@ -52,7 +52,7 @@ def test_unified_worklist_tracks_the_complete_laboratory_workflow(
     dashboard = client.get("/", headers=HEADERS)
     assert dashboard.status_code == 200
     assert "/worklist?task_type=ORDER_PENDING_COLLECTION" in dashboard.text
-    assert "Orders pending collection" in dashboard.text
+    assert "เก็บสิ่งส่งตรวจ" in dashboard.text
 
     serum = client.post(
         "/api/v1/specimens",

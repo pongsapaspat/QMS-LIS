@@ -35,6 +35,9 @@ def test_login_session_and_logout(
     assert "httponly" in set_cookie
     assert "samesite=lax" in set_cookie
     assert "max-age=28800" in set_cookie
+    session_status = client.get("/session-status")
+    assert session_status.status_code == 200
+    assert session_status.json()["active"] is True
     protected = client.get("/results/release")
     assert protected.status_code == 200
     assert "Release Queue" in protected.text

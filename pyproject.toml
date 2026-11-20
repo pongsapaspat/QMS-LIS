@@ -10,7 +10,7 @@ dependencies = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "-ra --strict-markers"
+addopts = "-ra --strict-markers --basetemp=tmp/pytest"
 markers = [
     "unit: isolated unit tests",
     "integration: database and API integration tests",

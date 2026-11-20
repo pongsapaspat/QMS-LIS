@@ -4,8 +4,16 @@
 {% if errors %}<div class="alert alert-danger"><ul class="mb-0">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
 <form method="post" class="card card-body" id="order-form">
   <div class="row g-3">
-    <div class="col-md-6"><label class="form-label" for="patient_id">Patient</label><select class="form-select" id="patient_id" name="patient_id" required><option value="">Select patient</option>{% for patient in patients %}<option value="{{ patient.id }}" {% if values.get('patient_id')|string == patient.id|string %}selected{% endif %}>{{ patient.hn }} — {{ patient.display_name }}</option>{% endfor %}</select></div>
-    <div class="col-md-3"><label class="form-label" for="priority">Priority</label><select class="form-select" id="priority" name="priority">{% for item in priorities %}<option value="{{ item.value }}" {% if values.get('priority', 'ROUTINE')|string == item.value %}selected{% endif %}>{{ item.value }}</option>{% endfor %}</select></div>
+    <div class="col-md-8 position-relative">
+      <label class="form-label" for="patient-search">Patient</label>
+      <input class="form-control" id="patient-search" type="search" autocomplete="off" placeholder="Search by patient name, national ID, or HN" aria-autocomplete="list" aria-controls="patient-results" aria-expanded="false" {% if selected_patient %}value="{{ selected_patient.display_name }}"{% endif %}>
+      <input type="hidden" id="patient_id" name="patient_id" value="{{ values.get('patient_id') or '' }}">
+      <div class="list-group position-absolute shadow-sm d-none w-100" id="patient-results" role="listbox" style="z-index: 10; max-height: 16rem; overflow-y: auto;"></div>
+      <div class="form-text" id="patient-search-hint">Type at least 2 characters, then choose a patient from the results.</div>
+      <div class="small text-success mt-1" id="selected-patient" {% if not selected_patient %}hidden{% endif %}>
+        {% if selected_patient %}Selected: {{ selected_patient.hn }} — {{ selected_patient.display_name }}{% endif %}
+      </div>
+    </div>
     <div class="col-12"><label class="form-label" for="clinical_note">Clinical note</label><textarea class="form-control" id="clinical_note" name="clinical_note" rows="2">{{ values.get('clinical_note') or '' }}</textarea></div>
   </div>
   <hr>
@@ -15,6 +23,123 @@
   <div class="mt-4"><button class="btn btn-primary" type="submit">Save order</button></div>
 </form>
 <script>
-(() => { const choices = [...document.querySelectorAll('.test-choice')]; const selected = document.getElementById('selected-tests'); const total = document.getElementById('total-price'); function refresh() { const active = choices.filter(c => c.checked); selected.innerHTML = active.length ? active.map(c => `<li>${c.dataset.code} — ${c.dataset.name}</li>`).join('') : '<li class="text-secondary">None selected</li>'; total.textContent = active.reduce((sum, c) => sum + Number(c.dataset.price || 0), 0).toFixed(2); } choices.forEach(c => c.addEventListener('change', refresh)); refresh(); })();
+(() => {
+  const form = document.getElementById('order-form');
+  const search = document.getElementById('patient-search');
+  const patientId = document.getElementById('patient_id');
+  const results = document.getElementById('patient-results');
+  const hint = document.getElementById('patient-search-hint');
+  const selectedPatient = document.getElementById('selected-patient');
+  let debounceTimer;
+  let requestNumber = 0;
+
+  function hideResults() {
+    results.replaceChildren();
+    results.classList.add('d-none');
+    search.setAttribute('aria-expanded', 'false');
+  }
+
+  function showMessage(message) {
+    const item = document.createElement('div');
+    item.className = 'list-group-item text-secondary';
+    item.textContent = message;
+    results.replaceChildren(item);
+    results.classList.remove('d-none');
+    search.setAttribute('aria-expanded', 'true');
+  }
+
+  async function findPatients(query, currentRequest) {
+    try {
+      const response = await fetch(`/api/v1/patients?search=${encodeURIComponent(query)}&page_size=10`, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' }
+      });
+      if (!response.ok) throw new Error('Patient search failed');
+      const data = await response.json();
+      if (currentRequest !== requestNumber) return;
+      if (!data.items.length) {
+        hint.textContent = 'No matching patients found.';
+        showMessage('No matching patients found.');
+        return;
+      }
+      hint.textContent = `${data.items.length} matching patient(s). Choose one to continue.`;
+      results.replaceChildren();
+      data.items.forEach(patient => {
+        const option = document.createElement('button');
+        option.type = 'button';
+        option.className = 'list-group-item list-group-item-action';
+        option.setAttribute('role', 'option');
+        option.textContent = `${patient.hn} — ${patient.display_name}`;
+        option.addEventListener('click', () => {
+          patientId.value = patient.id;
+          search.value = patient.display_name;
+          selectedPatient.textContent = `Selected: ${patient.hn} — ${patient.display_name}`;
+          selectedPatient.hidden = false;
+          search.setCustomValidity('');
+          hideResults();
+        });
+        results.append(option);
+      });
+      results.classList.remove('d-none');
+      search.setAttribute('aria-expanded', 'true');
+    } catch {
+      if (currentRequest === requestNumber) {
+        hint.textContent = 'Unable to search patients. Please try again.';
+        showMessage('Unable to search patients. Please try again.');
+      }
+    }
+  }
+
+  search.addEventListener('input', () => {
+    patientId.value = '';
+    selectedPatient.hidden = true;
+    selectedPatient.textContent = '';
+    search.setCustomValidity('');
+    const query = search.value.trim();
+    const currentRequest = ++requestNumber;
+    clearTimeout(debounceTimer);
+    if (query.length < 2) {
+      hideResults();
+      hint.textContent = 'Type at least 2 characters, then choose a patient from the results.';
+      return;
+    }
+    hint.textContent = 'Searching patients…';
+    debounceTimer = setTimeout(() => findPatients(query, currentRequest), 250);
+  });
+
+  document.addEventListener('click', event => {
+    if (!results.contains(event.target) && event.target !== search) hideResults();
+  });
+  form.addEventListener('submit', event => {
+    if (!patientId.value) {
+      event.preventDefault();
+      search.setCustomValidity('Choose a patient from the search results.');
+      search.reportValidity();
+    }
+  });
+
+  const choices = [...document.querySelectorAll('.test-choice')];
+  const selected = document.getElementById('selected-tests');
+  const total = document.getElementById('total-price');
+  function refresh() {
+    const active = choices.filter(choice => choice.checked);
+    selected.replaceChildren();
+    if (!active.length) {
+      const empty = document.createElement('li');
+      empty.className = 'text-secondary';
+      empty.textContent = 'None selected';
+      selected.append(empty);
+    } else {
+      active.forEach(choice => {
+        const item = document.createElement('li');
+        item.textContent = `${choice.dataset.code} — ${choice.dataset.name}`;
+        selected.append(item);
+      });
+    }
+    total.textContent = active.reduce((sum, choice) => sum + Number(choice.dataset.price || 0), 0).toFixed(2);
+  }
+  choices.forEach(choice => choice.addEventListener('change', refresh));
+  refresh();
+})();
 </script>
 {% endblock %}

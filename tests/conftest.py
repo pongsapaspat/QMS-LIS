@@ -39,7 +39,12 @@ def db_session_factory() -> Generator[sessionmaker[Session], None, None]:
 
 
 @pytest.fixture
-def client(db_session_factory: sessionmaker[Session]) -> Generator[TestClient, None, None]:
+def client(
+    db_session_factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> Generator[TestClient, None, None]:
+    # Middleware opens sessions directly, outside FastAPI's dependency overrides.
+    monkeypatch.setattr("app.main.SessionLocal", db_session_factory)
+
     def override_get_db() -> Generator[Session, None, None]:
         with db_session_factory() as session:
             try:

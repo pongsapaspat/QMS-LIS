@@ -15,7 +15,6 @@ from app.domain.exceptions import (
     CatalogNotFoundError,
     PatientNotFoundError,
 )
-from app.models.order import OrderPriority
 from app.schemas.order import LabOrderCreate
 from app.web.templates import templates
 
@@ -27,9 +26,6 @@ def _context(
     catalog_service: TestCatalogServiceDependency,
     **values: Any,
 ) -> dict[str, Any]:
-    patients, _ = patient_service.list_patients(
-        search=None, branch_id=None, include_inactive=False, offset=0, limit=500
-    )
     tests, _ = catalog_service.list_tests(
         search=None,
         category_id=None,
@@ -41,9 +37,7 @@ def _context(
         limit=500,
     )
     return {
-        "patients": patients,
         "tests": [test for test in tests if test.department.is_active],
-        "priorities": OrderPriority,
         **values,
     }
 
@@ -80,7 +74,6 @@ async def order_create(
     values: dict[str, Any] = {
         "patient_id": form.get("patient_id"),
         "test_ids": form.getlist("test_ids"),
-        "priority": form.get("priority") or OrderPriority.ROUTINE,
         "clinical_note": form.get("clinical_note") or None,
     }
     try:
@@ -97,6 +90,12 @@ async def order_create(
             if isinstance(exc, ValidationError)
             else [str(exc)]
         )
+        selected_patient = None
+        try:
+            if values["patient_id"]:
+                selected_patient = patient_service.get(int(values["patient_id"]))
+        except (ValueError, PatientNotFoundError):
+            pass
         return templates.TemplateResponse(
             request=request,
             name="orders/form.html",
@@ -105,12 +104,16 @@ async def order_create(
                 catalog_service,
                 page_title="New laboratory order",
                 values=values,
+                selected_patient=selected_patient,
                 errors=errors,
             ),
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     return RedirectResponse(
-        f"{request.url_for('order_detail', order_id=order.id)}?success=order-created&order_number={order.order_number}",
+        (
+            f"{request.url_for('order_detail', order_id=order.id)}"
+            f"?success=order-created&order_number={order.order_number}"
+        ),
         status_code=status.HTTP_303_SEE_OTHER,
     )
 
