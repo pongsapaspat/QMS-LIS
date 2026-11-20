@@ -89,6 +89,7 @@ def patient_list(
     actor: PatientRegistrarDependency,
     search: str | None = None,
     page: int = 1,
+    created_id: int | None = None,
 ) -> HTMLResponse:
     page = max(page, 1)
     page_size = 20
@@ -111,6 +112,7 @@ def patient_list(
             "total": total,
             "has_previous": page > 1,
             "has_next": page * page_size < total,
+            "created_id": created_id,
         },
     )
 
@@ -187,7 +189,7 @@ async def patient_create_from_form(
             status_code=status.HTTP_409_CONFLICT,
         )
     return RedirectResponse(
-        request.url_for("patient_detail", patient_id=patient.id),
+        f"{request.url_for('patient_list')}?success=patient-created&created_id={patient.id}&hn={patient.hn}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 
@@ -284,6 +286,6 @@ async def patient_update_from_form(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     return RedirectResponse(
-        request.url_for("patient_detail", patient_id=patient_id),
+        f"{request.url_for('patient_detail', patient_id=patient_id)}?success=patient-updated",
         status_code=status.HTTP_303_SEE_OTHER,
     )

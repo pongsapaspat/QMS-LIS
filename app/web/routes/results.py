@@ -155,7 +155,7 @@ async def verification_approve(
                 "form_values": {str(result_id): values},
             },
         )
-    return RedirectResponse(request.url_for("verification_queue"), status_code=303)
+    return RedirectResponse(f"{request.url_for('verification_queue')}?success=result-verified", status_code=303)
 
 
 @router.post(
@@ -187,7 +187,7 @@ async def verification_reject(
                 "form_values": {str(result_id): {"reason": reason}},
             },
         )
-    return RedirectResponse(request.url_for("verification_queue"), status_code=303)
+    return RedirectResponse(f"{request.url_for('result_entry', order_id=order_id)}?success=result-rejected", status_code=303)
 
 
 @router.get("/results/release", response_class=HTMLResponse, name="release_queue")
@@ -375,7 +375,7 @@ async def release_order_action(
             },
         )
     return RedirectResponse(
-        request.url_for("lab_report", order_id=order_id), status_code=303
+        f"{request.url_for('lab_report', order_id=order_id)}?success=results-released", status_code=303
     )
 
 
@@ -465,7 +465,7 @@ async def save(
         payload: dict[str, object] = {
             "order_item_id": item.id,
             "version": item.result.version if item.result else None,
-            "complete": form.get(f"complete_{key}") == "on",
+            "complete": True,
             "acknowledge_critical": form.get(f"ack_{key}") == "on",
         }
         if item.result_type == "NUMERIC":
@@ -490,4 +490,7 @@ async def save(
         service.save_multiple(
             order_id, MultiResultSave(items=items), actor_reference=actor.reference
         )
-    return RedirectResponse(request.url_for("result_entry", order_id=order_id), status_code=303)
+    return RedirectResponse(
+        "/worklist?task_type=RESULT_PENDING_ENTRY&success=results-saved",
+        status_code=303,
+    )

@@ -110,7 +110,7 @@ async def order_create(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     return RedirectResponse(
-        request.url_for("order_detail", order_id=order.id),
+        f"{request.url_for('order_detail', order_id=order.id)}?success=order-created&order_number={order.order_number}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 
@@ -131,5 +131,6 @@ def order_detail(
             "page_title": "Laboratory order",
             "order": order,
             "specimens": specimen_service.repository.list_order_specimens(order.id),
+            "can_collect_specimens": actor.role in {"ADMIN", "LAB_TECH", "IT"},
         },
     )

@@ -25,7 +25,7 @@
     <thead><tr><th>HN</th><th>Name | ชื่อ</th><th>Identity</th><th>Status</th><th></th></tr></thead>
     <tbody>
       {% for patient in patients %}
-      <tr class="{% if patient.identity_document_missing %}table-warning{% endif %}">
+      <tr id="patient-{{ patient.id }}" class="{% if patient.id == created_id %}table-success new-record-highlight{% elif patient.identity_document_missing %}table-warning{% endif %}">
         <td class="fw-semibold">{{ patient.hn }}</td>
         <td>{{ patient.display_name }}</td>
         <td>

@@ -129,6 +129,17 @@ fieldset { padding: 1.25rem; }
 .alert-info { border-left: 4px solid var(--lis-blue-700); background: var(--lis-blue-50); color: var(--lis-navy-900); }
 .alert-success { border-left: 4px solid var(--lis-success); }
 .identity-warning { border-left: .35rem solid var(--lis-warning); }
+.new-record-highlight { animation: new-record-pulse 2.4s ease-out; }
+@keyframes new-record-pulse { 0%, 35% { background-color: #b9e6cc; } 100% { background-color: var(--bs-table-bg, #fff); } }
+.interaction-loading, .interaction-success { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 1rem; background: rgba(11, 38, 61, .28); opacity: 0; visibility: hidden; transition: opacity .18s ease, visibility .18s ease; }
+.interaction-loading.is-visible, .interaction-success.is-visible { opacity: 1; visibility: visible; }
+.interaction-loading-card, .interaction-success-card { width: min(100%, 360px); padding: 1.6rem; border: 1px solid var(--lis-slate-200); border-radius: 1rem; background: #fff; text-align: center; box-shadow: 0 18px 55px rgba(21, 52, 78, .2); }
+.interaction-loading-card { display: flex; align-items: center; justify-content: center; gap: .9rem; color: var(--lis-navy-900); font-weight: 700; }
+.interaction-spinner { width: 1.5rem; height: 1.5rem; border: 3px solid var(--lis-blue-100); border-top-color: var(--lis-blue-700); border-radius: 50%; animation: interaction-spin .7s linear infinite; }
+@keyframes interaction-spin { to { transform: rotate(360deg); } }
+.success-check { display: grid; place-items: center; width: 3rem; height: 3rem; margin: 0 auto .8rem; border-radius: 50%; background: #e5f5ec; color: var(--lis-success); font-size: 1.8rem; font-weight: 800; }
+.interaction-success-card h2 { margin: 0; color: var(--lis-navy-900); font-size: 1.15rem; }
+.interaction-success-card p { margin: .4rem 0 0; color: var(--lis-slate-500); font-weight: 650; }
 .pagination { gap: .25rem; }
 .page-link { border-radius: .4rem !important; color: var(--lis-blue-700); }
 
@@ -191,4 +202,6 @@ fieldset { padding: 1.25rem; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+  .interaction-spinner { animation: none; }
+  .new-record-highlight { animation: none; }
 }

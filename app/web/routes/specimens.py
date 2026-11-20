@@ -112,7 +112,7 @@ async def specimen_collect(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     return RedirectResponse(
-        request.url_for("specimen_collection", order_id=order_id),
+        f"{request.url_for('specimen_collection', order_id=order_id)}?success=specimen-collected",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 
@@ -150,7 +150,7 @@ async def specimen_reject(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     return RedirectResponse(
-        request.url_for("specimen_collection", order_id=specimen.order_id),
+        f"{request.url_for('specimen_collection', order_id=specimen.order_id)}?success=specimen-rejected",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 
@@ -222,7 +222,7 @@ async def specimen_receive(
     except (ValidationError, InvalidSpecimenOperationError, ValueError) as exc:
         return _receiving_detail_response(request, specimen, actor, values, _errors(exc))
     return RedirectResponse(
-        f"{request.url_for('specimen_receiving_queue')}?success=received",
+        f"{request.url_for('specimen_receiving_queue')}?success=specimen-received&accession={specimen.accession_number}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 
@@ -249,7 +249,7 @@ async def specimen_receiving_reject(
     except (ValidationError, InvalidSpecimenOperationError) as exc:
         return _receiving_detail_response(request, specimen, actor, values, _errors(exc))
     return RedirectResponse(
-        f"{request.url_for('specimen_receiving_queue')}?success=rejected",
+        f"{request.url_for('specimen_receiving_queue')}?success=specimen-rejected",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 
