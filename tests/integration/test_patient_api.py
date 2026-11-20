@@ -161,7 +161,7 @@ def test_duplicate_check_returns_minimal_candidate(client: TestClient) -> None:
 
 @pytest.mark.integration
 def test_invalid_national_id_error_does_not_echo_value(client: TestClient) -> None:
-    invalid_id = "0123456789017"
+    invalid_id = "012345678901"
     response = client.post(
         "/api/v1/patients",
         json=patient_payload(passport_number=None, national_id=invalid_id),

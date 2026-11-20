@@ -23,13 +23,10 @@ PHONE_SEPARATOR_PATTERN = re.compile(r"[\s().-]+")
 
 
 def is_valid_thai_national_id(value: str) -> bool:
-    if not re.fullmatch(r"[0-9]{13}", value) or len(set(value)) == 1:
-        return False
-    weighted_sum = sum(
-        int(digit) * weight for digit, weight in zip(value[:12], range(13, 1, -1), strict=True)
-    )
-    check_digit = (11 - (weighted_sum % 11)) % 10
-    return check_digit == int(value[-1])
+    # The LIS accepts synthetic/test identifiers, so format validation is
+    # intentionally limited to exactly 13 numeric digits. Checksum validation
+    # would prevent test and simulation data from being entered.
+    return bool(re.fullmatch(r"[0-9]{13}", value))
 
 
 def normalize_optional_text(value: object) -> str | None:

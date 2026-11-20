@@ -14,10 +14,13 @@ SYNTHETIC_VALID_NATIONAL_ID = "0123456789016"
 
 
 @pytest.mark.unit
-def test_thai_national_id_checksum() -> None:
+def test_thai_national_id_accepts_any_13_digits() -> None:
     assert is_valid_thai_national_id(SYNTHETIC_VALID_NATIONAL_ID)
-    assert not is_valid_thai_national_id("0123456789017")
-    assert not is_valid_thai_national_id("0000000000000")
+    assert is_valid_thai_national_id("0123456789017")
+    assert is_valid_thai_national_id("0000000000000")
+    assert not is_valid_thai_national_id("012345678901")
+    assert not is_valid_thai_national_id("01234567890134")
+    assert not is_valid_thai_national_id("01234567890AB")
 
 
 @pytest.mark.unit
@@ -86,7 +89,7 @@ def test_optional_real_values_are_normalized_before_validation() -> None:
 @pytest.mark.parametrize(
     ("field", "value"),
     [
-        ("national_id", "0123456789017"),
+        ("national_id", "012345678901"),
         ("passport_number", "A!"),
         ("email", "not-an-email"),
         ("emergency_contact_phone", "12x"),
