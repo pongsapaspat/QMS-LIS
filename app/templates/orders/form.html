@@ -18,6 +18,16 @@
   </div>
   <hr>
   <h2 class="h5">Active Lab Tests</h2>
+  {% if packages %}
+  <section class="border rounded p-3 mb-3">
+    <h2 class="h5">Packages | แพ็กเกจตรวจสุขภาพ</h2>
+    <p class="small text-secondary">Tests ซ้ำสั่งครั้งเดียว · คิดราคาเหมาแต่ละ Package ตามที่เลือก และบวกเฉพาะ Tests เพิ่มที่อยู่นอกชุด</p>
+    {% for p in packages %}
+    {% set included = namespace(tests=[]) %}{% for test in p.tests %}{% set included.tests = included.tests + [{'id': test.id, 'code': test.code, 'name': test.name_en}] %}{% endfor %}
+    <div class="mb-2"><label><input class="form-check-input package-choice" type="checkbox" name="package_ids" value="{{ p.id }}" data-name="{{ p.name }}" data-price="{{ p.price }}" data-tests="{{ included.tests | tojson | forceescape }}" {% if p.id|string in values.get('package_ids', []) %}checked{% endif %}> {{ p.code }} · {{ p.name }} — {{ '%.2f'|format(p.price) }} บาท</label><details class="small ms-4"><summary>{{ p.tests | length }} Tests</summary>{% for test in p.tests %}<div>{{ test.code }} · {{ test.name_en }}</div>{% endfor %}</details></div>
+    {% endfor %}
+  </section>
+  {% endif %}
   <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th></th><th>Code</th><th>Test</th><th>Result</th><th class="text-end">Price</th></tr></thead><tbody>{% for test in tests %}<tr><td><input class="form-check-input test-choice" type="checkbox" name="test_ids" value="{{ test.id }}" data-code="{{ test.code }}" data-name="{{ test.name_en }}" data-price="{{ test.current_price }}" {% if test.id|string in values.get('test_ids', []) %}checked{% endif %}></td><td>{{ test.code }}</td><td>{{ test.name_en }}<br><small class="text-secondary">{{ test.name_th }}</small></td><td>{{ test.result_type }}{% if test.result_unit %} ({{ test.result_unit }}){% endif %}</td><td class="text-end">{{ '%.2f'|format(test.current_price) }}</td></tr>{% else %}<tr><td colspan="5" class="text-secondary">No active Lab Tests available.</td></tr>{% endfor %}</tbody></table></div>
   <div class="border rounded p-3 bg-light"><strong>Selected tests</strong><ul id="selected-tests" class="mb-2"><li class="text-secondary">None selected</li></ul><div class="text-end fw-semibold">Total price: <span id="total-price">0.00</span></div></div>
   <div class="mt-4"><button class="btn btn-primary" type="submit">Save order</button></div>
@@ -121,24 +131,44 @@
   const choices = [...document.querySelectorAll('.test-choice')];
   const selected = document.getElementById('selected-tests');
   const total = document.getElementById('total-price');
+  const packages = [...document.querySelectorAll('.package-choice')];
+  const manual = new Set(choices.filter(choice => choice.checked).map(choice => choice.value));
   function refresh() {
-    const active = choices.filter(choice => choice.checked);
+    const included = new Map();
+    let cents = 0;
+    packages.filter(choice => choice.checked).forEach(choice => {
+      cents += Math.round(Number(choice.dataset.price) * 100);
+      JSON.parse(choice.dataset.tests).forEach(test => included.set(String(test.id), test));
+    });
+    const active = new Map(included);
+    choices.forEach(choice => {
+      choice.disabled = included.has(choice.value);
+      choice.checked = choice.disabled || manual.has(choice.value);
+      if (manual.has(choice.value) && !included.has(choice.value)) {
+        active.set(choice.value, {code: choice.dataset.code, name: choice.dataset.name});
+        cents += Math.round(Number(choice.dataset.price) * 100);
+      }
+    });
     selected.replaceChildren();
-    if (!active.length) {
+    if (!active.size) {
       const empty = document.createElement('li');
       empty.className = 'text-secondary';
       empty.textContent = 'None selected';
       selected.append(empty);
     } else {
-      active.forEach(choice => {
+      active.forEach((test, id) => {
         const item = document.createElement('li');
-        item.textContent = `${choice.dataset.code} — ${choice.dataset.name}`;
+        item.textContent = `${test.code} — ${test.name}${included.has(id) ? ' (รวมใน Package)' : ''}`;
         selected.append(item);
       });
     }
-    total.textContent = active.reduce((sum, choice) => sum + Number(choice.dataset.price || 0), 0).toFixed(2);
+    total.textContent = (cents / 100).toFixed(2);
   }
-  choices.forEach(choice => choice.addEventListener('change', refresh));
+  choices.forEach(choice => choice.addEventListener('change', () => {
+    if (choice.checked) manual.add(choice.value); else manual.delete(choice.value);
+    refresh();
+  }));
+  packages.forEach(choice => choice.addEventListener('change', refresh));
   refresh();
 })();
 </script>

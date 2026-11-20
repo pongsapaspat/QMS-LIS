@@ -10,6 +10,7 @@ from app.models.base import utc_now
 from app.models.order import LabOrder, LabOrderItem
 from app.repositories.order import OrderRepository
 from app.schemas.order import LabOrderCreate
+from app.services.package import PackageService
 
 
 class OrderService:
@@ -22,8 +23,14 @@ class OrderService:
         if patient is None or not patient.is_active:
             raise PatientNotFoundError("active patient not found")
 
-        tests = self.repository.get_active_tests(data.test_ids)
-        if len(tests) != len(data.test_ids):
+        packages = [PackageService(self.session).get(package_id) for package_id in data.package_ids]
+        if any(not package.available for package in packages):
+            raise CatalogNotFoundError('One or more packages are unavailable')
+        selected_ids = set(data.test_ids)
+        for package in packages:
+            selected_ids.update(test.id for test in package.tests)
+        tests = self.repository.get_active_tests(list(selected_ids))
+        if len(tests) != len(selected_ids):
             raise CatalogNotFoundError("one or more active Lab Tests were not found")
 
         ordered_at = utc_now()
@@ -34,6 +41,12 @@ class OrderService:
             clinical_note=data.clinical_note,
             ordered_at=ordered_at,
             created_by=actor_reference,
+            package_snapshots=[{
+                'id': p.id, 'code': p.code, 'name': p.name, 'price': str(p.price),
+                'test_ids': [test.id for test in p.tests],
+                'tests': [{'id': test.id, 'code': test.code, 'name': test.name_en}
+                          for test in p.tests],
+            } for p in packages] or None,
         )
         self.repository.add(order)
         order.order_number = f"ORD{ordered_at:%Y%m%d}-{order.id:06d}"

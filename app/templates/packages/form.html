@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between mb-3"><h1>Package</h1><a class="btn btn-outline-secondary" href="{{ url_for('package_list') }}">กลับ</a></div>
+{% if errors %}<div class="alert alert-danger" role="alert">{% for error in errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+<form method="post" class="card card-body">
+<div class="row g-3">
+<div class="col-md-3"><label for="code" class="form-label">รหัส Package</label><input id="code" name="code" class="form-control" maxlength="40" required value="{{ values.get('code', '') }}"></div>
+<div class="col-md-6"><label for="name" class="form-label">ชื่อ Package</label><input id="name" name="name" class="form-control" maxlength="200" required value="{{ values.get('name', '') }}"></div>
+<div class="col-md-3"><label for="price" class="form-label">ราคาเหมา (บาท)</label><input id="price" name="price" type="number" min="0" step="0.01" required class="form-control" value="{{ values.get('price', '') }}"></div>
+</div>
+<label class="my-3"><input type="checkbox" name="is_active" {% if values.get('is_active') %}checked{% endif %}> เปิดใช้งาน</label>
+<h2 class="h5">Tests ภายใน Package</h2>
+<div class="table-responsive"><table class="table"><thead><tr><th>เลือก</th><th>Code</th><th>Test</th><th>ชนิดผล</th></tr></thead><tbody>
+{% for test in tests %}<tr><td><input type="checkbox" name="test_ids" value="{{ test.id }}" aria-label="{{ test.code }}" {% if test.id|string in values.get('test_ids', []) %}checked{% endif %}></td><td>{{ test.code }}</td><td>{{ test.name_en }}{% if not test.is_active or not test.department.is_active or not test.category.is_active or not test.specimen_type.is_active %} <span class="badge text-bg-warning">ไม่พร้อมใช้งาน</span>{% endif %}</td><td>{{ test.result_type }}</td></tr>{% endfor %}
+</tbody></table></div>
+<label for="reason" class="form-label">เหตุผลการเปลี่ยนแปลง</label><textarea id="reason" name="reason" maxlength="500" class="form-control mb-3">{{ values.get('reason', '') }}</textarea>
+<div><button class="btn btn-primary" type="submit">บันทึก Package</button></div>
+</form>
+{% endblock %}

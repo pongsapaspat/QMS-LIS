@@ -58,6 +58,7 @@
 
           {% if role == 'ADMIN' %}
           <div class="nav-section">
+            <a class="nav-link{% if request.url.path.startswith('/packages') %} active{% endif %}" href="/packages">Packages | แพ็กเกจ</a>
             <div class="nav-section-label">ข้อมูลและการจัดการ</div>
             <a class="nav-link{% if request.url.path.startswith('/patients') %} active{% endif %}" href="/patients">ผู้ป่วย</a>
             <a class="nav-link{% if request.url.path.startswith('/test-catalog') %} active{% endif %}" href="/test-catalog">รายการตรวจ</a>
@@ -122,7 +123,7 @@
     <div class="interaction-success-card"><span class="success-check" aria-hidden="true">✓</span><h2 id="interaction-success-title">ดำเนินการเสร็จสิ้น</h2><p id="interaction-success-detail"></p></div>
   </div>
   {% if not is_login %}
-  <script src="{{ url_for('static', path='/js/app.js') }}?v=ux-flow-5" defer></script>
+  <script src="{{ url_for('static', path='/js/app.js') }}?v=ux-flow-6" defer></script>
   {% endif %}
   {% if request.session.get('user_id') %}
   <script src="{{ url_for('static', path='/js/session-status.js') }}" defer></script>

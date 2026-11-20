@@ -5,6 +5,7 @@
   const successTitle = document.querySelector("#interaction-success-title");
   const successDetail = document.querySelector("#interaction-success-detail");
   const messages = {
+    "package-saved": ["บันทึก Package เสร็จสิ้น", ""],
     "patient-created": ["ลงทะเบียนผู้ป่วยเสร็จสิ้น", "HN "],
     "patient-updated": ["แก้ไขข้อมูลผู้ป่วยเสร็จสิ้น", ""],
     "order-created": ["สร้างคำสั่งตรวจเสร็จสิ้น", "เลข Order "],

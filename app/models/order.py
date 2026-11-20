@@ -64,6 +64,7 @@ class LabOrder(TimestampMixin, Base):
         nullable=False,
     )
     clinical_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    package_snapshots: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
     ordered_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), default=utc_now, server_default=func.now(), nullable=False, index=True
     )
@@ -80,7 +81,15 @@ class LabOrder(TimestampMixin, Base):
 
     @property
     def total_price(self) -> Decimal:
-        return sum((item.price for item in self.items), Decimal("0.00"))
+        package_price = sum((Decimal(p['price']) for p in self.package_snapshots or []),
+                            Decimal('0.00'))
+        return package_price + sum((item.price for item in self.items
+                                    if item.lab_test_id not in self.package_test_ids),
+                                   Decimal('0.00'))
+
+    @property
+    def package_test_ids(self) -> set[int]:
+        return {test_id for p in self.package_snapshots or [] for test_id in p['test_ids']}
 
 
 class LabOrderItem(Base):
@@ -110,3 +119,7 @@ class LabOrderItem(Base):
     order: Mapped[LabOrder] = relationship(back_populates="items")
     lab_test: Mapped["LabTest"] = relationship()
     result: Mapped["Result | None"] = relationship(back_populates="order_item", uselist=False)
+
+    @property
+    def included_in_package(self) -> bool:
+        return self.lab_test_id in self.order.package_test_ids

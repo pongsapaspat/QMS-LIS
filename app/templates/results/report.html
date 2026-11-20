@@ -34,6 +34,7 @@
       <div class="col-md-8"><strong>ข้อมูลทางคลินิก:</strong> {{ context.order.clinical_note or '-' }}</div>
     </section>
     <div class="table-responsive">
+      {% if context.order.package_snapshots %}<p>Package: {% for p in context.order.package_snapshots %}{{ p.name }}{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
       <table class="table table-bordered align-middle">
         <thead class="table-light"><tr><th>รายการตรวจ</th><th>ผลตรวจ</th><th>หน่วย</th><th>ช่วงอ้างอิง</th><th>สถานะ</th></tr></thead>
         <tbody>

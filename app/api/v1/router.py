@@ -1,6 +1,15 @@
 from fastapi import APIRouter
 
-from app.api.v1.routes import health, orders, patients, results, specimens, test_catalog, worklist
+from app.api.v1.routes import (
+    health,
+    orders,
+    packages,
+    patients,
+    results,
+    specimens,
+    test_catalog,
+    worklist,
+)
 
 api_router = APIRouter()
 api_router.include_router(health.router)
@@ -10,6 +19,7 @@ api_router.include_router(test_catalog.specimen_router)
 api_router.include_router(test_catalog.department_router)
 api_router.include_router(test_catalog.test_router)
 api_router.include_router(orders.router)
+api_router.include_router(packages.router)
 api_router.include_router(specimens.order_router)
 api_router.include_router(specimens.router)
 api_router.include_router(results.router)

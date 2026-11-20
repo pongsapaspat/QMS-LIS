@@ -94,6 +94,11 @@ def build_lab_report_pdf(context: dict[str, Any]) -> bytes:
         )
     )
     story.extend([patient_table, Spacer(1, 6 * mm)])
+    if getattr(order, 'package_snapshots', None):
+        from xml.sax.saxutils import escape
+
+        names = ', '.join(p['name'] for p in order.package_snapshots)
+        story.extend([Paragraph(f'Package: {escape(names)}', normal), Spacer(1, 3 * mm)])
     rows = [[Paragraph(x, bold) for x in ("รายการตรวจ", "ผลตรวจ", "หน่วย", "ช่วงอ้างอิง", "สถานะ")]]
     for result in results:
         if result.get('parameters'):

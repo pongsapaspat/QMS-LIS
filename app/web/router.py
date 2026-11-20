@@ -3,7 +3,17 @@ from fastapi.responses import HTMLResponse
 
 from app.api.dependencies import WorklistServiceDependency
 from app.core.security import ActorDependency
-from app.web.routes import audits, auth, orders, patients, results, specimens, test_catalog, users
+from app.web.routes import (
+    audits,
+    auth,
+    orders,
+    packages,
+    patients,
+    results,
+    specimens,
+    test_catalog,
+    users,
+)
 from app.web.templates import templates
 
 web_router = APIRouter(include_in_schema=False)
@@ -11,6 +21,7 @@ web_router.include_router(auth.router)
 web_router.include_router(patients.router)
 web_router.include_router(test_catalog.router)
 web_router.include_router(orders.router)
+web_router.include_router(packages.router)
 web_router.include_router(specimens.router)
 web_router.include_router(specimens.receiving_router)
 web_router.include_router(results.router)

@@ -16,6 +16,7 @@ from app.domain.exceptions import (
     PatientNotFoundError,
 )
 from app.schemas.order import LabOrderCreate
+from app.services.package import PackageService
 from app.web.templates import templates
 
 router = APIRouter(prefix="/orders")
@@ -37,6 +38,7 @@ def _context(
         limit=500,
     )
     return {
+        "packages": PackageService(catalog_service.session).list(available_only=True),
         "tests": [test for test in tests if test.department.is_active],
         **values,
     }
@@ -74,6 +76,7 @@ async def order_create(
     values: dict[str, Any] = {
         "patient_id": form.get("patient_id"),
         "test_ids": form.getlist("test_ids"),
+        "package_ids": form.getlist("package_ids"),
         "clinical_note": form.get("clinical_note") or None,
     }
     try:
