@@ -96,6 +96,17 @@ def build_lab_report_pdf(context: dict[str, Any]) -> bytes:
     story.extend([patient_table, Spacer(1, 6 * mm)])
     rows = [[Paragraph(x, bold) for x in ("รายการตรวจ", "ผลตรวจ", "หน่วย", "ช่วงอ้างอิง", "สถานะ")]]
     for result in results:
+        if result.get('parameters'):
+            rows.append([Paragraph(result['test_name'], bold), '', '', '', ''])
+            for parameter in result['parameters']:
+                rows.append([
+                    Paragraph(parameter['name'], normal), Paragraph(parameter['value'], normal),
+                    Paragraph((parameter['unit'] or '-').replace('⁶', '<super>6</super>')
+                              .replace('³', '<super>3</super>'), normal),
+                    Paragraph(parameter['reference'] or '-', normal),
+                    Paragraph(parameter['flag'] or '-', normal),
+                ])
+            continue
         flag = result["abnormal_flag"]
         status_text = "ค่าวิกฤต" if flag in {"LL", "HH"} else "ผิดปกติ" if flag in {"L", "H"} else "ปกติ"
         rows.append(

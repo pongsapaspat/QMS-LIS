@@ -31,7 +31,7 @@
       success.classList.remove("is-visible");
       success.setAttribute("aria-hidden", "true");
       if (successCode === "results-saved") {
-        window.location.replace("/worklist?task_type=RESULT_PENDING_ENTRY");
+        window.location.replace("/worklist?queue=results");
       }
     }, 1500);
     params.delete("success");

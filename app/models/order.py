@@ -4,6 +4,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    JSON,
     ForeignKey,
     Index,
     Integer,
@@ -100,6 +101,7 @@ class LabOrderItem(Base):
     test_name_en: Mapped[str] = mapped_column(String(200), nullable=False)
     result_type: Mapped[str] = mapped_column(String(20), nullable=False)
     result_unit: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    parameter_definitions: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), default=utc_now, server_default=func.now(), nullable=False

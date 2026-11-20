@@ -116,6 +116,7 @@ def result_context(
                 "test_code": item.test_code,
                 "test_name": item.test_name_en,
                 "result_type": item.result_type,
+                "parameters": item.parameter_definitions or [],
                 "unit": item.result_unit,
                 "options": [
                     option.code for option in item.lab_test.qualitative_options if option.is_active

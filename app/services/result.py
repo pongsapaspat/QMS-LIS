@@ -11,6 +11,7 @@ from app.domain.exceptions import (
     OrderNotFoundError,
     ResultNotFoundError,
 )
+from app.domain.panels import interpret_panel
 from app.models.audit import AuditLog
 from app.models.base import utc_now
 from app.models.order import LabOrder, LabOrderItem, OrderStatus
@@ -447,6 +448,7 @@ class ResultService:
             results.append(
                 {
                     "result_id": result.id,
+                    "parameters": result.parameter_results or [],
                     "test_code": item.test_code,
                     "test_name": item.test_name_th or item.test_name_en,
                     "result_value": self._result_value(result),
@@ -593,6 +595,13 @@ class ResultService:
 
     def _interpret(self, item: LabOrderItem, submitted: ResultItemSave) -> dict[str, object]:
         result_type = item.result_type
+        if result_type in {'CBC', 'UA'}:
+            rows = interpret_panel(item.parameter_definitions or [],
+                                   submitted.parameter_values or {}, submitted.complete)
+            return {'flag': 'A' if any(row['flag'] in {'H', 'L', 'A'} for row in rows) else None,
+                    'range': None, 'parameters': rows}
+        if submitted.parameter_values is not None:
+            raise InvalidResultOperationError('This test does not accept panel parameters')
         if result_type == "NUMERIC":
             if submitted.numeric_value is None:
                 raise InvalidResultOperationError("numeric result requires a numeric value")
@@ -671,6 +680,8 @@ class ResultService:
             submitted.categorical_value,
         )
         result.result_unit_snapshot = result.order_item.result_unit
+        result.parameter_values = submitted.parameter_values
+        result.parameter_results = interpretation.get('parameters')
         result.reference_range_snapshot = interpretation["range"]  # type: ignore[assignment]
         result.abnormal_flag = interpretation["flag"]  # type: ignore[assignment]
         result.status = ResultStatus.COMPLETED if submitted.complete else ResultStatus.IN_PROGRESS
@@ -697,6 +708,8 @@ class ResultService:
             else None,
             "text_value": result.text_value,
             "categorical_value": result.categorical_value,
+            "parameter_values": result.parameter_values,
+            "parameter_results": result.parameter_results,
             "abnormal_flag": result.abnormal_flag,
         }
 
@@ -762,6 +775,10 @@ class ResultService:
             for value in (result.numeric_value, result.text_value, result.categorical_value)
         )
         if not has_value:
+            if result.parameter_results:
+                interpret_panel(result.order_item.parameter_definitions or [],
+                                result.parameter_values or {}, True)
+                return
             raise InvalidResultOperationError("result validation has not passed")
 
     def _update_order_verification(self, order: LabOrder, actor: str) -> None:
@@ -833,6 +850,8 @@ class ResultService:
 
     @staticmethod
     def _result_value(result: Result) -> str | None:
+        if result.parameter_results:
+            return f"{len(result.parameter_results)} parameters"
         if result.numeric_value is not None:
             return str(result.numeric_value)
         return result.text_value or result.categorical_value
@@ -848,6 +867,7 @@ class ResultService:
         order = item.order
         return {
             "result_id": result.id,
+            "parameters": result.parameter_results or [],
             "order_id": order.id,
             "order_number": order.order_number,
             "patient_hn": order.patient.hn,

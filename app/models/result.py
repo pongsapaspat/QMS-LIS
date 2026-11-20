@@ -40,6 +40,8 @@ class Result(Base):
     result_type: Mapped[str] = mapped_column(String(20), nullable=False)
     numeric_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 6), nullable=True)
     text_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parameter_values: Mapped[dict[str, str] | None] = mapped_column(JSON, nullable=True)
+    parameter_results: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
     categorical_value: Mapped[str | None] = mapped_column(String(150), nullable=True)
     result_unit_snapshot: Mapped[str | None] = mapped_column(String(50), nullable=True)
     reference_range_snapshot: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)

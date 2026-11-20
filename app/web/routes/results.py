@@ -16,6 +16,7 @@ from app.core.security import (
     ResultVerifierDependency,
 )
 from app.domain.exceptions import InvalidResultOperationError
+from app.domain.panels import same_panel_values
 from app.models.order import LabOrder, LabOrderItem, OrderPriority
 from app.models.result import ResultStatus
 from app.schemas.result import (
@@ -491,12 +492,22 @@ async def save(
     for item in service.context(order_id):
         key = str(item.id)
         value = str(form.get(f"value_{key}", "")).strip()
+        parameters = {
+            p['code']: str(form.get(f"parameter_{key}_{p['code']}", '')).strip()
+            for p in (item.parameter_definitions or [])
+        }
+        if parameters:
+            value = 'panel' if any(parameters.values()) else ''
         if not value:
             continue
         if item.result:
             existing = item.result
             unchanged = False
-            if item.result_type == "NUMERIC":
+            if parameters:
+                unchanged = same_panel_values(
+                    item.parameter_definitions or [], parameters, existing.parameter_values or {}
+                )
+            elif item.result_type == "NUMERIC":
                 with suppress(InvalidOperation):
                     unchanged = Decimal(value) == existing.numeric_value
             elif item.result_type == "TEXT":
@@ -525,7 +536,10 @@ async def save(
             "complete": True,
             "acknowledge_critical": form.get(f"ack_{key}") == "on",
         }
-        if item.result_type == "NUMERIC":
+        if parameters:
+            payload['parameter_values'] = parameters
+            payload['complete'] = all(parameters.values())
+        elif item.result_type == "NUMERIC":
             payload["numeric_value"] = value
         elif item.result_type == "TEXT":
             payload["text_value"] = value
@@ -548,6 +562,6 @@ async def save(
             order_id, MultiResultSave(items=items), actor_reference=actor.reference
         )
     return RedirectResponse(
-        "/worklist?task_type=RESULT_PENDING_ENTRY&success=results-saved",
+        "/worklist?queue=results&success=results-saved",
         status_code=303,
     )

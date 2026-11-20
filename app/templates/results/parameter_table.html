@@ -1,0 +1,5 @@
+<div class="table-responsive"><table class="table table-bordered align-middle">
+<thead><tr><th>Parameter</th><th>ผลตรวจ</th><th>หน่วย</th><th>ค่าอ้างอิง</th><th>Flag</th></tr></thead>
+<tbody>{% for parameter in result.parameters %}<tr>
+<td>{{ parameter.name }}</td><td>{{ parameter.value }}</td><td>{{ parameter.unit or '-' }}</td><td>{{ parameter.reference or '-' }}</td><td>{% if parameter.flag and parameter.flag != 'N' %}<span class="badge text-bg-warning">{{ parameter.flag }}</span>{% else %}{{ parameter.flag or '-' }}{% endif %}</td>
+</tr>{% endfor %}</tbody></table></div>

@@ -12,7 +12,14 @@
     {% if not locked %}<label class="d-block mb-2"><input type="checkbox" name="edit_{{ item.id }}" data-edit-result="{{ item.id }}" data-review="{{ 'true' if item.result.status in ['VERIFICATION_REJECTED', 'AMENDMENT_REQUESTED'] else 'false' }}"> แก้ไขผล</label>{% endif %}
     {% endif %}
     <fieldset id="result-fields-{{ item.id }}" class="border-0 p-0 m-0" {% if saved %}disabled{% endif %}>
-      {% if item.result_type in ['CATEGORICAL', 'QUALITATIVE'] %}
+      {% if item.parameter_definitions %}
+      <p class="small text-secondary">กรอกครบทุก Parameter เพื่อส่ง Verify · หากยังไม่ครบ ระบบบันทึกไว้ให้กรอกต่อ</p>
+      <div class="table-responsive"><table class="table"><thead><tr><th>Parameter</th><th>ผลตรวจ</th><th>หน่วย</th><th>ค่าอ้างอิง</th></tr></thead><tbody>
+      {% for parameter in item.parameter_definitions %}
+      <tr><td><label for="parameter-{{ item.id }}-{{ parameter.code }}">{{ parameter.name }}</label></td><td><input class="form-control" id="parameter-{{ item.id }}-{{ parameter.code }}" name="parameter_{{ item.id }}_{{ parameter.code }}" type="{{ 'number' if parameter.kind == 'NUMERIC' else 'text' }}" step="any" maxlength="150" value="{{ (item.result.parameter_values or {}).get(parameter.code, '') if item.result else '' }}"></td><td>{{ parameter.unit or '-' }}</td><td>{{ parameter.reference or '-' }}</td></tr>
+      {% endfor %}
+      </tbody></table></div>
+      {% elif item.result_type in ['CATEGORICAL', 'QUALITATIVE'] %}
       <select class="form-select" name="value_{{ item.id }}"><option value=""></option>{% for option in item.lab_test.qualitative_options %}<option value="{{ option.code }}"{% if item.result and item.result.categorical_value == option.code %} selected{% endif %}>{{ option.label_en }}</option>{% endfor %}</select>
       {% else %}
       <input class="form-control" name="value_{{ item.id }}" type="{% if item.result_type == 'NUMERIC' %}number{% else %}text{% endif %}" step="any" value="{% if item.result %}{{ item.result.numeric_value if item.result.numeric_value is not none else item.result.text_value or '' }}{% endif %}">
@@ -34,21 +41,21 @@
 <script>
 document.querySelectorAll('[data-edit-result]').forEach(toggle => {
   const fields = document.getElementById(`result-fields-${toggle.dataset.editResult}`);
-  const value = fields.querySelector('[name^="value_"]');
+  const values = [...fields.querySelectorAll('[name^="value_"], [name^="parameter_"]')];
   const reason = fields.querySelector('[name^="reason_"]');
   const container = fields.querySelector('[data-reason-container]');
-  const original = value.value;
+  const originals = values.map(value => value.value);
   function update() {
     fields.disabled = !toggle.checked;
-    const changed = value.type === 'number'
-      ? Number(value.value) !== Number(original) || value.value === ''
-      : value.value.trim().replace(/\s+/g, ' ') !== original.trim().replace(/\s+/g, ' ');
+    const changed = values.some((value, index) => value.type === 'number'
+      ? Number(value.value) !== Number(originals[index]) || value.value === ''
+      : value.value.trim().replace(/\s+/g, ' ') !== originals[index].trim().replace(/\s+/g, ' '));
     container.hidden = !toggle.checked;
     reason.required = toggle.checked && (changed || toggle.dataset.review === 'true');
-    if (!toggle.checked) { value.value = original; reason.value = ''; }
+    if (!toggle.checked) { values.forEach((value, index) => { value.value = originals[index]; }); reason.value = ''; }
   }
   toggle.addEventListener('change', update);
-  value.addEventListener('input', update);
+  values.forEach(value => value.addEventListener('input', update));
 });
 </script>
 {% endblock %}

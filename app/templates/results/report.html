@@ -43,8 +43,9 @@
             <td class="{% if result.abnormal_flag in ['LL', 'HH'] %}result-critical{% endif %}">{{ result.result_value }}</td>
             <td>{{ result.unit or '-' }}</td>
             <td>{{ result.reference_text or '-' }}</td>
-            <td>{% if result.abnormal_flag in ['LL', 'HH'] %}ค่าวิกฤต{% elif result.abnormal_flag in ['L', 'H'] %}ผิดปกติ{% else %}ปกติ{% endif %}</td>
+            <td>{% if result.abnormal_flag in ['LL', 'HH'] %}ค่าวิกฤต{% elif result.abnormal_flag in ['L', 'H', 'A'] %}ผิดปกติ{% else %}ปกติ{% endif %}</td>
           </tr>
+          {% for parameter in result.parameters %}<tr><td class="ps-4">{{ parameter.name }}</td><td>{{ parameter.value }}</td><td>{{ parameter.unit or '-' }}</td><td>{{ parameter.reference or '-' }}</td><td>{{ parameter.flag or '-' }}</td></tr>{% endfor %}
         {% endfor %}
         </tbody>
       </table>

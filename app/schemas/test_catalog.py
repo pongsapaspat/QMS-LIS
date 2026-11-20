@@ -224,6 +224,7 @@ class CatalogTestListItem(BaseModel):
 
 
 class CatalogTestDetail(CatalogTestListItem):
+    parameters: list[dict] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 

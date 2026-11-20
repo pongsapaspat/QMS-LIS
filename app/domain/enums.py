@@ -21,6 +21,8 @@ class BloodGroup(StrEnum):
 
 
 class ResultType(StrEnum):
+    CBC = "CBC"
+    UA = "UA"
     NUMERIC = "NUMERIC"
     TEXT = "TEXT"
     CATEGORICAL = "CATEGORICAL"

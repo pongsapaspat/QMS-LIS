@@ -723,6 +723,8 @@ class TestCatalogService:
                 "qualitative tests must not define a numeric result unit"
             )
         if result_type not in (
+            ResultType.CBC,
+            ResultType.UA,
             ResultType.NUMERIC,
             ResultType.TEXT,
             ResultType.CATEGORICAL,

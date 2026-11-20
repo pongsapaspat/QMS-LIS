@@ -18,8 +18,16 @@ class ResultItemSave(BaseModel):
     numeric_value: Decimal | None = Field(default=None, max_digits=18, decimal_places=6)
     text_value: str | None = Field(default=None, max_length=2000)
     categorical_value: str | None = Field(default=None, max_length=150)
+    parameter_values: dict[str, str] | None = Field(default=None, max_length=100)
     complete: bool = False
     acknowledge_critical: bool = False
+
+    @field_validator('parameter_values')
+    @classmethod
+    def validate_parameters(cls, value: dict[str, str] | None) -> dict[str, str] | None:
+        if value is not None and any(len(v) > 150 or len(k) > 40 for k, v in value.items()):
+            raise ValueError('Parameter value or code is too long')
+        return value
 
     @field_validator("text_value", "categorical_value")
     @classmethod
@@ -32,6 +40,7 @@ class ResultItemSave(BaseModel):
             self.numeric_value is not None,
             self.text_value is not None,
             self.categorical_value is not None,
+            self.parameter_values is not None,
         ]
         if sum(values) > 1:
             raise ValueError("only one result value may be supplied")
@@ -64,6 +73,8 @@ class ResultResponse(BaseModel):
     numeric_value: Decimal | None
     text_value: str | None
     categorical_value: str | None
+    parameter_values: dict[str, str] | None = None
+    parameter_results: list[dict] | None = None
     result_unit_snapshot: str | None
     reference_range_snapshot: dict[str, object] | None
     abnormal_flag: str | None

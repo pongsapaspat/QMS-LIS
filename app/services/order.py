@@ -5,6 +5,7 @@ from app.domain.exceptions import (
     OrderNotFoundError,
     PatientNotFoundError,
 )
+from app.domain.panels import panel_definitions
 from app.models.base import utc_now
 from app.models.order import LabOrder, LabOrderItem
 from app.repositories.order import OrderRepository
@@ -44,6 +45,7 @@ class OrderService:
                 test_name_en=test.name_en,
                 result_type=test.result_type,
                 result_unit=test.result_unit,
+                parameter_definitions=panel_definitions(test.result_type) or None,
                 price=test.current_price,
             )
             for test in tests

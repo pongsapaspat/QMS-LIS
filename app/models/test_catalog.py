@@ -100,6 +100,12 @@ class LabTest(TimestampMixin, Base):
     )
     price_history: Mapped[list["TestPriceHistory"]] = relationship(back_populates="test")
 
+    @property
+    def parameters(self) -> list[dict]:
+        from app.domain.panels import panel_definitions
+
+        return panel_definitions(self.result_type)
+
 
 class ReferenceRange(TimestampMixin, Base):
     __tablename__ = "test_reference_ranges"
