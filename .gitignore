@@ -10,6 +10,8 @@ htmlcov/
 
 # Virtual environments
 .venv/
+.venv312/
+.python312/
 venv/
 
 # Secrets and local databases

@@ -13,10 +13,16 @@
   <body class="{% if is_login %}auth-page{% else %}app-page{% endif %}">
     {% if not is_login %}
     <header class="app-header">
-      <a class="app-brand" href="/" aria-label="QMS-LIS หน้าหลัก">
-        <span class="brand-mark" aria-hidden="true">QL</span>
-        <span><strong>QMS-LIS</strong><small>Laboratory Information System</small></span>
-      </a>
+      <div class="app-header-leading">
+        <button class="sidebar-toggle" type="button" aria-controls="app-sidebar" aria-expanded="true" title="ซ่อนหรือแสดงเมนูหลัก">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+          <span class="visually-hidden">ซ่อนหรือแสดงเมนูหลัก</span>
+        </button>
+        <a class="app-brand" href="/" aria-label="QMS-LIS หน้าหลัก">
+          <span class="brand-mark" aria-hidden="true">QL</span>
+          <span><strong>QMS-LIS</strong><small>Laboratory Information System</small></span>
+        </a>
+      </div>
       <div class="header-user">
         {% if request.session.get('actor') %}
         <div class="user-summary"><strong>{{ request.session.get('actor') }}</strong><span>{{ role }}</span></div>
@@ -29,7 +35,7 @@
     </header>
 
     <div class="app-shell">
-      <aside class="app-sidebar" aria-label="เมนูหลัก">
+      <aside class="app-sidebar" id="app-sidebar" aria-label="เมนูหลัก">
         <div class="sidebar-role"><span>สิทธิ์การใช้งาน</span><strong>{{ role }}</strong></div>
         <nav class="sidebar-nav">
           <div class="nav-section">
@@ -109,8 +115,11 @@
     {% else %}
     <main class="auth-main">{% block auth_content %}{% endblock %}</main>
     {% endif %}
-  </body>
+  {% if not is_login %}
+  <script src="{{ url_for('static', path='/js/app.js') }}" defer></script>
+  {% endif %}
   {% if request.session.get('user_id') %}
   <script src="{{ url_for('static', path='/js/session-status.js') }}" defer></script>
   {% endif %}
+  </body>
 </html>

@@ -190,6 +190,67 @@ def test_navigation_matches_logged_in_user_role(
 
 
 @pytest.mark.integration
+def test_reception_home_is_a_focused_module_workspace(client: TestClient) -> None:
+    response = client.get(
+        "/",
+        headers={"X-Role": "RECEPTION", "X-Actor": "reception-workspace-test"},
+    )
+
+    assert response.status_code == 200
+    assert "Reception Workspace" in response.text
+    assert "ลงทะเบียนผู้ป่วย" in response.text
+    assert "ค้นหาข้อมูลผู้ป่วย" in response.text
+    assert "สร้างคำสั่งตรวจ" in response.text
+    assert "รายงานผลตรวจ" in response.text
+    assert "/patients/new" in response.text
+    assert "/patients" in response.text
+    assert "/orders/new" in response.text
+    assert "/results/reports" in response.text
+    assert "Laboratory Worklist" not in response.text
+    assert 'class="sidebar-toggle"' in response.text
+
+
+@pytest.mark.integration
+def test_lab_tech_home_combines_specimen_and_laboratory_modules(client: TestClient) -> None:
+    response = client.get(
+        "/",
+        headers={"X-Role": "LAB_TECH", "X-Actor": "medtech-workspace-test"},
+    )
+
+    assert response.status_code == 200
+    assert "Medical Technologist Workspace" in response.text
+    assert "Laboratory Tasks" not in response.text
+    assert "เก็บสิ่งส่งตรวจ" in response.text
+    assert "รับสิ่งส่งตรวจ" in response.text
+    assert "บันทึกผลตรวจ" in response.text
+    assert 'href="/worklist?task_type=ORDER_PENDING_COLLECTION"' in response.text
+    assert "/specimens/receiving" in response.text
+    assert 'href="/worklist?task_type=RESULT_PENDING_ENTRY"' in response.text
+    assert "/api/v1/worklist" not in response.text
+    assert "Release entire order" not in response.text
+
+
+@pytest.mark.integration
+def test_supervisor_home_focuses_on_verification_and_release(client: TestClient) -> None:
+    response = client.get(
+        "/",
+        headers={"X-Role": "LAB_SUPERVISOR", "X-Actor": "supervisor-workspace-test"},
+    )
+
+    assert response.status_code == 200
+    assert "Laboratory Supervisor Workspace" in response.text
+    assert "ตรวจสอบผล" in response.text
+    assert "เผยแพร่ผลตรวจ" in response.text
+    assert "รายงานผลตรวจ" in response.text
+    assert "Audit Log" in response.text
+    assert 'href="/results/verification"' in response.text
+    assert 'href="/results/release"' in response.text
+    assert "/results/reports" in response.text
+    assert 'href="/audit-logs"' in response.text
+    assert "เก็บสิ่งส่งตรวจ" not in response.text
+
+
+@pytest.mark.integration
 def test_user_can_change_own_password_and_audit_it(
     client: TestClient, db_session_factory: sessionmaker[Session]
 ) -> None:
