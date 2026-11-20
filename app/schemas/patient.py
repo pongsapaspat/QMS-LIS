@@ -18,6 +18,7 @@ MISSING_VALUE_MARKERS = frozenset(
 )
 PASSPORT_PATTERN = re.compile(r"^[A-Z0-9]{6,20}$")
 PHONE_PATTERN = re.compile(r"^\+?[0-9]{8,15}$")
+PATIENT_PHONE_PATTERN = re.compile(r"^[0-9]{10}$")
 NATIONAL_ID_SEPARATOR_PATTERN = re.compile(r"[\s\-\u2010-\u2015]+")
 PHONE_SEPARATOR_PATTERN = re.compile(r"[\s().-]+")
 
@@ -68,6 +69,23 @@ def normalize_phone_number(value: object) -> str | None:
     return normalized
 
 
+def normalize_patient_phone(value: object) -> str | None:
+    normalized = normalize_optional_text(value)
+    if normalized is None:
+        return None
+    normalized = PHONE_SEPARATOR_PATTERN.sub("", normalized)
+    if not PATIENT_PHONE_PATTERN.fullmatch(normalized):
+        raise ValueError("phone number must contain exactly 10 digits")
+    return normalized
+
+
+def normalize_english_name(value: object) -> str | None:
+    normalized = normalize_optional_text(value)
+    if normalized is None:
+        return None
+    return normalized[0].upper() + normalized[1:]
+
+
 def validate_identity_fields(
     national_id: object,
     passport_number: object,
@@ -101,8 +119,6 @@ class PatientCreate(BaseModel):
         "title",
         "first_name_th",
         "last_name_th",
-        "first_name_en",
-        "last_name_en",
         "address",
         "emergency_contact_name",
         "emergency_contact_relationship",
@@ -111,6 +127,11 @@ class PatientCreate(BaseModel):
     @classmethod
     def normalize_text(cls, value: object) -> object:
         return normalize_optional_text(value)
+
+    @field_validator("first_name_en", "last_name_en", mode="before")
+    @classmethod
+    def normalize_english_names(cls, value: object) -> str | None:
+        return normalize_english_name(value)
 
     @field_validator("national_id", mode="before")
     @classmethod
@@ -127,9 +148,14 @@ class PatientCreate(BaseModel):
     def normalize_email(cls, value: object) -> str | None:
         return normalize_optional_text(value)
 
-    @field_validator("phone_number", "emergency_contact_phone", mode="before")
+    @field_validator("phone_number", mode="before")
     @classmethod
-    def normalize_phone(cls, value: object) -> str | None:
+    def normalize_patient_phone_number(cls, value: object) -> str | None:
+        return normalize_patient_phone(value)
+
+    @field_validator("emergency_contact_phone", mode="before")
+    @classmethod
+    def normalize_emergency_phone(cls, value: object) -> str | None:
         return normalize_phone_number(value)
 
     @field_validator("date_of_birth")
@@ -174,8 +200,6 @@ class PatientUpdate(BaseModel):
         "title",
         "first_name_th",
         "last_name_th",
-        "first_name_en",
-        "last_name_en",
         "address",
         "emergency_contact_name",
         "emergency_contact_relationship",
@@ -184,6 +208,11 @@ class PatientUpdate(BaseModel):
     @classmethod
     def normalize_text(cls, value: object) -> object:
         return normalize_optional_text(value)
+
+    @field_validator("first_name_en", "last_name_en", mode="before")
+    @classmethod
+    def normalize_english_names(cls, value: object) -> str | None:
+        return normalize_english_name(value)
 
     @field_validator("national_id", mode="before")
     @classmethod
@@ -200,9 +229,14 @@ class PatientUpdate(BaseModel):
     def normalize_email(cls, value: object) -> str | None:
         return normalize_optional_text(value)
 
-    @field_validator("phone_number", "emergency_contact_phone", mode="before")
+    @field_validator("phone_number", mode="before")
     @classmethod
-    def normalize_phone(cls, value: object) -> str | None:
+    def normalize_patient_phone_number(cls, value: object) -> str | None:
+        return normalize_patient_phone(value)
+
+    @field_validator("emergency_contact_phone", mode="before")
+    @classmethod
+    def normalize_emergency_phone(cls, value: object) -> str | None:
         return normalize_phone_number(value)
 
     @field_validator("change_reason")

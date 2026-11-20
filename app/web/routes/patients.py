@@ -71,6 +71,19 @@ def _clean_form_data(
     return {field: form.get(field) or None for field in fields}
 
 
+def _apply_title_choice(form: Any, values: dict[str, Any]) -> dict[str, Any]:
+    title_option = str(form.get("title_option") or "")
+    custom_title = str(form.get("title_custom") or "").strip() or None
+    values["title_option"] = title_option
+    values["title_custom"] = custom_title or ""
+    values["title"] = custom_title if title_option == "__OTHER__" else title_option or None
+    return {
+        key: value
+        for key, value in values.items()
+        if key not in {"title_option", "title_custom"}
+    }
+
+
 def _patient_values(patient: Patient) -> dict[str, Any]:
     values = {field: getattr(patient, field) for field in PATIENT_FORM_FIELDS}
     if patient.date_of_birth is not None:
@@ -141,10 +154,27 @@ async def patient_create_from_form(
 ) -> Response:
     form = await request.form()
     values = _clean_form_data(form)
+    data_values = _apply_title_choice(form, values)
     values["branch_id"] = 1
+    data_values["branch_id"] = 1
     values["confirm_possible_duplicate"] = form.get("confirm_possible_duplicate") == "true"
+    data_values["confirm_possible_duplicate"] = values["confirm_possible_duplicate"]
+    if not values.get("national_id"):
+        return templates.TemplateResponse(
+            request=request,
+            name="patients/form.html",
+            context=_form_context(
+                page_title="New patient | ลงทะเบียนผู้ป่วย",
+                mode="create",
+                values=values,
+                errors=["Thai National ID is required and must contain 13 digits"],
+                candidates=[],
+                patient=None,
+            ),
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        )
     try:
-        data = PatientCreate.model_validate(values)
+        data = PatientCreate.model_validate(data_values)
         patient = service.create(data, actor_reference=actor.reference)
     except ValidationError as exc:
         return templates.TemplateResponse(
@@ -255,11 +285,14 @@ async def patient_update_from_form(
     else:
         editable_fields = PATIENT_FORM_FIELDS
     values = _clean_form_data(form, editable_fields)
+    data_values = _apply_title_choice(form, values)
     values["change_reason"] = form.get("change_reason") or ""
+    data_values["change_reason"] = values["change_reason"]
     if actor.role != "RECEPTION":
         values["is_active"] = form.get("is_active") == "on"
+        data_values["is_active"] = values["is_active"]
     try:
-        data = PatientUpdate.model_validate(values)
+        data = PatientUpdate.model_validate(data_values)
         service.update(patient_id, data, actor_reference=actor.reference)
     except (ValidationError, InvalidPatientChangeError, DuplicatePatientIdentifierError) as exc:
         errors = _validation_messages(exc) if isinstance(exc, ValidationError) else [str(exc)]

@@ -59,6 +59,30 @@
     });
   });
 
+  ["national_id", "phone_number"].forEach((fieldId) => {
+    const field = document.getElementById(fieldId);
+    if (!field || field.readOnly) return;
+    field.addEventListener("input", () => {
+      field.value = field.value.replace(/\D/g, "").slice(0, fieldId === "national_id" ? 13 : 10);
+    });
+  });
+
+  ["first_name_en", "last_name_en"].forEach((fieldId) => {
+    const field = document.getElementById(fieldId);
+    if (!field) return;
+    field.addEventListener("input", () => {
+      if (field.value) field.value = field.value[0].toUpperCase() + field.value.slice(1);
+    });
+  });
+
+  const titleChoice = document.querySelector("#title_option");
+  const customTitleWrap = document.querySelector("#title_custom_wrap");
+  if (titleChoice && customTitleWrap) {
+    titleChoice.addEventListener("change", () => {
+      customTitleWrap.hidden = titleChoice.value !== "__OTHER__";
+    });
+  }
+
   const createdId = params.get("created_id");
   if (createdId) {
     document.querySelector(`#patient-${CSS.escape(createdId)}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
