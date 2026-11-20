@@ -477,8 +477,15 @@ class ResultService:
             self.session.rollback()
             raise InvalidResultOperationError("ไม่สามารถบันทึกการเปิดดูรายงานได้") from exc
 
+        reporter = max(
+            (item.result for item in order.items if item.result and item.result.entered_by),
+            key=lambda result: result.entered_at.timestamp() if result.entered_at else float("-inf"),
+            default=None,
+        )
         return {
             "order": order,
+            "reported_by": reporter.entered_by if reporter else None,
+            "reported_at": reporter.entered_at if reporter else None,
             "patient": order.patient,
             "accession_numbers": accessions,
             "results": results,

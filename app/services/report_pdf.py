@@ -125,10 +125,11 @@ def build_lab_report_pdf(context: dict[str, Any]) -> bytes:
     story.extend([table, Spacer(1, 7 * mm)])
     approvals = Table(
         [
-            [Paragraph("ตรวจสอบผลโดย", bold), Paragraph("อนุมัติรายงานโดย", bold)],
+            [Paragraph("รายงานผลโดย", bold), Paragraph("อนุมัติผลโดย", bold)],
             [
                 Paragraph(
-                    f"{order.verified_by or '-'}<br/>{format_datetime_for_web(order.verified_at)}",
+                    f"{context.get('reported_by') or '-'}<br/>"
+                    f"{format_datetime_for_web(context.get('reported_at'))}",
                     normal,
                 ),
                 Paragraph(

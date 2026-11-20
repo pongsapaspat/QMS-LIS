@@ -50,8 +50,8 @@
       </table>
     </div>
     <section class="row mt-4 pt-3 border-top">
-      <div class="col-md-6"><strong>ตรวจสอบผลโดย:</strong> {{ context.order.verified_by or '-' }}<br><small>{{ context.order.verified_at | app_datetime if context.order.verified_at else '' }}</small></div>
-      <div class="col-md-6"><strong>อนุมัติรายงานโดย:</strong> {{ context.order.released_by or '-' }}<br><small>{{ context.order.released_at | app_datetime if context.order.released_at else '' }}</small></div>
+      <div class="col-md-6"><strong>รายงานผลโดย:</strong> {{ context.reported_by or '-' }}<br><small>{{ context.reported_at | app_datetime if context.reported_at else '' }}</small></div>
+      <div class="col-md-6"><strong>อนุมัติผลโดย:</strong> {{ context.order.released_by or '-' }}<br><small>{{ context.order.released_at | app_datetime if context.order.released_at else '' }}</small></div>
     </section>
     <p class="small text-secondary text-center mt-4 mb-0">รายงานนี้สร้างจากระบบ QMS-LIS</p>
   </div>
