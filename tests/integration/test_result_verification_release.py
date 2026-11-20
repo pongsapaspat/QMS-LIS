@@ -211,6 +211,37 @@ def test_admin_bypass_visibility_matches_role_and_settings(
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize('actions', [
+    ('verify', 'verify', 'verify'),
+    ('reject', 'verify', 'verify'),
+    ('verify', 'verify', 'reject'),
+])
+def test_web_review_stays_on_order_until_all_results_are_reviewed(
+    client: TestClient, actions: tuple[str, str, str],
+) -> None:
+    order_id, results = _completed_order(client)
+    for index, (result, action) in enumerate(zip(results, actions, strict=True)):
+        response = client.post(
+            f"/results/verification/{result['id']}/{action}",
+            data={'order_id': str(order_id), 'reason': 'Please check result'},
+            headers=SUPERVISOR_HEADERS, follow_redirects=False,
+        )
+        assert response.status_code == 303
+        destination = (f'/results/verification/orders/{order_id}'
+                       if index < len(results) - 1 else '/results/verification')
+        success = 'result-verified' if action == 'verify' else 'result-rejected'
+        assert response.headers['location'].endswith(f'{destination}?success={success}')
+        page = client.get(response.headers['location'], headers=SUPERVISOR_HEADERS)
+        assert page.status_code == 200
+        if index < len(results) - 1:
+            statuses = {entry['result_id']: entry['status']
+                        for entry in page.context['context']['results']}
+            assert statuses[result['id']] == (
+                'VERIFIED' if action == 'verify' else 'VERIFICATION_REJECTED'
+            )
+
+
+@pytest.mark.integration
 def test_verification_rejection_correction_and_atomic_release(
     client: TestClient,
     db_session_factory: sessionmaker[Session],

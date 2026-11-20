@@ -121,6 +121,20 @@ def verification_order(
     )
 
 
+def _verification_redirect(
+    request: Request, service: ResultServiceDependency, order_id: int, success: str
+) -> RedirectResponse:
+    pending = any(
+        item.result is not None and item.result.status == ResultStatus.COMPLETED
+        for item in service.context(order_id)
+    )
+    destination = (
+        request.url_for("verification_order", order_id=order_id)
+        if pending else request.url_for("verification_queue")
+    )
+    return RedirectResponse(f"{destination}?success={success}", status_code=303)
+
+
 @router.post(
     "/results/verification/{result_id}/verify",
     name="verification_approve",
@@ -139,7 +153,7 @@ async def verification_approve(
         "bypass_four_eyes": form.get("bypass_four_eyes") == "on",
     }
     try:
-        service.verify(
+        result = service.verify(
             result_id,
             VerificationApproval.model_validate(values),
             actor_reference=actor.reference,
@@ -158,8 +172,8 @@ async def verification_approve(
                 "form_values": {str(result_id): values},
             },
         )
-    return RedirectResponse(
-        f"{request.url_for('verification_queue')}?success=result-verified", status_code=303
+    return _verification_redirect(
+        request, service, result.order_item.order_id, "result-verified"
     )
 
 
@@ -179,7 +193,7 @@ async def verification_reject(
     reason = str(form.get("reason", ""))
     try:
         data = VerificationRejection.model_validate({"reason": reason})
-        service.reject_verification(result_id, data, actor_reference=actor.reference)
+        result = service.reject_verification(result_id, data, actor_reference=actor.reference)
     except (InvalidResultOperationError, ValueError) as exc:
         return templates.TemplateResponse(
             request=request,
@@ -193,9 +207,8 @@ async def verification_reject(
                 "form_values": {str(result_id): {"reason": reason}},
             },
         )
-    return RedirectResponse(
-        f"{request.url_for('result_entry', order_id=order_id)}?success=result-rejected",
-        status_code=303,
+    return _verification_redirect(
+        request, service, result.order_item.order_id, "result-rejected"
     )
 
 
