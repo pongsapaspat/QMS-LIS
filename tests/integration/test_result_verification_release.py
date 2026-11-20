@@ -178,6 +178,39 @@ def test_verification_web_groups_orders_before_pagination(
 
 
 @pytest.mark.integration
+def test_admin_bypass_visibility_matches_role_and_settings(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    order_id, results = _completed_order(client)
+    path = f'/results/verification/orders/{order_id}'
+    try:
+        monkeypatch.setenv('QMS_LIS_ENFORCE_FOUR_EYES_CHECK', 'true')
+        for enabled in ('false', 'true'):
+            monkeypatch.setenv('QMS_LIS_ALLOW_ADMIN_FOUR_EYES_BYPASS', enabled)
+            get_settings.cache_clear()
+            for role in ('ADMIN', 'LAB_SUPERVISOR', 'LAB_TECH'):
+                page = client.get(path, headers={'X-Role': role, 'X-Actor': 'reviewer'})
+                assert page.status_code == 200
+                assert ('name="bypass_four_eyes"' in page.text) == (
+                    role == 'ADMIN' and enabled == 'true'
+                )
+                assert 'Verify result' in page.text
+        # A forged bypass cannot let a supervisor verify their own entry.
+        denied = client.post(
+            f"/results/verification/{results[0]['id']}/verify",
+            headers={'X-Role': 'LAB_SUPERVISOR', 'X-Actor': 'entry-tech'},
+            data={'order_id': str(order_id), 'bypass_four_eyes': 'on'},
+        )
+        assert denied.status_code == 422
+        assert 'name="bypass_four_eyes"' not in denied.text
+        monkeypatch.setenv('QMS_LIS_ENFORCE_FOUR_EYES_CHECK', 'false')
+        get_settings.cache_clear()
+        assert 'name="bypass_four_eyes"' not in client.get(path, headers=ADMIN_HEADERS).text
+    finally:
+        get_settings.cache_clear()
+
+
+@pytest.mark.integration
 def test_verification_rejection_correction_and_atomic_release(
     client: TestClient,
     db_session_factory: sessionmaker[Session],

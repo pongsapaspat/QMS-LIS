@@ -114,6 +114,7 @@ def verification_order(
         context={
             "page_title": "Result Verification",
             "context": service.verification_context(order_id),
+            "actor_role": actor.role,
             "errors": [],
             "form_values": {},
         },
@@ -152,6 +153,7 @@ async def verification_approve(
             context={
                 "page_title": "Result Verification",
                 "context": service.verification_context(order_id),
+                "actor_role": actor.role,
                 "errors": [str(exc)],
                 "form_values": {str(result_id): values},
             },
@@ -186,6 +188,7 @@ async def verification_reject(
             context={
                 "page_title": "Result Verification",
                 "context": service.verification_context(order_id),
+                "actor_role": actor.role,
                 "errors": [str(exc)],
                 "form_values": {str(result_id): {"reason": reason}},
             },

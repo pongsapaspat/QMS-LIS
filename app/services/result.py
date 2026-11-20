@@ -266,6 +266,10 @@ class ResultService:
         return {
             "order": self._order_summary(order),
             "results": self._order_result_details(order),
+            "admin_bypass_enabled": (
+                self.settings.enforce_four_eyes_check
+                and self.settings.allow_admin_four_eyes_bypass
+            ),
         }
 
     def verify(
