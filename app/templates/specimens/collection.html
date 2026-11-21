@@ -13,14 +13,17 @@
     </div>
     {% if requirement.specimen %}<div class="text-end"><span class="badge text-bg-secondary">{{ requirement.specimen.status }}</span><div class="mt-2"><strong>{{ requirement.specimen.accession_number }}</strong></div><small class="text-secondary">Collected {{ requirement.specimen.collected_at | app_datetime }}</small></div>{% endif %}
   </div>
-  {% if not requirement.specimen %}
+  {% set recollect = requirement.specimen and requirement.specimen.status == 'REJECTED' %}
+  {% if recollect %}<div class="alert alert-warning mt-3 mb-0">ต้องเก็บสิ่งส่งตรวจใหม่ · {{ requirement.specimen.rejection_reason_code }} · {{ requirement.specimen.rejection_reason or '' }}<div class="small">{{ requirement.specimen.rejected_at | app_datetime }} · {{ requirement.specimen.rejected_by or '-' }}</div></div>{% endif %}
+  {% if not requirement.specimen or recollect %}
   <form method="post" action="{{ url_for('specimen_collect', order_id=order.id, specimen_type_id=requirement.specimen_type_id) }}" class="mt-3">
     <input type="hidden" name="collection_group" value="{{ requirement.collection_group }}">
+    {% if recollect %}<input type="hidden" name="replaces_specimen_id" value="{{ requirement.specimen.id }}">{% endif %}
     <label class="form-label" for="collected_at_{{ field_id }}">Collected at</label>
     <input class="form-control" id="collected_at_{{ field_id }}" name="collected_at" type="datetime-local" value="{{ values.get('collected_at') | app_datetime_local }}">
     <label class="form-label mt-2" for="collection_note_{{ field_id }}">Collection note</label>
     <textarea class="form-control" id="collection_note_{{ field_id }}" name="collection_note" rows="2">{{ values.get('collection_note') or '' }}</textarea>
-    <button class="btn btn-primary mt-2" type="submit">Mark collected</button>
+    <button class="btn btn-primary mt-2" type="submit">{{ 'เก็บสิ่งส่งตรวจใหม่' if recollect else 'Mark collected' }}</button>
   </form>
   {% elif requirement.specimen.status == 'COLLECTED' %}
   <form method="post" action="{{ url_for('specimen_reject', specimen_id=requirement.specimen.id) }}" class="mt-3">
@@ -29,6 +32,7 @@
     <button class="btn btn-outline-danger mt-2" type="submit">Reject specimen</button>
   </form>
   {% endif %}
+  {% if requirement.history %}<details class="mt-3"><summary>ประวัติสิ่งส่งตรวจที่ถูกทดแทน ({{ requirement.history | length }})</summary><ul>{% for previous in requirement.history %}<li><a href="{{ url_for('specimen_receiving_detail', specimen_id=previous.id) }}">{{ previous.accession_number }}</a> · {{ previous.status }} · {{ previous.rejection_reason_code or '-' }} · {{ previous.rejection_reason or '' }} · {{ previous.rejected_at | app_datetime }} · {{ previous.rejected_by or '-' }}</li>{% endfor %}</ul></details>{% endif %}
 </div></div>
 {% else %}<div class="alert alert-secondary">This order has no specimen requirements.</div>{% endfor %}
 {% endblock %}

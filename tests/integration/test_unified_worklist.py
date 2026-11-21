@@ -398,9 +398,12 @@ def test_worklist_filters_ordering_exclusions_and_permissions(
     )
     assert rejected.status_code == 200
     remaining = _worklist(client)
-    assert remaining["total"] == 1
-    assert remaining["items"][0]["task_type"] == "ORDER_PENDING_COLLECTION"
-    assert remaining["items"][0]["specimen_type"] == "Urine"
+    assert remaining["total"] == 2
+    assert {item["task_type"] for item in remaining["items"]} == {"ORDER_PENDING_COLLECTION"}
+    assert {item["specimen_type"] for item in remaining["items"]} == {"Serum", "Urine"}
+    recollection = next(item for item in remaining["items"] if item["specimen_type"] == "Serum")
+    assert recollection["current_specimen_status"] == "REJECTED"
+    assert recollection["task_label"] == "รอเก็บสิ่งส่งตรวจใหม่"
 
     unauthorized = client.get("/api/v1/worklist", headers=RECEPTION_HEADERS)
     assert unauthorized.status_code == 403

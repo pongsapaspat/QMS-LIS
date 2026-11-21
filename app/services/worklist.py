@@ -38,6 +38,7 @@ class WorklistService:
         page_size: int,
         group_collection_orders: bool = False,
         result_tasks_only: bool = False,
+        collection_filter: str = "all",
     ) -> WorklistResponse:
         task_types = {task_type} if task_type is not None else set(ALL_TASK_TYPES)
         if result_tasks_only:
@@ -61,6 +62,10 @@ class WorklistService:
         items = sorted((self._to_item(record) for record in records), key=self._sort_key)
         if group_collection_orders:
             items = self._group_collection_orders(items)
+            if collection_filter == "recollection":
+                items = [item for item in items if item.current_specimen_status == "REJECTED"]
+            elif collection_filter == "initial":
+                items = [item for item in items if item.current_specimen_status != "REJECTED"]
         counts = Counter(item.task_type.value for item in items)
         if result_tasks_only:
             items = self._group_result_orders(items)
@@ -111,6 +116,10 @@ class WorklistService:
                 orders[item.order_id] = item
                 grouped.append(item)
             order = orders[item.order_id]
+            if item.current_specimen_status == "REJECTED":
+                order.current_specimen_status = "REJECTED"
+                order.task_label = "รอเก็บสิ่งส่งตรวจใหม่"
+                order.next_action_label = "เก็บสิ่งส่งตรวจใหม่"
             if item.specimen_type and item.specimen_type not in order.pending_specimens:
                 order.pending_specimens.append(item.specimen_type)
             if order.department_id != item.department_id:
@@ -165,6 +174,9 @@ class WorklistService:
             ),
         }
         task_label, action_label, action_url = labels[task_type]
+        if (task_type == WorklistTaskType.ORDER_PENDING_COLLECTION
+                and record.current_specimen_status == "REJECTED"):
+            task_label, action_label = "รอเก็บสิ่งส่งตรวจใหม่", "เก็บสิ่งส่งตรวจใหม่"
         tat_target = (
             record.created_at + timedelta(minutes=record.tat_minutes)
             if record.tat_minutes is not None

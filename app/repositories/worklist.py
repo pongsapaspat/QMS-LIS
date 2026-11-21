@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import case, exists, func, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -117,8 +117,14 @@ class WorklistRepository:
             select(Specimen.id).join(SpecimenItem).where(
                 Specimen.order_id == LabOrder.id,
                 SpecimenItem.order_item_id == LabOrderItem.id,
+                Specimen.is_current.is_(True),
+                Specimen.status != SpecimenStatus.REJECTED,
             )
         )
+        rejected_exists = exists(select(Specimen.id).join(SpecimenItem).where(
+            Specimen.order_id == LabOrder.id, SpecimenItem.order_item_id == LabOrderItem.id,
+            Specimen.is_current.is_(True), Specimen.status == SpecimenStatus.REJECTED,
+        ))
         statement = (
             select(
                 LabOrder,
@@ -129,6 +135,7 @@ class WorklistRepository:
                 func.min(LabTest.department_id),
                 func.min(LaboratoryDepartment.code),
                 func.min(LaboratoryDepartment.name_en),
+                func.max(case((rejected_exists, 1), else_=0)),
             )
             .join(Patient, Patient.id == LabOrder.patient_id)
             .join(LabOrderItem, LabOrderItem.order_id == LabOrder.id)
@@ -157,6 +164,7 @@ class WorklistRepository:
             dept_id,
             dept_code,
             dept_name,
+            recollection_required,
         ) in rows:
             records.append(
                 WorklistRecord(
@@ -178,7 +186,7 @@ class WorklistRepository:
                     department_code=dept_code if department_count == 1 else None,
                     department_name=dept_name if department_count == 1 else None,
                     current_order_status=order.status,
-                    current_specimen_status=None,
+                    current_specimen_status="REJECTED" if recollection_required else None,
                     current_result_status=None,
                     created_at=order.ordered_at,
                     tat_minutes=tat,
@@ -208,6 +216,7 @@ class WorklistRepository:
             .join(LaboratoryDepartment, LaboratoryDepartment.id == LabTest.department_id)
             .where(
                 Specimen.status == SpecimenStatus.COLLECTED,
+                Specimen.is_current.is_(True),
                 LabOrder.status != OrderStatus.CANCELLED,
             )
         )
@@ -292,6 +301,7 @@ class WorklistRepository:
             .outerjoin(Result, Result.order_item_id == LabOrderItem.id)
             .where(
                 Specimen.status == SpecimenStatus.RECEIVED,
+                Specimen.is_current.is_(True),
                 LabOrder.status != OrderStatus.CANCELLED,
                 LabOrderItem.is_outlab.is_(False),
             )
@@ -383,9 +393,11 @@ class WorklistRepository:
             select(func.count(LabOrder.id)).where(LabOrder.status != OrderStatus.CANCELLED)
         ) or 0
         specimen_exists = exists(
-            select(Specimen.id).where(
+            select(Specimen.id).join(SpecimenItem).where(
                 Specimen.order_id == LabOrder.id,
-                Specimen.specimen_type_id == LabTest.specimen_type_id,
+                SpecimenItem.order_item_id == LabOrderItem.id,
+                Specimen.is_current.is_(True),
+                Specimen.status != SpecimenStatus.REJECTED,
             )
         )
         pending_collection = self.session.scalar(
@@ -420,6 +432,7 @@ class WorklistRepository:
                 LabOrderItem.is_outlab.is_(False),
                 LabOrder.status != OrderStatus.CANCELLED,
                 Specimen.status == SpecimenStatus.RECEIVED,
+                Specimen.is_current.is_(True),
                 or_(Result.id.is_(None), Result.status == ResultStatus.PENDING),
             )
         ) or 0

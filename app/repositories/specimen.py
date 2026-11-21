@@ -58,6 +58,8 @@ class SpecimenRepository:
         )
         if status is not None:
             statement = statement.where(Specimen.status == status)
+        if status in {"COLLECTED", "RECEIVED"}:
+            statement = statement.where(Specimen.is_current.is_(True))
         if accession_number:
             statement = statement.where(Specimen.accession_number == accession_number)
         statement = statement.order_by(Specimen.collected_at, Specimen.id).limit(limit)
@@ -69,6 +71,7 @@ class SpecimenRepository:
             Specimen.order_id == order_id,
             Specimen.specimen_type_id == specimen_type_id,
             Specimen.collection_group == collection_group,
+            Specimen.is_current.is_(True),
         )
         return self.session.scalars(statement).first()
 
@@ -77,7 +80,7 @@ class SpecimenRepository:
             select(Specimen)
             .options(selectinload(Specimen.items))
             .where(Specimen.order_id == order_id)
-            .order_by(Specimen.specimen_type_code)
+            .order_by(Specimen.specimen_type_code, Specimen.id)
         )
         return list(self.session.scalars(statement))
 
@@ -87,7 +90,8 @@ class SpecimenRepository:
             return False
         specimens = self.list_order_specimens(order_id)
         received_ids = {link.order_item_id for specimen in specimens
-                        if specimen.status == "RECEIVED" for link in specimen.items}
+                        if specimen.is_current and specimen.status == "RECEIVED"
+                        for link in specimen.items}
         return required_ids == received_ids
 
     def get_specimen_type(self, specimen_type_id: int) -> SpecimenType | None:

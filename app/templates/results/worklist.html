@@ -10,6 +10,24 @@
   {% if not result_queue %}<span class="badge text-bg-primary fs-6">{% if collection_queue %}{{ worklist.total }} order{% if worklist.total != 1 %}s{% endif %} pending collection{% else %}{{ worklist.total }} actionable task{% if worklist.total != 1 %}s{% endif %}{% endif %}</span>{% endif %}
 </div>
 
+{% if collection_queue %}
+<form class="card card-body mb-4" method="get" action="{{ url_for('worklist') }}">
+  <input type="hidden" name="task_type" value="ORDER_PENDING_COLLECTION">
+  <div class="row g-3 align-items-end">
+    <div class="col-md-5"><label class="form-label" for="collection-filter">ประเภทการเก็บสิ่งส่งตรวจ</label>
+      <select class="form-select" id="collection-filter" name="collection_filter">
+        {% for value, label in [('all', 'ทั้งหมด'), ('initial', 'เก็บครั้งแรก'), ('recollection', 'มีรายการต้องเก็บใหม่หลัง Reject')] %}
+        <option value="{{ value }}"{% if filters.collection_filter == value %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-4"><label class="form-label" for="collection-search">ค้นหา Order, HN, ชื่อผู้ป่วย</label><input class="form-control" id="collection-search" name="search" value="{{ filters.search }}"></div>
+    <div class="col-md-3 d-flex gap-2"><button class="btn btn-primary" type="submit">กรองรายการ</button><a class="btn btn-outline-secondary" href="{{ url_for('worklist') }}?task_type=ORDER_PENDING_COLLECTION">ล้าง</a></div>
+  </div>
+  <p class="form-text mb-0">Order ที่มีทั้งรายการเก็บครั้งแรกและรายการเก็บใหม่ จะแสดงในกลุ่มเก็บใหม่</p>
+</form>
+{% endif %}
+
 {% if not collection_queue %}
 <form class="card card-body mb-4" method="get" action="/worklist">
   {% if result_queue %}<input type="hidden" name="queue" value="results">{% endif %}
@@ -105,6 +123,7 @@
       <tr{% if task.result_tests %} class="result-queue-order"{% endif %}>
         <td>
           <div class="fw-semibold">{{ task.task_label }}</div>
+          {% if collection_queue %}<span class="badge {{ 'text-bg-warning' if task.current_specimen_status == 'REJECTED' else 'text-bg-light' }}">{{ 'เก็บใหม่หลัง Reject' if task.current_specimen_status == 'REJECTED' else 'เก็บครั้งแรก' }}</span>{% endif %}
           {% if not task.result_tests %}<div class="small text-body-secondary">{{ task.task_type.value }}</div>{% endif %}
         </td>
         <td>
@@ -190,6 +209,8 @@
 <div class="alert alert-info" role="status">
   {% if result_queue %}
   <h2 class="h5">ไม่พบรายการรอลงผลตรวจตามเงื่อนไขที่เลือก</h2>
+  {% elif collection_queue %}
+  <h2 class="h5">ไม่พบรายการรอเก็บสิ่งส่งตรวจตามเงื่อนไขที่เลือก</h2>
   {% else %}
   <h2 class="h5">No actionable laboratory tasks found.</h2>
   <p class="mb-2">Create an order, collect its required specimen, receive the specimen, and then open result entry to create worklist tasks.</p>

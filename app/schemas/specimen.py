@@ -22,6 +22,7 @@ class SpecimenCollectRequest(BaseModel):
     collection_group: str = Field(
         default="INTERNAL", pattern=r"^(INTERNAL|OUTLAB-[1-9][0-9]*)$", max_length=40
     )
+    replaces_specimen_id: int | None = Field(default=None, gt=0)
     collected_at: datetime | None = None
     collection_note: str | None = Field(default=None, max_length=2000)
 
@@ -125,6 +126,8 @@ class SpecimenResponse(BaseModel):
     order_id: int
     specimen_type_id: int
     collection_group: str = "INTERNAL"
+    is_current: bool = True
+    replaces_specimen_id: int | None = None
     specimen_type_code: str
     specimen_type_name_th: str
     specimen_type_name_en: str
@@ -138,6 +141,7 @@ class SpecimenResponse(BaseModel):
     rejection_reason_code: str | None
     rejection_reason: str | None
     rejected_at: datetime | None
+    rejected_by: str | None = None
     created_at: datetime
     updated_at: datetime
     items: list[SpecimenOrderItemResponse]
@@ -152,6 +156,7 @@ class SpecimenRequirementItem(BaseModel):
 
 
 class SpecimenRequirement(BaseModel):
+    history: list[SpecimenResponse] = Field(default_factory=list)
     collection_group: str = "INTERNAL"
     outlab_lab_name: str | None = None
     specimen_type_id: int

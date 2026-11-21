@@ -64,7 +64,7 @@ def order_verification_context(
     return service.verification_context(order_id)
 
 
-@router.get("/worklist")
+@router.get("/worklist", name="api_result_worklist")
 def worklist(
     service: ResultServiceDependency,
     actor: ResultReaderDependency,

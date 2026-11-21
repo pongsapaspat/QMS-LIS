@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from pathlib import PurePath
-from typing import Annotated, cast
+from typing import Annotated, Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from fastapi import APIRouter, Query, Request
@@ -443,6 +443,7 @@ def worklist(
     search: str | None = Query(default=None, max_length=100),
     page: int = Query(default=1, ge=1),
     queue: str | None = None,
+    collection_filter: Literal["all", "initial", "recollection"] = "all",
 ) -> HTMLResponse:
     result_queue = queue == "results" or task_type in {
         WorklistTaskType.RESULT_PENDING_ENTRY,
@@ -468,6 +469,7 @@ def worklist(
         page_size=50,
         group_collection_orders=task_type == WorklistTaskType.ORDER_PENDING_COLLECTION,
         result_tasks_only=result_queue,
+        collection_filter=collection_filter,
     )
     return templates.TemplateResponse(
         request=request,
@@ -486,6 +488,7 @@ def worklist(
                 "priority": priority.value if priority else "",
                 "status": status.value if status else "",
                 "search": search or "",
+                "collection_filter": collection_filter,
             },
         },
     )

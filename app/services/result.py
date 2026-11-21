@@ -72,7 +72,7 @@ class ResultService:
             if item.is_outlab:
                 raise InvalidResultOperationError("Outlab accepts original documents only, not result values")
             specimen = self.repository.specimen_for_item(submitted.order_item_id)
-            if specimen is None or specimen.status != SpecimenStatus.RECEIVED:
+            if specimen is None or not specimen.is_current or specimen.status != SpecimenStatus.RECEIVED:
                 raise InvalidResultOperationError(
                     "results may only be entered for received specimens"
                 )
@@ -785,6 +785,8 @@ class ResultService:
             raise InvalidResultOperationError("only completed results may be verified")
         if result.specimen.status != SpecimenStatus.RECEIVED:
             raise InvalidResultOperationError("the associated specimen has not been received")
+        if not result.specimen.is_current:
+            raise InvalidResultOperationError("the associated specimen has been replaced")
         if result.order_item.order.status == OrderStatus.CANCELLED:
             raise InvalidResultOperationError("cancelled orders cannot be verified")
         if result.abnormal_flag in {"LL", "HH"} and result.critical_acknowledged_at is None:
@@ -868,6 +870,8 @@ class ResultService:
                 issues.append(f"specimen for {item.test_code} is rejected")
             elif result.specimen.status != SpecimenStatus.RECEIVED:
                 issues.append(f"specimen for {item.test_code} is not received")
+            elif not result.specimen.is_current:
+                issues.append(f"specimen for {item.test_code} has been replaced")
             if (
                 result.abnormal_flag in {"LL", "HH"}
                 and result.critical_acknowledged_at is None

@@ -84,6 +84,7 @@ async def specimen_collect(
                     "order_id": order_id,
                     "specimen_type_id": specimen_type_id,
                     "collection_group": form.get("collection_group", "INTERNAL"),
+                    "replaces_specimen_id": form.get("replaces_specimen_id") or None,
                     "collected_at": collected_at,
                     "collection_note": values["collection_note"],
                 }

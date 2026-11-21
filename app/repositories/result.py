@@ -72,7 +72,9 @@ class ResultRepository:
 
     def specimen_for_item(self, order_item_id: int) -> Specimen | None:
         statement = (
-            select(Specimen).join(SpecimenItem).where(SpecimenItem.order_item_id == order_item_id)
+            select(Specimen).join(SpecimenItem).where(
+                SpecimenItem.order_item_id == order_item_id, Specimen.is_current.is_(True)
+            )
         )
         return self.session.scalars(statement).first()
 
@@ -98,6 +100,7 @@ class ResultRepository:
                 selectinload(LabOrderItem.order).selectinload(LabOrder.patient),
             )
             .where(Specimen.status == "RECEIVED")
+            .where(Specimen.is_current.is_(True))
             .where(LabOrderItem.is_outlab.is_(False))
         )
         if department_id is not None:

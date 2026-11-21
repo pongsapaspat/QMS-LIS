@@ -35,7 +35,7 @@ class OutlabService:
         return self.session.scalar(
             select(Specimen)
             .join(SpecimenItem)
-            .where(SpecimenItem.order_item_id == case.order_item_id)
+            .where(SpecimenItem.order_item_id == case.order_item_id, Specimen.is_current.is_(True))
         )
 
     def queue(self, status: str, search: str, page: int) -> list[OutlabCase]:

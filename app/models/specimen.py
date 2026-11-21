@@ -2,7 +2,18 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+    true,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UTCDateTime, utc_now
@@ -22,8 +33,15 @@ class SpecimenStatus(StrEnum):
 class Specimen(TimestampMixin, Base):
     __tablename__ = "specimens"
     __table_args__ = (
-        UniqueConstraint("order_id", "specimen_type_id", "collection_group",
-                         name="uq_specimens_order_type_group"),
+        Index(
+            "uq_specimens_current_group",
+            "order_id",
+            "specimen_type_id",
+            "collection_group",
+            unique=True,
+            sqlite_where=text("is_current = 1"),
+            postgresql_where=text("is_current"),
+        ),
         Index("ix_specimens_order_status", "order_id", "status"),
     )
 
@@ -38,6 +56,12 @@ class Specimen(TimestampMixin, Base):
     specimen_type_code: Mapped[str] = mapped_column(String(30), nullable=False)
     collection_group: Mapped[str] = mapped_column(
         String(40), default="INTERNAL", server_default="INTERNAL", nullable=False
+    )
+    is_current: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=true(), nullable=False
+    )
+    replaces_specimen_id: Mapped[int | None] = mapped_column(
+        ForeignKey("specimens.id", ondelete="RESTRICT"), unique=True
     )
     specimen_type_name_th: Mapped[str] = mapped_column(String(150), nullable=False)
     specimen_type_name_en: Mapped[str] = mapped_column(String(150), nullable=False)
@@ -58,11 +82,18 @@ class Specimen(TimestampMixin, Base):
     rejection_reason_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     rejected_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    rejected_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     order: Mapped["LabOrder"] = relationship()
     specimen_type: Mapped["SpecimenType"] = relationship()
     items: Mapped[list["SpecimenItem"]] = relationship(
         back_populates="specimen", cascade="all, delete-orphan", order_by="SpecimenItem.id"
+    )
+    replaces_specimen: Mapped["Specimen | None"] = relationship(
+        remote_side="Specimen.id", back_populates="replacement"
+    )
+    replacement: Mapped["Specimen | None"] = relationship(
+        back_populates="replaces_specimen", uselist=False
     )
 
 
@@ -72,7 +103,6 @@ class SpecimenItem(Base):
         UniqueConstraint(
             "specimen_id", "order_item_id", name="uq_specimen_items_specimen_order_item"
         ),
-        UniqueConstraint("order_item_id", name="uq_specimen_items_order_item"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
