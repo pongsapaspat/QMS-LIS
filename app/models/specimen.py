@@ -96,6 +96,19 @@ class Specimen(TimestampMixin, Base):
         back_populates="replaces_specimen", uselist=False
     )
 
+    @property
+    def can_reject(self) -> bool:
+        return (
+            self.is_current
+            and self.status in {SpecimenStatus.COLLECTED, SpecimenStatus.RECEIVED}
+            and self.order.status not in {"CANCELLED", "RELEASED"}
+            and all(
+                link.order_item.result is None
+                and not (link.order_item.outlab and link.order_item.outlab.sent_at)
+                for link in self.items
+            )
+        )
+
 
 class SpecimenItem(Base):
     __tablename__ = "specimen_items"

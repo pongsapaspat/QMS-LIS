@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
+from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -122,6 +123,13 @@ class ResultService:
         results: list[Result] = []
         try:
             for item, specimen, submitted, interpretation in prepared:
+                locked = self.session.execute(update(Specimen).where(
+                    Specimen.id == specimen.id, Specimen.is_current.is_(True),
+                    Specimen.status == SpecimenStatus.RECEIVED,
+                ).values(status=SpecimenStatus.RECEIVED, updated_at=Specimen.updated_at)
+                    .execution_options(synchronize_session=False))
+                if locked.rowcount != 1:
+                    raise InvalidResultOperationError("สิ่งส่งตรวจถูก Reject หรือเปลี่ยนสถานะแล้ว กรุณาโหลดใหม่")
                 existing = item.result
                 if existing is None:
                     existing = Result(

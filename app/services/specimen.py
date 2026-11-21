@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from sqlalchemy import update
+from sqlalchemy import exists, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,7 @@ from app.domain.exceptions import (
 from app.models.audit import AuditLog
 from app.models.base import utc_now
 from app.models.order import LabOrder, OrderStatus
+from app.models.result import Result
 from app.models.specimen import Specimen, SpecimenItem, SpecimenStatus
 from app.repositories.audit import AuditRepository
 from app.repositories.specimen import SpecimenRepository
@@ -223,8 +224,9 @@ class SpecimenService:
     ) -> Specimen:
         specimen = self.get(specimen_id)
         self._get_collectable_order(specimen.order_id)
-        if specimen.status != SpecimenStatus.COLLECTED or not specimen.is_current:
-            raise InvalidSpecimenOperationError("only collected specimens may be rejected")
+        if not specimen.can_reject:
+            raise InvalidSpecimenOperationError("Reject ได้เฉพาะสิ่งส่งตรวจที่ยังไม่ลงผลและยังไม่ส่ง Outlab")
+        original_status = specimen.status
         try:
             self._transition_collected(
                 specimen,
@@ -235,6 +237,8 @@ class SpecimenService:
                     rejected_at=utc_now(),
                     rejected_by=actor_reference,
                 ),
+                source_status=original_status,
+                rejecting=True,
             )
             self.audit_repository.add(
                 AuditLog(
@@ -316,13 +320,21 @@ class SpecimenService:
             raise InvalidSpecimenOperationError("specimen receipt could not be saved") from exc
         return self.get(specimen.id)
 
-    def _transition_collected(self, specimen: Specimen, values: dict) -> None:
+    def _transition_collected(
+        self,
+        specimen: Specimen,
+        values: dict,
+        source_status: str = SpecimenStatus.COLLECTED,
+        rejecting: bool = False,
+    ) -> None:
+        guard = ~exists().where(Result.specimen_id == specimen.id) if rejecting else True
         changed = self.session.execute(
             update(Specimen)
             .where(
                 Specimen.id == specimen.id,
-                Specimen.status == SpecimenStatus.COLLECTED,
+                Specimen.status == source_status,
                 Specimen.is_current.is_(True),
+                guard,
             )
             .values(**values),
             execution_options={"synchronize_session": False},
