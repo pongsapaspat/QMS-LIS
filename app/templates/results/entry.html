@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Result entry</h1>
-<form method="post">
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4"><div><h1 class="h3 mb-1">ลงผลตรวจ | Result entry</h1><p class="text-secondary mb-0">กรอกผลและตรวจทานก่อนบันทึก เพื่อส่งตรวจสอบผล</p></div><a class="btn btn-outline-secondary" href="/worklist?queue=results">กลับคิวลงผล</a></div>
+<form method="post" class="result-entry-form">
   {% for item in items %}
   {% if not item.is_outlab %}
   {% set saved = item.result and item.result.status in ['COMPLETED', 'VERIFICATION_REJECTED', 'VERIFIED', 'AMENDMENT_REQUESTED', 'RELEASED'] %}
   {% set locked = item.result and item.result.status == 'RELEASED' %}
-  <div class="card mb-3"><div class="card-body">
-    <strong>{{ item.test_code }} — {{ item.test_name_en }}</strong>
+  {% set meta = entry_metadata.get(item.id, {}) %}
+  <section class="card result-entry-card mb-3"><div class="card-body">
+    <div class="result-entry-heading"><h2 class="h5 mb-1">{{ item.test_name_en }}</h2><span class="small text-secondary">{{ item.test_code }}{% if item.test_name_th != item.test_name_en %} · {{ item.test_name_th }}{% endif %}</span></div>
     {% if saved %}
     <div class="small text-secondary mb-2">บันทึกแล้ว · {{ item.result.status }}</div>
     {% if not locked %}<label class="d-block mb-2"><input type="checkbox" name="edit_{{ item.id }}" data-edit-result="{{ item.id }}" data-review="{{ 'true' if item.result.status in ['VERIFICATION_REJECTED', 'AMENDMENT_REQUESTED'] else 'false' }}"> แก้ไขผล</label>{% endif %}
@@ -15,7 +16,7 @@
     <fieldset id="result-fields-{{ item.id }}" class="border-0 p-0 m-0" {% if saved %}disabled{% endif %}>
       {% if item.parameter_definitions %}
       <p class="small text-secondary">กรอกครบทุก Parameter เพื่อส่ง Verify · หากยังไม่ครบ ระบบบันทึกไว้ให้กรอกต่อ</p>
-      <div class="table-responsive"><table class="table"><thead><tr><th>Parameter</th><th>ผลตรวจ</th><th>หน่วย</th><th>ค่าอ้างอิง</th></tr></thead><tbody>
+      <div class="table-responsive result-parameter-table"><table class="table align-middle"><colgroup><col style="width: 32%"><col style="width: 30%"><col style="width: 16%"><col style="width: 22%"></colgroup><thead><tr><th>Parameter</th><th>ผลตรวจ</th><th>หน่วย</th><th>ค่าอ้างอิง</th></tr></thead><tbody>
       {% for parameter in item.parameter_definitions %}
       {% set current_value = (item.result.parameter_values or {}).get(parameter.code, '') if item.result else '' %}
       {% set choices = item.lab_test.entry_options.get(parameter.code, ()) if item.result_type == 'UA' else () %}
@@ -33,12 +34,19 @@
       {% endfor %}
       </tbody></table></div>
       {% elif item.result_type in ['CATEGORICAL', 'QUALITATIVE'] %}
-      <select class="form-select" name="value_{{ item.id }}"><option value=""></option>{% for option in item.lab_test.qualitative_options %}<option value="{{ option.code }}"{% if item.result and item.result.categorical_value == option.code %} selected{% endif %}>{{ option.label_en }}</option>{% endfor %}</select>
+      <div class="result-entry-value"><label class="form-label" for="value-{{ item.id }}">ผลตรวจ</label><select class="form-select" id="value-{{ item.id }}" name="value_{{ item.id }}"><option value="">เลือกผลตรวจ</option>{% for option in item.lab_test.qualitative_options %}<option value="{{ option.code }}"{% if item.result and item.result.categorical_value == option.code %} selected{% endif %}>{{ option.label_en }}</option>{% endfor %}</select></div>
       {% else %}
-      <input class="form-control" name="value_{{ item.id }}" type="{% if item.result_type == 'NUMERIC' %}number{% else %}text{% endif %}" step="any" value="{% if item.result %}{{ item.result.numeric_value | result_number(none) if item.result.numeric_value is not none else item.result.text_value or '' }}{% endif %}">
+      <div class="result-entry-value"><label class="form-label" for="value-{{ item.id }}">ผลตรวจ</label><div class="input-group">
+      <input class="form-control" id="value-{{ item.id }}" name="value_{{ item.id }}" type="{% if item.result_type == 'NUMERIC' %}number{% else %}text{% endif %}" step="any"{% if item.result_type == 'NUMERIC' %} data-numeric-result data-lower-critical="{{ meta.get('lower_critical') if meta.get('lower_critical') is not none else '' }}" data-upper-critical="{{ meta.get('upper_critical') if meta.get('upper_critical') is not none else '' }}" aria-describedby="reference-{{ item.id }}"{% endif %} value="{% if item.result %}{{ item.result.numeric_value | result_number(none) if item.result.numeric_value is not none else item.result.text_value or '' }}{% endif %}">
+      {% if item.result_unit %}<span class="input-group-text">{{ item.result_unit }}</span>{% endif %}
+      </div>{% if item.result_type == 'NUMERIC' %}<div class="form-text mt-2" id="reference-{{ item.id }}">ค่าอ้างอิง: {{ meta.get('reference_text', 'ยังไม่ได้กำหนดค่าอ้างอิง') }}</div>{% endif %}</div>
       {% endif %}
-      <span>{{ item.result_unit or '' }}</span>
-      <label><input type="checkbox" name="ack_{{ item.id }}"> Acknowledge critical value</label>
+      {% if item.result_type == 'NUMERIC' %}
+      <div class="alert alert-danger mt-3 mb-0 result-critical-notice" data-critical-notice role="status"{% if not meta.get('critical') %} hidden{% endif %}>
+        <strong class="d-block">ผลตรวจถึงเกณฑ์วิกฤต</strong><p class="small mb-2">ผลตรวจถึงเกณฑ์วิกฤตที่ตั้งไว้ โปรดตรวจทานก่อนบันทึก</p>
+        <label class="form-check mb-0" for="ack-{{ item.id }}"><input class="form-check-input" type="checkbox" id="ack-{{ item.id }}" name="ack_{{ item.id }}"{% if item.result and item.result.critical_acknowledged_at %} checked{% endif %}{% if meta.get('critical') %} required{% else %} disabled{% endif %}> รับทราบค่าวิกฤตแล้ว</label>
+      </div>
+      {% endif %}
       {% if saved and not locked %}
       <div data-reason-container hidden>
         <label class="form-label d-block mt-2" for="reason-{{ item.id }}">เหตุผลการแก้ไขผล</label>
@@ -47,33 +55,14 @@
       {% endif %}
     </fieldset>
     {% if locked %}<div class="alert alert-info mt-2 mb-0">Released results are locked. Use the amendment workflow for corrections.</div>{% endif %}
-  </div></div>
+  </div></section>
   {% else %}
   <div class="alert alert-info">{{ item.test_code }} · {{ item.test_name_en }} — Outlab รับใบผลแยกเอกสาร
     {% if item.outlab %}<a href="{{ url_for('outlab_detail', case_id=item.outlab.id) }}">ติดตาม / รับใบผล Outlab</a>{% endif %}
   </div>
   {% endif %}
   {% endfor %}
-  <button class="btn btn-primary" type="submit">Save results</button>
+  <div class="result-entry-actions"><span class="small text-secondary">บันทึกผลที่กรอกแล้ว · Panel ที่ยังไม่ครบสามารถกลับมากรอกต่อได้</span><button class="btn btn-primary" type="submit">บันทึกผลตรวจ | Save results</button></div>
 </form>
-<script>
-document.querySelectorAll('[data-edit-result]').forEach(toggle => {
-  const fields = document.getElementById(`result-fields-${toggle.dataset.editResult}`);
-  const values = [...fields.querySelectorAll('[name^="value_"], [name^="parameter_"]')];
-  const reason = fields.querySelector('[name^="reason_"]');
-  const container = fields.querySelector('[data-reason-container]');
-  const originals = values.map(value => value.value);
-  function update() {
-    fields.disabled = !toggle.checked;
-    const changed = values.some((value, index) => value.type === 'number'
-      ? Number(value.value) !== Number(originals[index]) || value.value === ''
-      : value.value.trim().replace(/\s+/g, ' ') !== originals[index].trim().replace(/\s+/g, ' '));
-    container.hidden = !toggle.checked;
-    reason.required = toggle.checked && (changed || toggle.dataset.review === 'true');
-    if (!toggle.checked) { values.forEach((value, index) => { value.value = originals[index]; }); reason.value = ''; }
-  }
-  toggle.addEventListener('change', update);
-  values.forEach(value => value.addEventListener('input', update));
-});
-</script>
+<script src="{{ url_for('static', path='/js/result-entry.js') }}" defer></script>
 {% endblock %}

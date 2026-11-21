@@ -506,6 +506,7 @@ def entry(
             "page_title": "Result Entry",
             "order_id": order_id,
             "items": items,
+            "entry_metadata": service.entry_metadata(items),
             "errors": [],
         },
     )

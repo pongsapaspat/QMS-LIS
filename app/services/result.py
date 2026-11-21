@@ -55,6 +55,31 @@ class ResultService:
             raise OrderNotFoundError("lab order not found")
         return self.repository.order_context(order_id)
 
+    def entry_metadata(self, items: list[LabOrderItem]) -> dict[int, dict[str, object]]:
+        metadata = {}
+        for item in items:
+            if item.is_outlab or item.result_type != "NUMERIC":
+                continue
+            reference = self._match_range(item)
+            snapshot = self._range_snapshot(reference) if reference else {}
+            if item.result and item.result.status == ResultStatus.RELEASED:
+                snapshot = item.result.reference_range_snapshot or {}
+            value = item.result.numeric_value if item.result else None
+            lower, upper = snapshot.get("lower_critical"), snapshot.get("upper_critical")
+            critical = value is not None and (
+                (lower is not None and value <= Decimal(str(lower)))
+                or (upper is not None and value >= Decimal(str(upper)))
+            )
+            metadata[item.id] = {
+                "reference_text": snapshot.get("display_text") or (
+                    f"{format_result_number(snapshot['lower_value'], None)} – "
+                    f"{format_result_number(snapshot['upper_value'], None)}"
+                    if snapshot.get("lower_value") is not None else "ยังไม่ได้กำหนดค่าอ้างอิง"
+                ),
+                "lower_critical": lower, "upper_critical": upper, "critical": bool(critical),
+            }
+        return metadata
+
     def save_multiple(
         self, order_id: int, data: MultiResultSave, *, actor_reference: str
     ) -> list[Result]:
