@@ -6,6 +6,25 @@ from decimal import Decimal, InvalidOperation
 from app.domain.exceptions import InvalidResultOperationError
 
 
+# Entry choices are separate from stored panel definitions so existing orders
+# receive the same controls without changing their reference ranges or results.
+UA_ENTRY_OPTIONS = {
+    "COLOR": (
+        "Yellow", "Straw", "Pale yellow", "Dark yellow", "Amber", "Orange", "Red", "Brown",
+        "Colorless",
+    ),
+    "TURBIDITY": ("Clear", "Slightly cloudy", "Cloudy", "Turbid"),
+    "PROTEIN": ("Negative", "Trace", "1+", "2+", "3+", "4+"),
+    "GLUCOSE": ("Negative", "Trace", "1+", "2+", "3+", "4+"),
+    "KETONES": ("Negative", "Trace", "1+", "2+", "3+", "4+"),
+    "BLOOD": ("Negative", "Trace", "1+", "2+", "3+", "4+"),
+    "BILIRUBIN": ("Negative", "Trace", "1+", "2+", "3+", "4+"),
+    "UROBILINOGEN": ("Negative", "Trace", "1+", "2+", "3+", "4+"),
+    "NITRITE": ("Negative", "Positive"),
+    "LEUKOCYTES": ("Negative", "Trace", "1+", "2+", "3+", "4+"),
+}
+
+
 def parameter(code, name, unit="", reference="", lower=None, upper=None, kind="TEXT"):
     return dict(
         code=code, name=name, unit=unit, reference=reference, lower=lower, upper=upper, kind=kind

@@ -421,6 +421,26 @@ class TestCatalogService:
         self.get_test(test_id)
         return self.repository.list_reference_ranges(test_id)
 
+    def update_panel_entry_options(
+        self, test_id: int, code: str, options_text: str, reason: str, *, actor_reference: str
+    ) -> None:
+        test = self.get_test(test_id)
+        parameter = next((p for p in test.parameters if p["code"] == code), None)
+        if test.result_type != "UA" or parameter is None or parameter["kind"] == "NUMERIC":
+            raise InvalidCatalogOperationError("This parameter does not support dropdown options")
+        choices = [" ".join(line.split()) for line in options_text.splitlines() if line.strip()]
+        if not choices or len(choices) > 100 or any(len(value) > 150 for value in choices):
+            raise InvalidCatalogOperationError("Enter 1–100 options, at most 150 characters each")
+        if len({value.casefold() for value in choices}) != len(choices):
+            raise InvalidCatalogOperationError("Dropdown options must not contain duplicates")
+        if not reason.strip() or len(reason.strip()) > 500:
+            raise InvalidCatalogOperationError("Enter a change reason (at most 500 characters)")
+        test.panel_entry_options = {**(test.panel_entry_options or {}), code: choices}
+        self._finish_mutation(
+            "PANEL_ENTRY_OPTIONS_UPDATED", "lab_test", test,
+            {"panel_entry_options"}, reason.strip(), actor_reference,
+        )
+
     def list_qualitative_options(self, test_id: int) -> list[QualitativeResultOption]:
         self.get_test(test_id)
         return self.repository.list_qualitative_options(test_id)

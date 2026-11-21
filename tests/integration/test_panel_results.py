@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -60,7 +62,7 @@ def test_panel_partial_completion_review_release_and_report(
     assert len(item["parameters"]) == count
     item_id = item["order_item_id"]
     first = item["parameters"][0]
-    first_value = "12" if kind == "CBC" else "Yellow"
+    first_value = "12" if kind == "CBC" else "Legacy yellow"
     payload = {"order_item_id": item_id, "parameter_values": {first["code"]: first_value}}
     saved = client.post(context_url, headers=HEADERS, json={"items": [payload]})
     assert saved.status_code == 200, saved.text
@@ -74,6 +76,60 @@ def test_panel_partial_completion_review_release_and_report(
     )
     entry = client.get(f"/worklist/orders/{order_id}", headers=HEADERS)
     assert f'name="parameter_{item_id}_{first["code"]}"' in entry.text
+    if kind == "UA":
+        def dropdown(code):
+            match = re.search(
+                rf'<select[^>]*name="parameter_{item_id}_{code}"[^>]*>(.*?)</select>',
+                entry.text,
+                re.S,
+            )
+            assert match is not None
+            return match.group(1)
+
+        assert '<option value="Legacy yellow" selected>' in dropdown("COLOR")
+        assert '<option value="" selected>' in dropdown("PROTEIN")
+        for value in ("Negative", "Trace", "1+", "2+", "3+", "4+"):
+            assert f'<option value="{value}">' in dropdown("PROTEIN")
+            assert f'<option value="{value}">' in dropdown("UROBILINOGEN")
+        assert '<option value="" selected>' in dropdown("UROBILINOGEN")
+        assert '<option value="Positive">' in dropdown("NITRITE")
+        assert '<option value="1+">' not in dropdown("NITRITE")
+        options_url = f'/test-catalog/{test.json()["id"]}/parameters/COLOR/options'
+        settings_page = client.get(options_url, headers=ADMIN_HEADERS)
+        assert settings_page.status_code == 200
+        assert "Yellow" in settings_page.text
+        assert client.get(options_url, headers=HEADERS).status_code == 403
+        assert client.post(
+            options_url, headers=HEADERS,
+            data={"options_text": "Forbidden", "reason": "Not admin"},
+        ).status_code == 403
+        for options, reason in [("", "Empty"), ("Yellow\nyellow", "Duplicate"),
+                                ("x" * 151, "Too long"), ("Straw", "")]:
+            assert client.post(
+                options_url, headers=ADMIN_HEADERS,
+                data={"options_text": options, "reason": reason},
+            ).status_code == 422
+        assert client.post(
+            options_url, headers=ADMIN_HEADERS,
+            data={"options_text": "Straw\nCustom yellow", "reason": "Match lab choices"},
+            follow_redirects=False,
+        ).status_code == 303
+        changed = client.get(f"/worklist/orders/{order_id}", headers=HEADERS)
+        color_select = re.search(
+            rf'<select[^>]*name="parameter_{item_id}_COLOR"[^>]*>(.*?)</select>',
+            changed.text, re.S,
+        ).group(1)
+        assert '<option value="Custom yellow">' in color_select
+        assert '<option value="Yellow">' not in color_select
+        assert color_select.index('value="Straw"') < color_select.index('value="Custom yellow"')
+        assert '<option value="Legacy yellow" selected>' in color_select
+        detail = client.get(f'/test-catalog/{test.json()["id"]}', headers=ADMIN_HEADERS)
+        assert "PANEL_ENTRY_OPTIONS_UPDATED" in detail.text
+        assert "Match lab choices" in detail.text
+        for code in ("SG", "PH", "RBC", "WBC"):
+            assert re.search(rf'<input[^>]*name="parameter_{item_id}_{code}"', entry.text)
+    else:
+        assert not re.search(r'<select[^>]*name="parameter_', entry.text)
     values = {
         p["code"]: p["lower"] if p["kind"] == "NUMERIC" else p["reference"] or "None seen"
         for p in item["parameters"]

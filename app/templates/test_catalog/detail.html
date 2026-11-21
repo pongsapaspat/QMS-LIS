@@ -18,7 +18,7 @@
 <h2 class="h5 mt-4">Parameters ({{ test.parameters | length }})</h2>
 <p>ต้องลงผลครบทุก Parameter และ Verify ครั้งเดียวต่อชุด</p>
 <div class="table-responsive"><table class="table"><thead><tr><th>Parameter</th><th>ชนิดผล</th><th>หน่วย</th><th>ค่าอ้างอิง</th></tr></thead><tbody>
-{% for p in test.parameters %}<tr><td>{{ p.name }}</td><td>{{ p.kind }}</td><td>{{ p.unit or '-' }}</td><td>{{ p.reference or '-' }}</td></tr>{% endfor %}
+{% for p in test.parameters %}<tr><td>{{ p.name }}{% if test.result_type == 'UA' and p.kind != 'NUMERIC' %}<a class="btn btn-sm btn-outline-primary ms-2" href="{{ url_for('test_catalog_parameter_options', test_id=test.id, code=p.code) }}">แก้ไขตัวเลือก</a>{% if test.entry_options.get(p.code) %}<div class="small text-secondary mt-1">{{ test.entry_options[p.code] | join(', ') }}</div>{% endif %}{% endif %}</td><td>{{ 'DROPDOWN' if test.entry_options.get(p.code) else p.kind }}</td><td>{{ p.unit or '-' }}</td><td>{{ p.reference or '-' }}</td></tr>{% endfor %}
 </tbody></table></div>
 {% endif %}
 {% endblock %}

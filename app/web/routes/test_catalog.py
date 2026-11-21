@@ -32,6 +32,49 @@ from app.web.templates import templates
 
 router = APIRouter(prefix="/test-catalog")
 
+
+@router.get("/{test_id}/parameters/{code}/options", name="test_catalog_parameter_options")
+def parameter_options(
+    test_id: int, code: str, request: Request,
+    service: TestCatalogServiceDependency, actor: AdminActorDependency,
+) -> Response:
+    test = service.get_test(test_id)
+    parameter = next((p for p in test.parameters if p["code"] == code), None)
+    if test.result_type != "UA" or parameter is None or parameter["kind"] == "NUMERIC":
+        raise CatalogNotFoundError("Dropdown parameter not found")
+    return templates.TemplateResponse(
+        request=request, name="test_catalog/parameter_options.html",
+        context={"test": test, "parameter": parameter,
+                 "options_text": "\n".join(test.entry_options.get(code, [])),
+                 "reason": "", "errors": []},
+    )
+
+
+@router.post("/{test_id}/parameters/{code}/options", name="test_catalog_parameter_options_save")
+async def save_parameter_options(
+    test_id: int, code: str, request: Request,
+    service: TestCatalogServiceDependency, actor: AdminActorDependency,
+) -> Response:
+    test = service.get_test(test_id)
+    parameter = next((p for p in test.parameters if p["code"] == code), None)
+    if test.result_type != "UA" or parameter is None or parameter["kind"] == "NUMERIC":
+        raise CatalogNotFoundError("Dropdown parameter not found")
+    form = await request.form()
+    options_text, reason = str(form.get("options_text", "")), str(form.get("reason", ""))
+    try:
+        service.update_panel_entry_options(
+            test_id, code, options_text, reason, actor_reference=actor.reference
+        )
+    except InvalidCatalogOperationError as exc:
+        return templates.TemplateResponse(
+            request=request, name="test_catalog/parameter_options.html", status_code=422,
+            context={"test": test, "parameter": parameter, "options_text": options_text,
+                     "reason": reason, "errors": [str(exc)]},
+        )
+    return RedirectResponse(
+        request.url_for("test_catalog_detail", test_id=test_id), status_code=303
+    )
+
 TEST_FORM_FIELDS = (
     "code",
     "name_th",

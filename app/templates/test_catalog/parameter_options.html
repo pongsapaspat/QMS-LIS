@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3">แก้ไขตัวเลือก — {{ test.code }} / {{ parameter.name }}</h1>
+{% if errors %}<div class="alert alert-danger" role="alert">{% for error in errors %}<p class="mb-0">{{ error }}</p>{% endfor %}</div>{% endif %}
+<form method="post" class="card"><div class="card-body">
+  <label class="form-label" for="options_text">ตัวเลือกใน dropdown (หนึ่งตัวเลือกต่อบรรทัด)</label>
+  <textarea class="form-control" id="options_text" name="options_text" rows="12" required aria-describedby="options_help">{{ options_text }}</textarea>
+  <p class="form-text" id="options_help">เพิ่มหรือแก้ไขข้อความได้โดยตรง ลบบรรทัดเพื่อเอาตัวเลือกออก และย้ายบรรทัดเพื่อเรียงลำดับ ต้องเหลืออย่างน้อยหนึ่งตัวเลือก ผลที่บันทึกไว้แล้วจะยังแสดงได้ครบ</p>
+  <p class="text-secondary">ใช้กับหน้ากรอกผลของรายการตรวจนี้ รวมถึงใบสั่งตรวจเดิม ค่าอ้างอิงและการแปลผลยังใช้เกณฑ์เดิม</p>
+  <label class="form-label" for="reason">เหตุผลในการแก้ไข</label>
+  <input class="form-control mb-3" id="reason" name="reason" maxlength="500" required value="{{ reason }}">
+  <button class="btn btn-primary" type="submit">บันทึกตัวเลือก</button>
+  <a class="btn btn-outline-secondary" href="{{ url_for('test_catalog_detail', test_id=test.id) }}">กลับ</a>
+</div></form>
+{% endblock %}

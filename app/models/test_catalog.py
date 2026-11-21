@@ -87,6 +87,7 @@ class LabTest(TimestampMixin, Base):
     result_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     result_unit: Mapped[str | None] = mapped_column(String(50), nullable=True)
     tat_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    panel_entry_options: Mapped[dict[str, list[str]] | None] = mapped_column(JSON, nullable=True)
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true(), nullable=False, index=True
     )
@@ -99,6 +100,13 @@ class LabTest(TimestampMixin, Base):
         back_populates="test"
     )
     price_history: Mapped[list["TestPriceHistory"]] = relationship(back_populates="test")
+
+    @property
+    def entry_options(self) -> dict[str, list[str]]:
+        from app.domain.panels import UA_ENTRY_OPTIONS
+
+        defaults = {code: list(values) for code, values in UA_ENTRY_OPTIONS.items()}
+        return {**defaults, **(self.panel_entry_options or {})} if self.result_type == "UA" else {}
 
     @property
     def parameters(self) -> list[dict]:

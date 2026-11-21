@@ -16,7 +16,19 @@
       <p class="small text-secondary">กรอกครบทุก Parameter เพื่อส่ง Verify · หากยังไม่ครบ ระบบบันทึกไว้ให้กรอกต่อ</p>
       <div class="table-responsive"><table class="table"><thead><tr><th>Parameter</th><th>ผลตรวจ</th><th>หน่วย</th><th>ค่าอ้างอิง</th></tr></thead><tbody>
       {% for parameter in item.parameter_definitions %}
-      <tr><td><label for="parameter-{{ item.id }}-{{ parameter.code }}">{{ parameter.name }}</label></td><td><input class="form-control" id="parameter-{{ item.id }}-{{ parameter.code }}" name="parameter_{{ item.id }}_{{ parameter.code }}" type="{{ 'number' if parameter.kind == 'NUMERIC' else 'text' }}" step="any" maxlength="150" value="{{ (item.result.parameter_values or {}).get(parameter.code, '') if item.result else '' }}"></td><td>{{ parameter.unit or '-' }}</td><td>{{ parameter.reference or '-' }}</td></tr>
+      {% set current_value = (item.result.parameter_values or {}).get(parameter.code, '') if item.result else '' %}
+      {% set choices = item.lab_test.entry_options.get(parameter.code, ()) if item.result_type == 'UA' else () %}
+      <tr><td><label for="parameter-{{ item.id }}-{{ parameter.code }}">{{ parameter.name }}</label></td><td>
+      {% if choices %}
+      <select class="form-select" id="parameter-{{ item.id }}-{{ parameter.code }}" name="parameter_{{ item.id }}_{{ parameter.code }}">
+        <option value=""{% if not current_value %} selected{% endif %}>เลือกผล</option>
+        {% if current_value and current_value not in choices %}<option value="{{ current_value }}" selected>{{ current_value }} (ผลเดิม)</option>{% endif %}
+        {% for choice in choices %}<option value="{{ choice }}"{% if current_value == choice %} selected{% endif %}>{{ choice }}</option>{% endfor %}
+      </select>
+      {% else %}
+      <input class="form-control" id="parameter-{{ item.id }}-{{ parameter.code }}" name="parameter_{{ item.id }}_{{ parameter.code }}" type="{{ 'number' if parameter.kind == 'NUMERIC' else 'text' }}" step="any" maxlength="150" value="{{ current_value }}">
+      {% endif %}
+      </td><td>{{ parameter.unit or '-' }}</td><td>{{ parameter.reference or '-' }}</td></tr>
       {% endfor %}
       </tbody></table></div>
       {% elif item.result_type in ['CATEGORICAL', 'QUALITATIVE'] %}
