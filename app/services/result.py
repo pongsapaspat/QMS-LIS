@@ -662,7 +662,7 @@ class ResultService:
 
     def _interpret(self, item: LabOrderItem, submitted: ResultItemSave) -> dict[str, object]:
         result_type = item.result_type
-        if result_type in {'CBC', 'UA'}:
+        if result_type in {'CBC', 'UA', 'INFLUENZA_AB'}:
             rows = interpret_panel(item.parameter_definitions or [],
                                    submitted.parameter_values or {}, submitted.complete)
             return {'flag': 'A' if any(row['flag'] in {'H', 'L', 'A'} for row in rows) else None,

@@ -12,6 +12,7 @@ from app.models.specimen import Specimen, SpecimenItem, SpecimenStatus
 from app.models.test_catalog import (
     LaboratoryDepartment,
     LabTest,
+    LabTestDraft,
     QualitativeResultOption,
     ReferenceRange,
     SpecimenType,
@@ -31,6 +32,7 @@ __all__ = [
     "Base",
     "Branch",
     "LabTest",
+    "LabTestDraft",
     "LaboratoryDepartment",
     "Patient",
     "Specimen",

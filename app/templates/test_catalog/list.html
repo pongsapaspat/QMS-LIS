@@ -9,6 +9,18 @@
     <a class="btn btn-primary" href="{{ url_for('test_catalog_new') }}">Add test | เพิ่มรายการตรวจ</a>
   </div>
 </div>
+{% if drafts %}
+<section class="card card-body mb-4" aria-labelledby="draft-tests-heading">
+  <h2 class="h5" id="draft-tests-heading">รายการรอกรอกรายละเอียด</h2>
+  <p class="text-secondary">เติมข้อมูลให้ครบก่อนเปิดใช้งานและเลือกสั่งตรวจ</p>
+  {% for draft in drafts %}
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2{% if not loop.last %} border-bottom pb-3 mb-3{% endif %}">
+    <div><strong>{{ draft.name }}</strong>{% if draft.is_outlab %} <span class="badge text-bg-secondary">Outlab</span>{% endif %}</div>
+    <a class="btn btn-outline-primary" href="{{ url_for('test_catalog_new') }}?draft_id={{ draft.id }}">เพิ่มรายละเอียด</a>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
 <form class="card card-body mb-4" method="get"><div class="row g-2 align-items-end">
   <div class="col-md-3"><label class="form-label" for="search">Search | ค้นหา</label><input class="form-control" id="search" name="search" value="{{ search }}" placeholder="Code or name"></div>
   <div class="col-md-2"><label class="form-label" for="category_id">Category</label><select class="form-select" id="category_id" name="category_id"><option value="">All</option>{% for item in categories %}<option value="{{ item.id }}" {% if category_id == item.id %}selected{% endif %}>{{ item.code }} - {{ item.name_en }}</option>{% endfor %}</select></div>

@@ -64,6 +64,24 @@ class SpecimenType(TimestampMixin, Base):
     tests: Mapped[list["LabTest"]] = relationship(back_populates="specimen_type")
 
 
+class LabTestDraft(TimestampMixin, Base):
+    """A catalog name awaiting configuration; never available for ordering."""
+
+    __tablename__ = "lab_test_drafts"
+    __table_args__ = (
+        Index("uq_lab_test_drafts_name_ci", text("lower(name)"), unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    is_outlab: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    completed_test_id: Mapped[int | None] = mapped_column(
+        ForeignKey("lab_tests.id", ondelete="RESTRICT"), nullable=True, unique=True
+    )
+
+
 class LabTest(TimestampMixin, Base):
     __tablename__ = "lab_tests"
     __table_args__ = (

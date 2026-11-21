@@ -2,9 +2,9 @@
 
 from copy import deepcopy
 from decimal import Decimal, InvalidOperation
+from typing import Any
 
 from app.domain.exceptions import InvalidResultOperationError
-
 
 # Entry choices are separate from stored panel definitions so existing orders
 # receive the same controls without changing their reference ranges or results.
@@ -25,13 +25,23 @@ UA_ENTRY_OPTIONS = {
 }
 
 
-def parameter(code, name, unit="", reference="", lower=None, upper=None, kind="TEXT"):
+def parameter(
+    code: str, name: str, unit: str = "", reference: str = "",
+    lower: str | None = None, upper: str | None = None, kind: str = "TEXT",
+) -> dict[str, Any]:
     return dict(
         code=code, name=name, unit=unit, reference=reference, lower=lower, upper=upper, kind=kind
     )
 
 
 PRESETS = {
+    "INFLUENZA_AB": [
+        {
+            **parameter(code, name, kind="CATEGORICAL"),
+            "choices": ["Negative", "Positive"],
+        }
+        for code, name in [("FLU_A", "Influenza A"), ("FLU_B", "Influenza B")]
+    ],
     "CBC": [
         parameter("HB", "Hemoglobin (Hb)", "g/dL", "11.0–18.8", "11.0", "18.8", "NUMERIC"),
         parameter("HCT", "Hematocrit (Hct)", "%", "35.0–55.0", "35.0", "55.0", "NUMERIC"),
@@ -90,6 +100,8 @@ def interpret_panel(definitions: list[dict], values: dict[str, str], complete: b
             if complete:
                 raise InvalidResultOperationError(f"กรุณากรอก {p['name']} ให้ครบก่อนส่ง Verify")
             continue
+        if p.get("choices") and value not in p["choices"]:
+            raise InvalidResultOperationError(f"กรุณาเลือกผล {p['name']} จากตัวเลือกที่กำหนด")
         flag = None
         if p["kind"] == "NUMERIC":
             try:

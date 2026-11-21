@@ -244,6 +244,7 @@ def test_catalog_list(
         context={
             "page_title": "Test Catalog",
             "tests": tests,
+            "drafts": service.list_test_drafts(search),
             "total": total,
             "page": page,
             "page_size": page_size,
@@ -263,15 +264,28 @@ def test_catalog_list(
 
 @router.get("/new", response_class=HTMLResponse, name="test_catalog_new")
 def test_catalog_new(
-    request: Request, service: TestCatalogServiceDependency, actor: AdminActorDependency
+    request: Request, service: TestCatalogServiceDependency, actor: AdminActorDependency,
+    draft_id: int | None = None,
 ) -> Response:
+    draft = service.get_test_draft(draft_id) if draft_id is not None else None
+    if draft is not None and draft.completed_test_id is not None:
+        return RedirectResponse(
+            request.url_for("test_catalog_detail", test_id=draft.completed_test_id), status_code=303
+        )
+    values: dict[str, Any] = {"result_type": ResultType.NUMERIC.value}
+    if draft is not None:
+        values.update(
+            name_th=draft.name, name_en=draft.name, is_outlab=draft.is_outlab,
+            result_type=ResultType.TEXT.value if draft.is_outlab else ResultType.NUMERIC.value,
+        )
     return templates.TemplateResponse(
         request=request,
         name="test_catalog/form.html",
         context={
             "page_title": "Test Catalog",
             "mode": "create",
-            "values": {"result_type": ResultType.NUMERIC.value},
+            "values": values,
+            "draft": draft,
             "errors": [],
             "test": None,
             **_master_context(service),
@@ -281,13 +295,16 @@ def test_catalog_new(
 
 @router.post("/new", response_class=HTMLResponse, name="test_catalog_create")
 async def test_catalog_create(
-    request: Request, service: TestCatalogServiceDependency, actor: AdminActorDependency
+    request: Request, service: TestCatalogServiceDependency, actor: AdminActorDependency,
+    draft_id: int | None = None,
 ) -> Response:
+    draft = service.get_test_draft(draft_id) if draft_id is not None else None
     form = await request.form()
     values = _form_values(form, TEST_FORM_FIELDS)
     try:
         test = service.create_test(
-            CatalogTestCreate.model_validate(values), actor_reference=actor.reference
+            CatalogTestCreate.model_validate(values), actor_reference=actor.reference,
+            draft_id=draft_id,
         )
     except (
         ValidationError,
@@ -303,6 +320,7 @@ async def test_catalog_create(
                 "mode": "create",
                 "values": values,
                 "test": None,
+                "draft": draft,
                 **_master_context(service),
             },
             exc,

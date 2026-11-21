@@ -1,11 +1,12 @@
 from typing import cast
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.test_catalog import (
     LaboratoryDepartment,
     LabTest,
+    LabTestDraft,
     QualitativeResultOption,
     ReferenceRange,
     SpecimenType,
@@ -24,6 +25,24 @@ class TestCatalogRepository:
 
     def flush(self) -> None:
         self.session.flush()
+
+    def get_test_draft(self, draft_id: int) -> LabTestDraft | None:
+        return self.session.get(LabTestDraft, draft_id)
+
+    def list_test_drafts(self, search: str | None = None) -> list[LabTestDraft]:
+        statement = select(LabTestDraft).where(LabTestDraft.completed_test_id.is_(None))
+        if search and search.strip():
+            statement = statement.where(LabTestDraft.name.ilike(f"%{search.strip()}%"))
+        return list(self.session.scalars(statement.order_by(LabTestDraft.name)))
+
+    def complete_test_draft(self, draft_id: int, test_id: int) -> bool:
+        claimed = self.session.execute(
+            update(LabTestDraft)
+            .where(LabTestDraft.id == draft_id, LabTestDraft.completed_test_id.is_(None))
+            .values(completed_test_id=test_id)
+            .returning(LabTestDraft.id)
+        ).scalar_one_or_none()
+        return claimed is not None
 
     def get_category(self, category_id: int) -> TestCategory | None:
         return self.session.get(TestCategory, category_id)

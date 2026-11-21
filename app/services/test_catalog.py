@@ -14,6 +14,7 @@ from app.models.audit import AuditLog
 from app.models.test_catalog import (
     LaboratoryDepartment,
     LabTest,
+    LabTestDraft,
     QualitativeResultOption,
     ReferenceRange,
     SpecimenType,
@@ -41,6 +42,7 @@ CatalogEntity = (
     | SpecimenType
     | LaboratoryDepartment
     | LabTest
+    | LabTestDraft
     | ReferenceRange
     | QualitativeResultOption
 )
@@ -226,7 +228,40 @@ class TestCatalogService:
         )
         return department
 
-    def create_test(self, data: CatalogTestCreate, *, actor_reference: str) -> LabTest:
+    def create_test_draft(
+        self, name: str, *, is_outlab: bool, actor_reference: str
+    ) -> LabTestDraft:
+        name = " ".join(name.split())
+        if not name or len(name) > 200:
+            raise InvalidCatalogOperationError("test name must contain 1–200 characters")
+        draft = LabTestDraft(name=name, is_outlab=is_outlab)
+        try:
+            self.repository.add(draft)
+            self._audit(
+                "LAB_TEST_DRAFT_CREATED", "lab_test_draft", draft,
+                {"name", "is_outlab"}, "Add name pending catalog configuration", actor_reference,
+            )
+            self.session.commit()
+        except IntegrityError as exc:
+            self.session.rollback()
+            raise DuplicateCatalogCodeError("draft test name already exists") from exc
+        return draft
+
+    def get_test_draft(self, draft_id: int) -> LabTestDraft:
+        draft = self.repository.get_test_draft(draft_id)
+        if draft is None:
+            raise CatalogNotFoundError("draft test not found")
+        return draft
+
+    def list_test_drafts(self, search: str | None = None) -> list[LabTestDraft]:
+        return self.repository.list_test_drafts(search)
+
+    def create_test(
+        self, data: CatalogTestCreate, *, actor_reference: str, draft_id: int | None = None
+    ) -> LabTest:
+        draft = self.get_test_draft(draft_id) if draft_id is not None else None
+        if draft is not None and draft.completed_test_id is not None:
+            raise InvalidCatalogOperationError("รายการนี้กรอกรายละเอียดเรียบร้อยแล้ว")
         self._require_active_configuration(
             data.category_id, data.department_id, data.specimen_type_id
         )
@@ -256,11 +291,21 @@ class TestCatalogService:
                 data.reason,
                 actor_reference,
             )
+            if draft is not None:
+                if not self.repository.complete_test_draft(draft.id, test.id):
+                    raise InvalidCatalogOperationError("รายการนี้กรอกรายละเอียดเรียบร้อยแล้ว")
+                self._audit(
+                    "LAB_TEST_DRAFT_COMPLETED", "lab_test_draft", draft,
+                    {"completed_test_id"}, data.reason, actor_reference,
+                )
             self.session.commit()
             self.session.refresh(test)
         except IntegrityError as exc:
             self.session.rollback()
             raise DuplicateCatalogCodeError("test code already exists") from exc
+        except InvalidCatalogOperationError:
+            self.session.rollback()
+            raise
         return self.get_test(test.id)
 
     def get_test(self, test_id: int) -> LabTest:
@@ -752,6 +797,7 @@ class TestCatalogService:
         if result_type not in (
             ResultType.CBC,
             ResultType.UA,
+            ResultType.INFLUENZA_AB,
             ResultType.NUMERIC,
             ResultType.TEXT,
             ResultType.CATEGORICAL,

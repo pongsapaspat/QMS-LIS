@@ -19,7 +19,7 @@
       <div class="table-responsive result-parameter-table"><table class="table align-middle"><colgroup><col style="width: 32%"><col style="width: 30%"><col style="width: 16%"><col style="width: 22%"></colgroup><thead><tr><th>Parameter</th><th>ผลตรวจ</th><th>หน่วย</th><th>ค่าอ้างอิง</th></tr></thead><tbody>
       {% for parameter in item.parameter_definitions %}
       {% set current_value = (item.result.parameter_values or {}).get(parameter.code, '') if item.result else '' %}
-      {% set choices = item.lab_test.entry_options.get(parameter.code, ()) if item.result_type == 'UA' else () %}
+      {% set choices = item.lab_test.entry_options.get(parameter.code, ()) if item.result_type == 'UA' else parameter.get('choices', ()) %}
       <tr><td><label for="parameter-{{ item.id }}-{{ parameter.code }}">{{ parameter.name }}</label></td><td>
       {% if choices %}
       <select class="form-select" id="parameter-{{ item.id }}-{{ parameter.code }}" name="parameter_{{ item.id }}_{{ parameter.code }}">
