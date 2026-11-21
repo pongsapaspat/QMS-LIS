@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.core.config import get_settings
 
-WEB_DATETIME_FORMAT = "%d/%m/%Y %H:%M"
+WEB_DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 DATETIME_LOCAL_FORMAT = "%Y-%m-%dT%H:%M"
 
 
@@ -41,14 +41,12 @@ def to_app_timezone(value: datetime, timezone_name: str | None = None) -> dateti
 def format_datetime_for_web(
     value: datetime | date | None, timezone_name: str | None = None
 ) -> str:
-    """Format a datetime for web display without shifting date-only values."""
+    """Show local time to the second, without an offset suffix or shifting dates."""
     if value is None:
         return "—"
     if isinstance(value, datetime):
         localized = to_app_timezone(value, timezone_name)
-        offset = localized.strftime("%z")
-        readable_offset = f"{offset[:3]}:{offset[3:]}"
-        return f"{localized.strftime(WEB_DATETIME_FORMAT)} ({readable_offset})"
+        return localized.strftime(WEB_DATETIME_FORMAT)
     return value.isoformat()
 
 

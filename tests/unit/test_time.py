@@ -29,10 +29,20 @@ def test_bangkok_conversion_and_web_formats_preserve_the_instant() -> None:
 
     assert displayed.isoformat() == "2026-10-28T14:30:00+07:00"
     assert format_datetime_for_web(stored, "Asia/Bangkok") == (
-        "28/10/2026 14:30 (+07:00)"
+        "28/10/2026 14:30:00"
     )
     assert format_datetime_local(stored, "Asia/Bangkok") == "2026-10-28T14:30"
     assert format_datetime_for_web(date(2026, 10, 28), "Asia/Bangkok") == "2026-10-28"
+
+
+@pytest.mark.parametrize("stored,expected", [
+    (datetime(2026, 11, 21, 4, 33, 25, tzinfo=UTC), "21/11/2026 11:33:25"),
+    (datetime(2026, 11, 21, 18, 59, 59, tzinfo=UTC), "22/11/2026 01:59:59"),
+    (datetime(2026, 11, 21, 4, 33, 25), "21/11/2026 11:33:25"),
+    (None, "—"),
+])
+def test_web_times_show_seconds_without_timezone_suffix(stored, expected):
+    assert format_datetime_for_web(stored, "Asia/Bangkok") == expected
 
 
 def test_datetime_local_is_interpreted_in_bangkok_and_converted_to_utc() -> None:
