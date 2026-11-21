@@ -1,17 +1,22 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.domain.exceptions import (
     CatalogNotFoundError,
+    InvalidBookingOperationError,
     OrderNotFoundError,
     PatientNotFoundError,
 )
 from app.domain.panels import panel_definitions
 from app.models.base import utc_now
+from app.models.booking import Booking, BookingOrder
 from app.models.order import LabOrder, LabOrderItem
 from app.models.outlab import OutlabCase
 from app.repositories.order import OrderRepository
 from app.schemas.order import LabOrderCreate
 from app.services.package import PackageService
+from app.services.report_identity import capture_identity
 
 
 class OrderService:
@@ -20,13 +25,27 @@ class OrderService:
         self.repository = repository or OrderRepository(session)
 
     def create(self, data: LabOrderCreate, *, actor_reference: str) -> LabOrder:
+        if data.booking_id is not None:
+            booking = self.session.get(Booking, data.booking_id)
+            if (
+                booking is None
+                or booking.status != "REGISTERED"
+                or booking.patient_id != data.patient_id
+            ):
+                raise InvalidBookingOperationError(
+                    "กรุณาลงทะเบียนและตรวจสอบผู้ป่วยของรายการจองก่อนสร้าง Order"
+                )
+            if self.session.get(BookingOrder, data.booking_id) is not None:
+                raise InvalidBookingOperationError(
+                    "รายการจองนี้สร้าง Order แล้ว กรุณาเปิด Order เดิม", conflict=True
+                )
         patient = self.repository.get_patient(data.patient_id)
         if patient is None or not patient.is_active:
             raise PatientNotFoundError("active patient not found")
 
         packages = [PackageService(self.session).get(package_id) for package_id in data.package_ids]
         if any(not package.available for package in packages):
-            raise CatalogNotFoundError('One or more packages are unavailable')
+            raise CatalogNotFoundError("One or more packages are unavailable")
         selected_ids = set(data.test_ids)
         for package in packages:
             selected_ids.update(test.id for test in package.tests)
@@ -46,12 +65,21 @@ class OrderService:
             referrer_license_number=data.referrer_license_number,
             ordered_at=ordered_at,
             created_by=actor_reference,
-            package_snapshots=[{
-                'id': p.id, 'code': p.code, 'name': p.name, 'price': str(p.price),
-                'test_ids': [test.id for test in p.tests],
-                'tests': [{'id': test.id, 'code': test.code, 'name': test.name_en}
-                          for test in p.tests],
-            } for p in packages] or None,
+            created_by_snapshot=capture_identity(self.session, actor_reference, get_settings()),
+            package_snapshots=[
+                {
+                    "id": p.id,
+                    "code": p.code,
+                    "name": p.name,
+                    "price": str(p.price),
+                    "test_ids": [test.id for test in p.tests],
+                    "tests": [
+                        {"id": test.id, "code": test.code, "name": test.name_en} for test in p.tests
+                    ],
+                }
+                for p in packages
+            ]
+            or None,
         )
         self.repository.add(order)
         order.order_number = f"ORD{ordered_at:%Y%m%d}-{order.id:06d}"
@@ -71,8 +99,17 @@ class OrderService:
             for test in tests
         ]
         try:
+            if data.booking_id is not None:
+                self.session.add(BookingOrder(booking_id=data.booking_id, order_id=order.id))
             self.session.commit()
             self.session.refresh(order)
+        except IntegrityError as exc:
+            self.session.rollback()
+            if data.booking_id is not None:
+                raise InvalidBookingOperationError(
+                    "รายการจองนี้สร้าง Order แล้ว กรุณาโหลดรายการล่าสุด", conflict=True
+                ) from exc
+            raise
         except Exception:
             self.session.rollback()
             raise

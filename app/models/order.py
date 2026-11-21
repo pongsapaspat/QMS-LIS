@@ -77,6 +77,7 @@ class LabOrder(TimestampMixin, Base):
         UTCDateTime(), default=utc_now, server_default=func.now(), nullable=False, index=True
     )
     created_by: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_by_snapshot: Mapped[dict | None] = mapped_column(JSON)
     verified_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True, index=True)
     verified_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     released_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True, index=True)

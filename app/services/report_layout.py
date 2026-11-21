@@ -5,7 +5,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.config import Settings
-from app.services.report_identity import identity_label, referrer_label
+from app.services.report_identity import identity_label, order_creator_label, referrer_label
 
 
 def prepare_report(context: dict[str, Any], settings: Settings) -> dict[str, Any]:
@@ -85,6 +85,7 @@ def prepare_report(context: dict[str, Any], settings: Settings) -> dict[str, Any
         "sections": list(groups.values()),
         "patient_age": age,
         "referrer_label": referrer_label(order),
+        "order_creator_label": order_creator_label(order),
         "lab": {
             "name": settings.report_lab_name,
             "address": settings.report_lab_address,

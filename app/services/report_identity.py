@@ -53,3 +53,16 @@ def referrer_label(order: object) -> str:
     if organization:
         parts.append(organization)
     return " / ".join(parts)
+
+
+def order_creator_label(order: object) -> str:
+    snapshot = getattr(order, "created_by_snapshot", None) or {}
+    name = (
+        snapshot.get("full_name")
+        or snapshot.get("username")
+        or getattr(order, "created_by", None)
+        or "-"
+    )
+    if snapshot.get("license_number"):
+        return f"{name} ({snapshot.get('license_type') or 'ทน.'} {snapshot['license_number']})"
+    return name

@@ -2,11 +2,14 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3"><h1 class="h3">{{ page_title }}</h1><a class="btn btn-outline-secondary" href="{{ url_for('home') }}">Back</a></div>
 {% if errors %}<div class="alert alert-danger"><ul class="mb-0">{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
+{% if booking %}<section class="alert alert-info"><strong>จากรายการจอง {{ booking.booking_number }}</strong><div>ข้อมูลบริการจาก OA: {{ booking.requested_services or '-' }}</div><div>กรุณาตรวจรายการและราคาปัจจุบันก่อนบันทึก Order</div><a href="{{ url_for('booking_detail', booking_id=booking.id) }}">กลับไปยังรายการจอง</a></section>{% endif %}
 <form method="post" class="card card-body" id="order-form">
+  {% if booking %}<input type="hidden" name="booking_id" value="{{ booking.id }}">{% endif %}
+  {% if unavailable_booking_items %}<div class="alert alert-warning">รายการที่จองบางรายการไม่พร้อมใช้งาน กรุณานำออกหรือเลือกใหม่ก่อนสร้าง Order{% for item in unavailable_booking_items %}<label class="d-block"><input type="checkbox" name="{{ 'test_ids' if item.kind == 'TEST' else 'package_ids' }}" value="{{ item.id }}" checked> {{ item.code }} · {{ item.name }} (ไม่พร้อมใช้งาน)</label>{% endfor %}</div>{% endif %}
   <div class="row g-3">
     <div class="col-md-8 position-relative">
       <label class="form-label" for="patient-search">Patient</label>
-      <input class="form-control" id="patient-search" type="search" autocomplete="off" placeholder="Search by patient name, national ID, or HN" aria-autocomplete="list" aria-controls="patient-results" aria-expanded="false" {% if selected_patient %}value="{{ selected_patient.display_name }}"{% endif %}>
+      <input class="form-control" id="patient-search" type="search" autocomplete="off" placeholder="Search by patient name, national ID, or HN" aria-autocomplete="list" aria-controls="patient-results" aria-expanded="false" {% if selected_patient %}value="{{ selected_patient.display_name }}"{% endif %} {% if booking %}readonly{% endif %}>
       <input type="hidden" id="patient_id" name="patient_id" value="{{ values.get('patient_id') or '' }}">
       <div class="list-group position-absolute shadow-sm d-none w-100" id="patient-results" role="listbox" style="z-index: 10; max-height: 16rem; overflow-y: auto;"></div>
       <div class="form-text" id="patient-search-hint">Type at least 2 characters, then choose a patient from the results.</div>
@@ -15,11 +18,14 @@
       </div>
     </div>
     <div class="col-12"><label class="form-label" for="clinical_note">Clinical note</label><textarea class="form-control" id="clinical_note" name="clinical_note" rows="2">{{ values.get('clinical_note') or '' }}</textarea></div>
-    <div class="col-12"><h2 class="h5 mt-2">ผู้ส่งตรวจ</h2><p class="small text-secondary mb-0">ระบุผู้ส่งตรวจจริง แยกจากเจ้าหน้าที่ที่สร้าง Order หากไม่มีผู้ส่งตรวจสามารถเว้นว่างได้</p></div>
+    {% set creator = creator_preview|default({}) %}
+    <div class="col-12"><h2 class="h5 mt-2" id="order-creator-label">ผู้บันทึกคำสั่งตรวจ</h2><div class="form-control bg-light" role="textbox" aria-readonly="true" aria-labelledby="order-creator-label">{{ creator.full_name or creator.username or actor_reference or '-' }}{% if creator.license_number %} · เลข {{ creator.license_type or 'ทน.' }} {{ creator.license_number }}{% endif %}</div><div class="form-text">ดึงจากบัญชีที่ใช้งานและบันทึกอัตโนมัติ{% if not creator.full_name %} · ยังไม่ระบุชื่อ-นามสกุลในโปรไฟล์ ให้ผู้ดูแลตั้งค่าในหน้าจัดการผู้ใช้{% endif %}</div></div>
+    <details class="col-12 mt-3" {% if values.get('referrer_name') or values.get('referrer_organization') or values.get('referrer_license_type') or values.get('referrer_license_number') %}open{% endif %}><summary class="fw-semibold">ผู้ส่งตรวจภายนอก (กรอกเฉพาะเมื่อมีแพทย์หรือหน่วยงานส่งมา)</summary><div class="row g-3 mt-1">
     <div class="col-md-6"><label class="form-label" for="referrer_name">ชื่อ-นามสกุลผู้ส่งตรวจ</label><input class="form-control" id="referrer_name" name="referrer_name" maxlength="200" value="{{ values.get('referrer_name') or '' }}"></div>
     <div class="col-md-6"><label class="form-label" for="referrer_organization">หน่วยงานผู้ส่งตรวจ</label><input class="form-control" id="referrer_organization" name="referrer_organization" maxlength="200" value="{{ values.get('referrer_organization') or '' }}"></div>
     <div class="col-md-4"><label class="form-label" for="referrer_license_type">ประเภทใบอนุญาต</label><input class="form-control" id="referrer_license_type" name="referrer_license_type" maxlength="50" placeholder="เช่น ทน. หรือ ว." value="{{ values.get('referrer_license_type') or '' }}"></div>
     <div class="col-md-8"><label class="form-label" for="referrer_license_number">เลขใบอนุญาตผู้ส่งตรวจ</label><input class="form-control" id="referrer_license_number" name="referrer_license_number" maxlength="100" value="{{ values.get('referrer_license_number') or '' }}"></div>
+    </div></details>
   </div>
   <hr>
   <h2 class="h5">Active Lab Tests</h2>

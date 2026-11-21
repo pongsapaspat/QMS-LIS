@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from pydantic import ValidationError
 
@@ -10,13 +10,17 @@ from app.api.dependencies import (
     SpecimenServiceDependency,
     TestCatalogServiceDependency,
 )
+from app.core.config import get_settings
 from app.core.security import ActorDependency
 from app.domain.exceptions import (
     CatalogNotFoundError,
+    InvalidBookingOperationError,
     PatientNotFoundError,
 )
 from app.schemas.order import LabOrderCreate
+from app.services.booking import BookingService
 from app.services.package import PackageService
+from app.services.report_identity import capture_identity, order_creator_label
 from app.web.templates import templates
 
 router = APIRouter(prefix="/orders")
@@ -37,9 +41,18 @@ def _context(
         offset=0,
         limit=500,
     )
+    packages = PackageService(catalog_service.session).list(available_only=True)
+    tests = [test for test in tests if test.department.is_active]
+    booking = values.get("booking")
+    available = {("TEST", t.id) for t in tests} | {("PACKAGE", p.id) for p in packages}
     return {
-        "packages": PackageService(catalog_service.session).list(available_only=True),
-        "tests": [test for test in tests if test.department.is_active],
+        "packages": packages,
+        "tests": tests,
+        "unavailable_booking_items": [
+            item for item in booking.requested_items if (item["kind"], item["id"]) not in available
+        ]
+        if booking
+        else [],
         **values,
     }
 
@@ -50,7 +63,34 @@ def order_new(
     patient_service: PatientServiceDependency,
     catalog_service: TestCatalogServiceDependency,
     actor: ActorDependency,
+    booking_id: int | None = None,
 ) -> Response:
+    booking = None
+    values = {}
+    patient = None
+    if booking_id is not None:
+        if actor.role not in {"ADMIN", "IT", "RECEPTION"}:
+            raise HTTPException(403, "Booking access requires reception permission")
+        booking = BookingService(patient_service.session).get(booking_id)
+        if booking.order_id:
+            return RedirectResponse(
+                str(request.url_for("order_detail", order_id=booking.order_id)), status_code=303
+            )
+        if booking.status != "REGISTERED" or not booking.patient_id:
+            return RedirectResponse(
+                str(request.url_for("booking_detail", booking_id=booking.id)), status_code=303
+            )
+        patient = patient_service.get(booking.patient_id)
+        values = {
+            "booking_id": booking.id,
+            "patient_id": patient.id,
+            "test_ids": [
+                str(item["id"]) for item in booking.requested_items if item["kind"] == "TEST"
+            ],
+            "package_ids": [
+                str(item["id"]) for item in booking.requested_items if item["kind"] == "PACKAGE"
+            ],
+        }
     return templates.TemplateResponse(
         request=request,
         name="orders/form.html",
@@ -58,8 +98,13 @@ def order_new(
             patient_service,
             catalog_service,
             page_title="New laboratory order",
-            values={},
+            values=values,
+            selected_patient=patient,
+            booking=booking,
             errors=[],
+            creator_preview=capture_identity(
+                patient_service.session, actor.reference, get_settings()
+            ),
         ),
     )
 
@@ -75,6 +120,7 @@ async def order_create(
     form = await request.form()
     values: dict[str, Any] = {
         "patient_id": form.get("patient_id"),
+        "booking_id": form.get("booking_id") or None,
         "test_ids": form.getlist("test_ids"),
         "package_ids": form.getlist("package_ids"),
         "clinical_note": form.get("clinical_note") or None,
@@ -83,6 +129,8 @@ async def order_create(
         "referrer_license_type": form.get("referrer_license_type"),
         "referrer_license_number": form.get("referrer_license_number"),
     }
+    if values["booking_id"] and actor.role not in {"ADMIN", "IT", "RECEPTION"}:
+        raise HTTPException(403, "Booking access requires reception permission")
     try:
         order = order_service.create(
             LabOrderCreate.model_validate(values), actor_reference=actor.reference
@@ -91,6 +139,7 @@ async def order_create(
         ValidationError,
         CatalogNotFoundError,
         PatientNotFoundError,
+        InvalidBookingOperationError,
     ) as exc:
         errors = (
             [error["msg"] for error in exc.errors()]
@@ -112,7 +161,15 @@ async def order_create(
                 page_title="New laboratory order",
                 values=values,
                 selected_patient=selected_patient,
+                booking=(
+                    BookingService(patient_service.session).get(int(str(values["booking_id"])))
+                    if str(values.get("booking_id") or "").isdigit()
+                    else None
+                ),
                 errors=errors,
+                creator_preview=capture_identity(
+                    patient_service.session, actor.reference, get_settings()
+                ),
             ),
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
@@ -140,6 +197,7 @@ def order_detail(
         context={
             "page_title": "Laboratory order",
             "order": order,
+            "order_creator_label": order_creator_label(order),
             "specimens": specimen_service.repository.list_order_specimens(order.id),
             "can_collect_specimens": actor.role in {"ADMIN", "LAB_TECH", "IT"},
         },

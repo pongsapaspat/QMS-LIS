@@ -35,7 +35,7 @@ class PatientService:
         self.repository = repository or PatientRepository(session)
         self.audit_repository = audit_repository or AuditRepository(session)
 
-    def create(self, data: PatientCreate, *, actor_reference: str) -> Patient:
+    def create(self, data: PatientCreate, *, actor_reference: str, commit: bool = True) -> Patient:
         if not self.repository.branch_is_active(data.branch_id):
             raise BranchNotFoundError("active branch not found")
 
@@ -84,7 +84,8 @@ class PatientService:
                     actor_reference=actor_reference,
                 )
             )
-            self.session.commit()
+            if commit:
+                self.session.commit()
         except IntegrityError as exc:
             self.session.rollback()
             raise DuplicatePatientIdentifierError(

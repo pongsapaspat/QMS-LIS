@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, HTTPException, status
 
 from app.api.dependencies import OrderServiceDependency, ResultServiceDependency
 from app.core.security import ActorDependency, ResultReaderDependency, ResultReleaserDependency
@@ -34,6 +34,8 @@ def create_order(
     service: OrderServiceDependency,
     actor: ActorDependency,
 ) -> LabOrderResponse:
+    if data.booking_id is not None and actor.role not in {"ADMIN", "IT", "RECEPTION"}:
+        raise HTTPException(403, "Booking access requires reception permission")
     return LabOrderResponse.model_validate(service.create(data, actor_reference=actor.reference))
 
 

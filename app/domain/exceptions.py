@@ -27,6 +27,16 @@ class InvalidPatientChangeError(DomainError):
     pass
 
 
+class BookingNotFoundError(DomainError):
+    pass
+
+
+class InvalidBookingOperationError(DomainError):
+    def __init__(self, message: str, *, conflict: bool = False):
+        super().__init__(message)
+        self.conflict = conflict
+
+
 class CatalogNotFoundError(DomainError):
     pass
 

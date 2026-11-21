@@ -10,6 +10,7 @@ class LabOrderCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     patient_id: int = Field(ge=1)
+    booking_id: int | None = Field(default=None, ge=1)
     test_ids: list[int] = Field(default_factory=list, max_length=200)
     package_ids: list[int] = Field(default_factory=list, max_length=50)
     priority: OrderPriority = OrderPriority.ROUTINE
@@ -80,6 +81,7 @@ class LabOrderResponse(BaseModel):
     referrer_license_number: str | None = None
     ordered_at: datetime
     created_by: str
+    created_by_snapshot: dict[str, str | None] | None = None
     verified_at: datetime | None
     verified_by: str | None
     released_at: datetime | None

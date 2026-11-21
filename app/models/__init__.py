@@ -1,5 +1,6 @@
 from app.models.audit import AuditLog
 from app.models.base import Base
+from app.models.booking import Booking, BookingOrder
 from app.models.branch import Branch
 from app.models.login_session import LoginSession
 from app.models.order import LabOrder, LabOrderItem, OrderPriority, OrderStatus
@@ -20,6 +21,8 @@ from app.models.test_catalog import (
 from app.models.user import User
 
 __all__ = [
+    "Booking",
+    "BookingOrder",
     "OutlabCase",
     "OutlabDocument",
     "TestPackage",

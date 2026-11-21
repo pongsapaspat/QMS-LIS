@@ -21,6 +21,8 @@ from app.core.logging import (
 )
 from app.core.passwords import hash_password
 from app.domain.exceptions import (
+    BookingNotFoundError,
+    InvalidBookingOperationError,
     BranchNotFoundError,
     CatalogNotFoundError,
     DuplicateCatalogCodeError,
@@ -165,6 +167,16 @@ async def safe_validation_error_handler(
 @app.exception_handler(PatientNotFoundError)
 async def patient_not_found_handler(request: Request, exc: PatientNotFoundError) -> JSONResponse:
     return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)})
+
+
+@app.exception_handler(BookingNotFoundError)
+async def booking_not_found_handler(request: Request, exc: BookingNotFoundError) -> JSONResponse:
+    return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+
+@app.exception_handler(InvalidBookingOperationError)
+async def invalid_booking_handler(request: Request, exc: InvalidBookingOperationError) -> JSONResponse:
+    return JSONResponse(status_code=409 if exc.conflict else 422, content={"detail": str(exc)})
 
 
 @app.exception_handler(BranchNotFoundError)

@@ -123,7 +123,16 @@ def build_lab_report_pdf(context: dict[str, Any]) -> bytes:
                 ],
                 [
                     p("โทรศัพท์: " + (lab["phone"] or "-")),
-                    p("ผู้ส่งตรวจ: " + context["referrer_label"]),
+                    p(
+                        "ผู้บันทึกคำสั่งตรวจ: "
+                        + context["order_creator_label"]
+                        + (
+                            "\nผู้ส่งตรวจภายนอก: " + context["referrer_label"]
+                            if context["referrer_label"] != "-"
+                            else ""
+                        ),
+                        small,
+                    ),
                     "",
                 ],
                 [

@@ -6,6 +6,7 @@ from app.core.security import ActorDependency
 from app.web.routes import (
     audits,
     auth,
+    bookings,
     orders,
     outlab,
     packages,
@@ -20,6 +21,7 @@ from app.web.templates import templates
 web_router = APIRouter(include_in_schema=False)
 web_router.include_router(auth.router)
 web_router.include_router(patients.router)
+web_router.include_router(bookings.router)
 web_router.include_router(test_catalog.router)
 web_router.include_router(orders.router)
 web_router.include_router(packages.router)
