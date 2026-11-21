@@ -5,7 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
-from app.core.result_formatting import display_panel_results, format_result_number
+from app.core.result_formatting import display_panel_results, format_reference_text, format_result_number
 from app.core.time import app_date_range_utc
 from app.domain.exceptions import (
     InvalidResultOperationError,
@@ -71,7 +71,7 @@ class ResultService:
                 or (upper is not None and value >= Decimal(str(upper)))
             )
             metadata[item.id] = {
-                "reference_text": snapshot.get("display_text") or (
+                "reference_text": format_reference_text(snapshot.get("display_text")) or (
                     f"{format_result_number(snapshot['lower_value'], None)} – "
                     f"{format_result_number(snapshot['upper_value'], None)}"
                     if snapshot.get("lower_value") is not None else "ยังไม่ได้กำหนดค่าอ้างอิง"
@@ -484,7 +484,7 @@ class ResultService:
                     "test_name": item.test_name_th or item.test_name_en,
                     "result_value": self._result_value(result),
                     "unit": result.result_unit_snapshot,
-                    "reference_text": reference.get("display_text")
+                    "reference_text": format_reference_text(reference.get("display_text"))
                     or self._reference_interval(reference),
                     "abnormal_flag": result.abnormal_flag,
                     "verified_at": result.verified_at,
@@ -928,7 +928,8 @@ class ResultService:
     def _reference_interval(reference: dict[str, object]) -> str | None:
         lower = reference.get("lower_value")
         upper = reference.get("upper_value")
-        return f"{lower} – {upper}" if lower is not None and upper is not None else None
+        return (f"{format_result_number(lower, None)} – {format_result_number(upper, None)}"
+                if lower is not None and upper is not None else None)
 
     def _verification_item(self, result: Result) -> dict[str, object]:
         item = result.order_item
@@ -948,7 +949,10 @@ class ResultService:
             "test_name": item.test_name_en,
             "result_value": self._result_value(result),
             "unit": result.result_unit_snapshot,
-            "reference_range": result.reference_range_snapshot,
+            "reference_range": {**result.reference_range_snapshot, "display_text":
+                format_reference_text(result.reference_range_snapshot.get("display_text"))
+                or self._reference_interval(result.reference_range_snapshot)}
+                if result.reference_range_snapshot else None,
             "abnormal_flag": result.abnormal_flag,
             "critical": result.abnormal_flag in {"LL", "HH"},
             "entered_by": result.entered_by,

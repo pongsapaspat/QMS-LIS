@@ -1,6 +1,14 @@
 """Presentation of result numbers, without changing stored values or flags."""
 
+import re
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, localcontext
+
+
+def format_reference_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return re.sub(r"(?<![\w.])[+-]?\d+\.\d+(?![\w.])",
+                  lambda match: format_result_number(match.group(), None), value)
 
 
 def format_result_number(value: object, places: int | None = 2) -> str:
