@@ -137,21 +137,19 @@ def test_navigation_matches_logged_in_user_role(
             'href="/results/release"',
         ],
         "tech": [
-            'href="/orders/new"',
-            'href="/worklist"',
-            'href="/results/verification"',
+            'href="/specimens/receiving"',
+            'href="/worklist?queue=results"',
             "/results/reports",
         ],
         "supervisor": [
-            'href="/orders/new"',
-            'href="/worklist"',
+            'href="/results/verification"',
             'href="/results/release"',
             'href="/audit-logs"',
         ],
         "reception": [
             'href="/orders/new"',
             'href="/patients"',
-            "/results/reports",
+            'href="/patients/new"',
         ],
     }
     hidden_links = {
@@ -164,6 +162,7 @@ def test_navigation_matches_logged_in_user_role(
         ],
         "supervisor": ['href="/patients"', 'href="/test-catalog"', 'href="/users"'],
         "reception": [
+            '/results/reports',
             'href="/test-catalog"',
             'href="/worklist"',
             'href="/results/verification"',
@@ -204,13 +203,21 @@ def test_reception_home_is_a_focused_module_workspace(client: TestClient) -> Non
     assert "ลงทะเบียนผู้ป่วย" in response.text
     assert "ค้นหาข้อมูลผู้ป่วย" in response.text
     assert "สร้างคำสั่งตรวจ" in response.text
-    assert "รายงานผลตรวจ" in response.text
+    assert "รายงานผลตรวจ" not in response.text
+    assert "ข้อมูลผู้ป่วย" in response.text
     assert "/patients/new" in response.text
     assert "/patients" in response.text
     assert "/orders/new" in response.text
-    assert "/results/reports" in response.text
+    assert "/results/reports" not in response.text
     assert "Laboratory Worklist" not in response.text
-    assert 'class="sidebar-toggle"' in response.text
+    assert 'class="role-top-nav"' in response.text
+    assert 'id="app-sidebar"' not in response.text
+    assert 'class="sidebar-toggle"' not in response.text
+    for path, label in (("/patients/new", "ลงทะเบียนผู้ป่วย"), ("/patients", "ข้อมูลผู้ป่วย")):
+        page = client.get(path, headers={"X-Role": "RECEPTION", "X-Actor": "reception-test"})
+        assert page.status_code == 200
+        assert f'class="nav-link active" href="{path}" aria-current="page">{label}</a>' in page.text
+        assert page.text.count('class="nav-link active"') == 1
 
 
 @pytest.mark.integration

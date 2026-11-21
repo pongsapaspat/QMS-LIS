@@ -1,0 +1,23 @@
+{% set path = request.url.path %}
+{% set collection_queue = request.query_params.get('task_type') == 'ORDER_PENDING_COLLECTION' %}
+{% macro menu_link(href, label, active) -%}
+<a class="nav-link{% if active %} active{% endif %}" href="{{ href }}"{% if active %} aria-current="page"{% endif %}>{{ label }}</a>
+{%- endmacro %}
+<nav class="role-top-nav" aria-label="เมนูหลัก">
+  {{ menu_link('/', 'หน้าหลัก', path == '/') }}
+  {% if role == 'RECEPTION' %}
+  {{ menu_link('/patients/new', 'ลงทะเบียนผู้ป่วย', path == '/patients/new') }}
+  {{ menu_link('/patients', 'ข้อมูลผู้ป่วย', path.startswith('/patients') and path != '/patients/new') }}
+  {{ menu_link('/orders/new', 'สั่งตรวจ', path.startswith('/orders')) }}
+  {% elif role == 'LAB_TECH' %}
+  {{ menu_link('/worklist?task_type=ORDER_PENDING_COLLECTION', 'เก็บสิ่งส่งตรวจ', collection_queue or (path.startswith('/orders') and '/specimens' in path)) }}
+  {{ menu_link('/specimens/receiving', 'รับสิ่งส่งตรวจ', path.startswith('/specimens/receiving')) }}
+  {{ menu_link('/worklist?queue=results', 'ลงผลตรวจ', path.startswith('/worklist') and not collection_queue) }}
+  {{ menu_link('/results/reports', 'รายงาน', path.startswith('/results/reports')) }}
+  {% elif role == 'LAB_SUPERVISOR' %}
+  {{ menu_link('/results/verification', 'Verify', path.startswith('/results/verification')) }}
+  {{ menu_link('/results/release', 'Release', path.startswith('/results/release')) }}
+  {{ menu_link('/results/reports', 'รายงาน', path.startswith('/results/reports')) }}
+  {{ menu_link('/audit-logs', 'Audit Log', path.startswith('/audit-logs')) }}
+  {% endif %}
+</nav>

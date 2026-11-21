@@ -10,14 +10,15 @@
   </head>
   {% set is_login = request.url.path == '/login' %}
   {% set role = request.session.get('role') or (request.headers.get('X-Role') if allow_dev_role_headers else none) or template_default_role %}
-  <body class="{% if is_login %}auth-page{% else %}app-page{% endif %}">
+  {% set use_top_nav = role in ['RECEPTION', 'LAB_TECH', 'LAB_SUPERVISOR'] %}
+  <body class="{% if is_login %}auth-page{% else %}app-page{% if use_top_nav %} role-top-navigation{% endif %}{% endif %}">
     {% if not is_login %}
     <header class="app-header">
       <div class="app-header-leading">
-        <button class="sidebar-toggle" type="button" aria-controls="app-sidebar" aria-expanded="true" title="ซ่อนหรือแสดงเมนูหลัก">
+        {% if not use_top_nav %}<button class="sidebar-toggle" type="button" aria-controls="app-sidebar" aria-expanded="true" title="ซ่อนหรือแสดงเมนูหลัก">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
           <span class="visually-hidden">ซ่อนหรือแสดงเมนูหลัก</span>
-        </button>
+        </button>{% endif %}
         <a class="app-brand" href="/" aria-label="QMS-LIS หน้าหลัก">
           <span class="brand-mark" aria-hidden="true">QL</span>
           <span><strong>QMS-LIS</strong><small>Laboratory Information System</small></span>
@@ -32,9 +33,11 @@
         <a class="btn btn-sm btn-light" href="{{ url_for('login') }}">เข้าสู่ระบบ</a>
         {% endif %}
       </div>
+      {% if use_top_nav %}{% include 'role_navigation.html' %}{% endif %}
     </header>
 
     <div class="app-shell">
+      {% if not use_top_nav %}
       <aside class="app-sidebar" id="app-sidebar" aria-label="เมนูหลัก">
         <div class="sidebar-role"><span>สิทธิ์การใช้งาน</span><strong>{{ role }}</strong></div>
         <nav class="sidebar-nav">
@@ -52,7 +55,7 @@
             <a class="nav-link{% if request.url.path.startswith('/results/release') %} active{% endif %}" href="/results/release">รอเผยแพร่ผล</a>
             {% endif %}
             {% if role in ['ADMIN', 'IT', 'LAB_TECH', 'LAB_SUPERVISOR', 'RECEPTION'] %}
-            <a class="nav-link{% if request.url.path.startswith('/results/reports') %} active{% endif %}" href="{{ url_for('lab_reports') }}">รายงานผลตรวจ</a>
+            {% if role != 'RECEPTION' %}<a class="nav-link{% if request.url.path.startswith('/results/reports') %} active{% endif %}" href="{{ url_for('lab_reports') }}">รายงานผลตรวจ</a>{% endif %}
             {% endif %}
           </div>
 
@@ -111,6 +114,7 @@
           {% endif %}
         </nav>
       </aside>
+      {% endif %}
       <main class="app-main">{% block content %}{% endblock %}</main>
     </div>
     {% else %}

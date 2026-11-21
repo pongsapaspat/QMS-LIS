@@ -18,6 +18,6 @@ def test_authorized_laboratory_user_can_open_worklist(client: TestClient) -> Non
     )
 
     assert response.status_code == 200
-    assert 'href="/worklist"' in response.text
+    assert 'href="/worklist?queue=results"' in response.text
     assert 'class="nav-link active"' in response.text
     assert 'aria-current="page"' in response.text

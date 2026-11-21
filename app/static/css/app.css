@@ -45,6 +45,20 @@ a:hover { color: var(--lis-navy-800); }
 .header-link { color: rgba(255, 255, 255, .78); font-size: .84rem; text-decoration: none; }
 .header-link:hover, .header-link.active { color: #fff; }
 
+.role-top-navigation .app-header { flex-wrap: wrap; row-gap: .5rem; }
+.role-top-nav { display: flex; flex: 0 0 100%; gap: .35rem; overflow-x: auto; padding-top: .5rem; border-top: 1px solid rgba(255, 255, 255, .16); }
+.role-top-nav .nav-link { flex: 0 0 auto; padding: .5rem .9rem; border-radius: .5rem; color: rgba(255, 255, 255, .82); font-size: .86rem; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.role-top-nav .nav-link:hover { background: rgba(255, 255, 255, .1); color: #fff; }
+.role-top-nav .nav-link.active { background: #fff; color: var(--lis-navy-900); }
+.role-top-nav .nav-link:focus-visible { outline: 3px solid #8ec7e9; outline-offset: -3px; }
+.app-page.role-top-navigation .app-shell { grid-template-columns: minmax(0, 1fr); min-height: calc(100vh - 120px); }
+.role-top-navigation .app-main { max-width: none; }
+.role-top-navigation .role-workspace { min-height: calc(100vh - 120px - 5rem); }
+
+@media print {
+  .role-top-navigation .app-header { display: none !important; }
+}
+
 .app-shell { display: grid; grid-template-columns: 250px minmax(0, 1fr); min-height: calc(100vh - 68px); transition: grid-template-columns .2s ease; }
 .app-sidebar { min-width: 0; padding: 1.25rem 1rem 2rem; overflow: hidden; background: var(--lis-surface); border-right: 1px solid var(--lis-slate-200); transition: padding .2s ease, opacity .15s ease, visibility .15s ease; }
 body.sidebar-collapsed .app-shell { grid-template-columns: 0 minmax(0, 1fr); }
@@ -91,7 +105,7 @@ fieldset { padding: 1.25rem; }
 .role-workspace-heading h1 { margin: 0 0 .5rem; color: var(--lis-navy-950); font-size: clamp(1.65rem, 3vw, 2.25rem); font-weight: 750; }
 .role-workspace-heading > p:last-child { margin: 0; color: var(--lis-slate-500); font-size: 1rem; }
 .role-module-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
-.medtech-workspace .role-module-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.medtech-workspace .role-module-grid, .reception-workspace .role-module-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .role-module { position: relative; display: flex; flex-direction: column; align-items: center; min-height: 265px; padding: 1.5rem 1.2rem 1.2rem; border: 1px solid var(--lis-slate-200); border-radius: 1rem; background: var(--lis-surface); color: var(--lis-slate-900); text-align: center; text-decoration: none; box-shadow: var(--lis-shadow); transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease; }
 .role-module:hover { transform: translateY(-3px); border-color: #9bc6e3; color: var(--lis-slate-900); box-shadow: 0 15px 32px rgba(21, 52, 78, .13); }
 .role-module:focus-visible { outline: 3px solid rgba(31, 127, 196, .3); outline-offset: 3px; }
@@ -179,7 +193,7 @@ fieldset { padding: 1.25rem; }
   .auth-shell { grid-template-columns: 1fr; }
   .auth-brand-panel { display: none; }
   .role-module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .medtech-workspace .role-module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .medtech-workspace .role-module-grid, .reception-workspace .role-module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .role-workspace { min-height: auto; }
 }
 
@@ -196,7 +210,7 @@ fieldset { padding: 1.25rem; }
   .auth-form-panel { padding: 1rem; }
   .login-card { padding: 1.4rem; box-shadow: none; }
   .role-module-grid { grid-template-columns: 1fr; }
-  .medtech-workspace .role-module-grid { grid-template-columns: 1fr; }
+  .medtech-workspace .role-module-grid, .reception-workspace .role-module-grid { grid-template-columns: 1fr; }
   .role-module { min-height: 210px; }
 }
 

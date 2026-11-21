@@ -315,7 +315,7 @@ def test_verification_rejection_correction_and_atomic_release(
         assert "รายงานผลตรวจยังไม่พร้อม" in unavailable_report.text
         assert (
             client.get(f"/results/reports/orders/{order_id}", headers=RECEPTION_HEADERS).status_code
-            == 409
+            == 403
         )
 
         queue = client.get("/api/v1/results/verification-queue", headers=ENTRY_HEADERS)
@@ -470,8 +470,8 @@ def test_verification_rejection_correction_and_atomic_release(
         reception_report = client.get(
             f"/results/reports/orders/{order_id}", headers=RECEPTION_HEADERS
         )
-        assert reception_report.status_code == 200
-        assert "QMS-LIS" in reception_report.text
+        assert reception_report.status_code == 403
+        assert "Glucose Thai" not in reception_report.text
 
         pdf_report = client.get(
             f"/results/reports/orders/{order_id}/pdf", headers=SUPERVISOR_HEADERS
@@ -484,8 +484,8 @@ def test_verification_rejection_correction_and_atomic_release(
         reception_pdf = client.get(
             f"/results/reports/orders/{order_id}/pdf", headers=RECEPTION_HEADERS
         )
-        assert reception_pdf.status_code == 200
-        assert reception_pdf.content.startswith(b"%PDF-")
+        assert reception_pdf.status_code == 403
+        assert not reception_pdf.content.startswith(b"%PDF-")
 
         report_list = client.get(
             "/results/reports",
@@ -498,8 +498,11 @@ def test_verification_rejection_correction_and_atomic_release(
         assert f"/results/reports/orders/{order_id}" in report_list.text
 
         reception_report_list = client.get("/results/reports", headers=RECEPTION_HEADERS)
-        assert reception_report_list.status_code == 200
-        assert released.json()["order_number"] in reception_report_list.text
+        assert reception_report_list.status_code == 403
+        assert released.json()["order_number"] not in reception_report_list.text
+        reception_order = client.get(f"/orders/{order_id}", headers=RECEPTION_HEADERS)
+        assert reception_order.status_code == 200
+        assert f"/results/reports/orders/{order_id}" not in reception_order.text
 
         release_date = to_app_timezone(
             datetime.fromisoformat(released.json()["released_at"])

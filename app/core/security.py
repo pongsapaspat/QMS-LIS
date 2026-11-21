@@ -120,7 +120,7 @@ ResultReaderDependency = Annotated[Actor, Depends(require_result_reader)]
 
 
 def require_report_reader(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
-    if actor.role not in {"ADMIN", "IT", "LAB_TECH", "LAB_SUPERVISOR", "RECEPTION"}:
+    if actor.role not in {"ADMIN", "IT", "LAB_TECH", "LAB_SUPERVISOR"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="released report permission required",
