@@ -5,6 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
+from app.core.result_formatting import display_panel_results, format_result_number
 from app.core.time import app_date_range_utc
 from app.domain.exceptions import (
     InvalidResultOperationError,
@@ -448,7 +449,7 @@ class ResultService:
             results.append(
                 {
                     "result_id": result.id,
-                    "parameters": result.parameter_results or [],
+                    "parameters": display_panel_results(result.parameter_results),
                     "test_code": item.test_code,
                     "test_name": item.test_name_th or item.test_name_en,
                     "result_value": self._result_value(result),
@@ -862,7 +863,7 @@ class ResultService:
         if result.parameter_results:
             return f"{len(result.parameter_results)} parameters"
         if result.numeric_value is not None:
-            return str(result.numeric_value)
+            return format_result_number(result.numeric_value)
         if result.text_value:
             return result.text_value
         if result.categorical_value:
@@ -886,7 +887,7 @@ class ResultService:
         order = item.order
         return {
             "result_id": result.id,
-            "parameters": result.parameter_results or [],
+            "parameters": display_panel_results(result.parameter_results),
             "order_id": order.id,
             "order_number": order.order_number,
             "patient_hn": order.patient.hn,

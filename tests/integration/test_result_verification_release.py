@@ -582,7 +582,8 @@ def test_verification_rejection_correction_and_atomic_release(
             amendment_release.headers["location"], headers=SUPERVISOR_HEADERS
         )
         assert amended_report.status_code == 200
-        assert "99.000000" in amended_report.text
+        assert amended_report.context["context"]["results"][0]["result_value"] == "99"
+        assert "99.000000" not in amended_report.text
         assert "ฉบับแก้ไข" not in amended_report.text
 
         edit_released = client.put(
