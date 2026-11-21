@@ -462,8 +462,8 @@ def test_verification_rejection_correction_and_atomic_release(
         assert "พิมพ์รายงาน" in report.text
         assert report.context['context']['reported_by'] == ENTRY_HEADERS['X-Actor']
         assert report.context['context']['order'].released_by == SUPERVISOR_HEADERS['X-Actor']
-        assert 'รายงานผลโดย:</strong> entry-tech' in report.text
-        assert 'อนุมัติผลโดย:</strong> supervisor-1' in report.text
+        assert 'Reported by: entry-tech' in report.text
+        assert 'Approved by: supervisor-1' in report.text
         assert 'ตรวจสอบผลโดย:' not in report.text
         assert "Glucose Thai" in report.text
 

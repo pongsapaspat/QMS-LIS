@@ -1,68 +1,86 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
-  .report-sheet { max-width: 210mm; margin: 0 auto; }
-  .report-title { letter-spacing: .04em; }
-  .result-critical { color: #b02a37; font-weight: 700; }
-  @media print {
-    nav, footer, .report-actions { display: none !important; }
-    main.container { max-width: none; padding: 0 !important; }
-    .report-sheet { max-width: none; margin: 0; font-size: 11pt; }
-    .card { border: 0 !important; }
-    @page { size: A4; margin: 14mm; }
-  }
+@font-face{font-family:'TH SarabunPSK';src:url('/static/fonts/th-sarabun-psk/THSarabunPSK.ttf') format('truetype');font-weight:400;font-display:swap}
+@font-face{font-family:'TH SarabunPSK';src:url('/static/fonts/th-sarabun-psk/THSarabunPSK-Bold.ttf') format('truetype');font-weight:700;font-display:swap}
+.report-sheet{width:216mm;max-width:100%;min-height:279.4mm;margin:0 auto 24px;background:white;color:black;border:1px solid #ddd;font-family:'TH SarabunPSK',Tahoma,sans-serif;font-size:14pt;line-height:15pt}
+.report-body{padding:70pt 49pt 48pt}
+.report-header{width:100%;table-layout:fixed;border:1px solid black;border-collapse:collapse;margin-bottom:21pt}
+.report-header td{padding:3pt 5pt;vertical-align:middle;overflow-wrap:anywhere;height:24pt}
+.report-header td:first-child{border-right:1px solid black}
+.report-header .clinic-phone{border-bottom:1px solid black}
+.report-header .report-thai-title{text-align:center;font-size:16pt;font-weight:bold;line-height:18pt}
+.report-header .report-english-title{text-align:center;font-size:16pt;line-height:18pt}
+.report-header .specimen-cell{font-size:12pt;line-height:11pt;height:27pt}
+.report-results{width:91.4%;margin:0 auto;table-layout:fixed;border-collapse:collapse}
+.report-results.ua-results{width:100%}
+.report-results-space{min-height:384pt}.report-results-space.ua-space{min-height:402pt}
+.report-results th,.report-results td{width:25%;padding:3pt 5pt;height:21pt;font-weight:normal;text-align:left;vertical-align:middle;overflow-wrap:anywhere}
+.report-results:not(.ua-results) td{height:24pt}
+.ua-results th,.ua-results td:not(:first-child){text-align:center}
+.ua-results{font-size:12pt;line-height:12pt}
+.report-results .unit-exponent{font-size:70%;line-height:0;position:relative;top:-.4em;vertical-align:baseline}
+.report-results thead{border:0.6pt solid black}
+.report-results th{height:24pt}
+.report-note{font-size:12pt;line-height:11pt;margin:6pt 0 10pt}
+.report-signatures{margin-top:6pt}
+.report-signatures p{margin:0 0 10pt}
+.report-check{display:inline-block;width:8pt;height:8pt;border:0.6pt solid black;vertical-align:baseline;line-height:7pt;text-align:center;font-size:7pt}
+.report-page-footer{font-size:10pt;margin-top:20pt;display:flex;justify-content:space-between}
+.report-scroll{overflow-x:auto}
+@media(max-width:767px){.report-sheet{max-width:none}}
+@media print{
+nav,footer,.report-actions{display:none!important}
+main.container{max-width:none;padding:0!important}
+.report-scroll{overflow:visible}
+.report-sheet{max-width:none;margin:0;border:0;min-height:0;break-after:page}
+.report-sheet:last-child{break-after:auto}
+.report-results thead{display:table-header-group}
+.report-results tr,.report-header,.report-signatures{break-inside:avoid}
+@page{size:Letter;margin:0}
+}
 </style>
-<div class="report-actions d-flex justify-content-between mb-3">
-  <div class="d-flex flex-wrap gap-2">
-    <a class="btn btn-outline-secondary" href="{{ url_for('order_detail', order_id=context.order.id) }}">กลับไปยัง Order</a>
-    <a class="btn btn-outline-primary" href="{{ url_for('release_queue') }}">หน้าหลัก Release ผล</a>
-  </div>
-  {% if context.outlab_cases %}<a class="btn btn-outline-primary" href="{{ url_for('lab_report_bundle', order_id=context.order.id) }}">ดาวน์โหลดเอกสารทั้งหมด (ZIP)</a>{% endif %}
-  {% if context.results %}<div><a class="btn btn-success" href="{{ url_for('lab_report_pdf', order_id=context.order.id) }}">ดาวน์โหลด PDF</a> <button class="btn btn-primary" type="button" onclick="window.print()">พิมพ์รายงาน</button></div>{% endif %}
+<div class="report-actions d-flex flex-wrap justify-content-between gap-2 mb-3">
+<div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-secondary" href="{{ url_for('order_detail', order_id=context.order.id) }}">กลับไปยัง Order</a><a class="btn btn-outline-primary" href="{{ url_for('release_queue') }}">หน้าหลัก Release ผล</a></div>
+{% if context.outlab_cases %}<a class="btn btn-outline-primary" href="{{ url_for('lab_report_bundle', order_id=context.order.id) }}">ดาวน์โหลดเอกสารทั้งหมด (ZIP)</a>{% endif %}
+{% if context.results %}<div><a class="btn btn-success" href="{{ url_for('lab_report_pdf', order_id=context.order.id) }}">ดาวน์โหลด PDF</a> <button class="btn btn-primary" type="button" onclick="window.print()">พิมพ์รายงาน</button></div>{% endif %}
 </div>
-<article class="report-sheet card">
-{% include 'outlab/order_documents.html' %}
-{% if not context.results %}<div class="card-body"><p class="mb-0">Order นี้มีเฉพาะ Outlab กรุณาส่งมอบใบผลต้นฉบับจากแล็บภายนอกตามเอกสารแนบ</p></div>{% else %}
-  <div class="card-body p-4 p-md-5">
-    <header class="text-center border-bottom pb-3 mb-4">
-      <h1 class="h2 report-title mb-1">QMS-LIS</h1>
-      <div class="h5 mb-0">รายงานผลการตรวจทางห้องปฏิบัติการ</div>
-    </header>
-    <section class="row g-2 mb-4" aria-label="ข้อมูลผู้ป่วยและ Order">
-      <div class="col-md-8"><strong>ชื่อผู้ป่วย:</strong> {{ context.patient.display_name }}</div>
-      <div class="col-md-4"><strong>HN:</strong> {{ context.patient.hn }}</div>
-      <div class="col-md-4"><strong>วันเกิด:</strong> {{ context.patient.date_of_birth or '-' }}</div>
-      <div class="col-md-4"><strong>เพศ:</strong> {{ context.patient.sex or '-' }}</div>
-      <div class="col-md-4"><strong>ความเร่งด่วน:</strong> {{ 'ด่วน' if context.order.priority == 'URGENT' else 'ปกติ' }}</div>
-      <div class="col-md-4"><strong>เลขที่ Order:</strong> {{ context.order.order_number }}</div>
-      <div class="col-md-8"><strong>เลขสิ่งส่งตรวจ:</strong> {{ context.accession_numbers|join(', ') }}</div>
-      <div class="col-md-4"><strong>วันที่สั่งตรวจ:</strong> {{ context.order.ordered_at | app_datetime }}</div>
-      <div class="col-md-8"><strong>ข้อมูลทางคลินิก:</strong> {{ context.order.clinical_note or '-' }}</div>
-    </section>
-    <div class="table-responsive">
-      {% if context.order.package_snapshots %}<p>Package: {% for p in context.order.package_snapshots %}{{ p.name }}{% if not loop.last %}, {% endif %}{% endfor %}</p>{% endif %}
-      <table class="table table-bordered align-middle">
-        <thead class="table-light"><tr><th>รายการตรวจ</th><th>ผลตรวจ</th><th>หน่วย</th><th>ช่วงอ้างอิง</th><th>สถานะ</th></tr></thead>
-        <tbody>
-        {% for result in context.results %}
-          <tr>
-            <td><strong>{{ result.test_name }}</strong><div class="small text-secondary">{{ result.test_code }}</div><form class="report-actions mt-2" method="post" action="{{ url_for('open_result_amendment', result_id=result.result_id) }}"><input class="form-control form-control-sm mb-1" name="reason" required maxlength="1000" placeholder="เหตุผลที่ขอแก้ไขผล"><button class="btn btn-sm btn-outline-warning" type="submit">เปิด Amendment</button></form></td>
-            <td class="{% if result.abnormal_flag in ['LL', 'HH'] %}result-critical{% endif %}">{{ result.result_value }}</td>
-            <td>{{ result.unit or '-' }}</td>
-            <td>{{ result.reference_text or '-' }}</td>
-            <td>{% if result.abnormal_flag in ['LL', 'HH'] %}ค่าวิกฤต{% elif result.abnormal_flag in ['L', 'H', 'A'] %}ผิดปกติ{% else %}ปกติ{% endif %}</td>
-          </tr>
-          {% for parameter in result.parameters %}<tr><td class="ps-4">{{ parameter.name }}</td><td>{{ parameter.value }}</td><td>{{ parameter.unit or '-' }}</td><td>{{ parameter.reference or '-' }}</td><td>{{ parameter.flag or '-' }}</td></tr>{% endfor %}
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <section class="row mt-4 pt-3 border-top">
-      <div class="col-md-6"><strong>รายงานผลโดย:</strong> {{ context.reported_by or '-' }}<br><small>{{ context.reported_at | app_datetime if context.reported_at else '' }}</small></div>
-      <div class="col-md-6"><strong>อนุมัติผลโดย:</strong> {{ context.order.released_by or '-' }}<br><small>{{ context.order.released_at | app_datetime if context.order.released_at else '' }}</small></div>
-    </section>
-    <p class="small text-secondary text-center mt-4 mb-0">รายงานนี้สร้างจากระบบ QMS-LIS</p>
-  </div>
+<div class="report-actions">{% include 'outlab/order_documents.html' %}</div>
+{% if not context.results %}<div class="card card-body">Order นี้มีเฉพาะ Outlab กรุณาส่งมอบใบผลต้นฉบับจากแล็บภายนอกตามเอกสารแนบ</div>{% endif %}
+<div class="report-scroll">
+{% for section in context.sections %}
+<article class="report-sheet" aria-label="รายงานผลการตรวจทางห้องปฏิบัติการ"><div class="report-body">
+<table class="report-header" aria-label="ข้อมูลคลินิก ผู้ป่วย และสิ่งส่งตรวจ">
+<colgroup><col style="width:41.44%"><col style="width:32.30%"><col style="width:26.26%"></colgroup>
+<tbody>
+<tr><td>คลินิกเทคนิคการแพทย์: {{ context.lab.name }}</td><td>ชื่อ-สกุล: {{ context.patient.display_name }}</td><td>อายุ: {{ context.patient_age if context.patient_age is not none else '-' }} ปี</td></tr>
+<tr><td>ที่อยู่: {{ context.lab.address or '-' }}</td><td>HN: {{ context.patient.hn }}</td><td>เพศ: {{ context.patient.sex or '-' }}</td></tr>
+<tr><td class="clinic-phone">โทรศัพท์: {{ context.lab.phone or '-' }}</td><td colspan="2">ผู้ส่งตรวจ: -</td></tr>
+<tr><td class="report-thai-title">{{ section.report_title }}</td><td class="specimen-cell">Requested Date/Time:<br>{{ context.order.ordered_at | app_datetime }}</td><td class="specimen-cell">ประเภทสิ่งส่งตรวจ:<br>{% for specimen in section.specimens %}{{ specimen.specimen_type_name_en }}{% if not loop.last %}, {% endif %}{% else %}-{% endfor %}</td></tr>
+<tr><td class="report-english-title">{{ section.report_subtitle }}</td><td class="specimen-cell">Received Date/Time:<br>{% for specimen in section.specimens %}{{ specimen.received_at | app_datetime }}{% if not loop.last %}<br>{% endif %}{% else %}-{% endfor %}</td><td class="specimen-cell">เลขที่สิ่งส่งตรวจ:<br>{% for specimen in section.specimens %}{{ specimen.accession_number }}{% if not loop.last %}<br>{% endif %}{% else %}-{% endfor %}</td></tr>
+</tbody></table>
+<div class="report-results-space {% if section.subtitle == 'Urinalysis' %}ua-space{% endif %}">
+<table class="report-results {% if section.subtitle == 'Urinalysis' %}ua-results{% endif %}">
+<thead><tr><th>รายการตรวจ</th><th>ผลตรวจ</th><th>หน่วย</th><th>ค่าอ้างอิง</th></tr></thead><tbody>
+{% for result in section.results %}
+{% if result.parameters %}
+{% for parameter in result.parameters %}<tr><td>{{ parameter.name }}</td><td>{{ parameter.value }}{% if parameter.flag in ['H','L','HH','LL','A'] %} <sup>{{ parameter.flag }}</sup>{% endif %}</td><td>{{ parameter.unit | report_unit }}</td><td>{{ parameter.reference or '-' }}</td></tr>{% endfor %}
+{% else %}
+<tr><td>{{ result.test_name_en or result.test_name }}</td><td>{{ result.result_value }}{% if result.abnormal_flag in ['H','L','HH','LL','A'] %} <sup>{{ result.abnormal_flag }}</sup>{% endif %}</td><td>{{ result.unit | report_unit }}</td><td>{{ result.reference_text or '-' }}</td></tr>
 {% endif %}
-</article>
+{% endfor %}
+</tbody></table>
+</div>
+{% if section.subtitle != 'Urinalysis' %}<p class="report-note">NOTE: H = ค่าสูงกว่าเกณฑ์ปกติ, L = ค่าต่ำกว่าเกณฑ์ปกติ</p>{% endif %}
+<section class="report-signatures">
+<p style="font-size:12pt;line-height:11pt">ส่งตรวจต่อห้องปฏิบัติการภายนอก: &nbsp; <span class="report-check">×</span> ไม่ใช่ &nbsp; <span class="report-check"></span> ใช่ &nbsp; ชื่อห้องปฏิบัติการ: ____________________</p>
+<p>Reported by: {{ section.reported_by or '-' }} &nbsp; Date: {{ section.reported_at | app_datetime }}</p>
+<p>Approved by: {{ context.order.released_by or '-' }} &nbsp; Date: {{ context.order.released_at | app_datetime }}</p>
+<p>สถานะรายงาน: <span class="report-check">×</span> Final &nbsp; <span class="report-check"></span> Preliminary &nbsp; <span class="report-check"></span> Corrected</p>
+</section>
+<div class="report-page-footer"><span>{{ context.order.order_number }} / HN: {{ context.patient.hn }}</span><span>หมวด {{ loop.index }} / {{ context.sections|length }}</span></div>
+</div></article>
+{% endfor %}
+</div>
+{% if context.results %}<details class="report-actions mt-3"><summary>ขอแก้ไขผล (Amendment)</summary>{% for result in context.results %}<form class="d-flex gap-2 mt-2" method="post" action="{{ url_for('open_result_amendment', result_id=result.result_id) }}"><label class="visually-hidden" for="reason-{{ result.result_id }}">เหตุผลแก้ไข {{ result.test_name }}</label><input id="reason-{{ result.result_id }}" class="form-control form-control-sm" name="reason" required maxlength="1000" placeholder="เหตุผลแก้ไข {{ result.test_name }}"><button class="btn btn-sm btn-outline-warning text-nowrap" type="submit">เปิด Amendment</button></form>{% endfor %}</details>{% endif %}
 {% endblock %}

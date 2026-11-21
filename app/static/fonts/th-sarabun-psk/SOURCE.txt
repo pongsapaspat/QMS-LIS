@@ -1,0 +1,8 @@
+TH SarabunPSK - regular and bold
+Archive: https://www.f0nt.com/download/sipafonts/07-TH-Sarabun-PSK.zip
+Download reference: https://www.dgr.go.th/bgr3/th/download/635
+Retrieved: 2026-11-21
+
+Original archive filenames: THSarabun.ttf, THSarabun Bold.ttf.
+The font binaries are unmodified; only the filenames have been changed.
+The original DIP&SIPA Font License Agreement is included as LICENSE.txt.

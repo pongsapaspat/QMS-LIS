@@ -5,7 +5,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
-from app.core.result_formatting import display_panel_results, format_reference_text, format_result_number
+from app.core.result_formatting import (
+    display_panel_results,
+    format_reference_text,
+    format_result_number,
+)
 from app.core.time import app_date_range_utc
 from app.domain.exceptions import (
     InvalidResultOperationError,
@@ -30,6 +34,7 @@ from app.schemas.result import (
     VerificationApproval,
     VerificationRejection,
 )
+from app.services.report_layout import prepare_report
 
 
 class ResultService:
@@ -479,9 +484,18 @@ class ResultService:
             results.append(
                 {
                     "result_id": result.id,
+                    "result_type": item.result_type,
+                    "department_code": item.lab_test.department.code,
+                    "department_name": item.lab_test.department.name_th,
+                    "category_name": item.lab_test.category.name_th,
+                    "category_name_en": item.lab_test.category.name_en,
+                    "specimen": result.specimen,
+                    "entered_by": result.entered_by,
+                    "entered_at": result.entered_at,
                     "parameters": display_panel_results(result.parameter_results),
                     "test_code": item.test_code,
                     "test_name": item.test_name_th or item.test_name_en,
+                    "test_name_en": item.test_name_en,
                     "result_value": self._result_value(result),
                     "unit": result.result_unit_snapshot,
                     "reference_text": format_reference_text(reference.get("display_text"))
@@ -515,7 +529,7 @@ class ResultService:
             key=lambda result: result.entered_at.timestamp() if result.entered_at else float("-inf"),
             default=None,
         )
-        return {
+        return prepare_report({
             "order": order,
             "reported_by": reporter.entered_by if reporter else None,
             "reported_at": reporter.entered_at if reporter else None,
@@ -523,7 +537,7 @@ class ResultService:
             "accession_numbers": accessions,
             "results": results,
             "outlab_cases": [item.outlab for item in order.items if item.outlab],
-        }
+        }, self.settings)
 
     def report_list(
         self,
