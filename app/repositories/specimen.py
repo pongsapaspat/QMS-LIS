@@ -63,10 +63,12 @@ class SpecimenRepository:
         statement = statement.order_by(Specimen.collected_at, Specimen.id).limit(limit)
         return list(self.session.scalars(statement))
 
-    def get_order_specimen(self, order_id: int, specimen_type_id: int) -> Specimen | None:
+    def get_order_specimen(self, order_id: int, specimen_type_id: int,
+                           collection_group: str = "INTERNAL") -> Specimen | None:
         statement = select(Specimen).where(
             Specimen.order_id == order_id,
             Specimen.specimen_type_id == specimen_type_id,
+            Specimen.collection_group == collection_group,
         )
         return self.session.scalars(statement).first()
 
@@ -80,16 +82,13 @@ class SpecimenRepository:
         return list(self.session.scalars(statement))
 
     def all_required_specimens_received(self, order_id: int) -> bool:
-        required_type_ids = {
-            item.lab_test.specimen_type_id for item in self.list_order_items(order_id)
-        }
-        if not required_type_ids:
+        required_ids = {item.id for item in self.list_order_items(order_id)}
+        if not required_ids:
             return False
         specimens = self.list_order_specimens(order_id)
-        received_type_ids = {
-            specimen.specimen_type_id for specimen in specimens if specimen.status == "RECEIVED"
-        }
-        return required_type_ids == received_type_ids
+        received_ids = {link.order_item_id for specimen in specimens
+                        if specimen.status == "RECEIVED" for link in specimen.items}
+        return required_ids == received_ids
 
     def get_specimen_type(self, specimen_type_id: int) -> SpecimenType | None:
         return self.session.get(SpecimenType, specimen_type_id)

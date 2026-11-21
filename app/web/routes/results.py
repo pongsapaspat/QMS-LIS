@@ -1,7 +1,10 @@
 from contextlib import suppress
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from io import BytesIO
+from pathlib import PurePath
 from typing import Annotated, cast
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -364,6 +367,27 @@ def lab_report_pdf(
             "Content-Disposition": (f'attachment; filename="QMS-LIS-{order.order_number}.pdf"')
         },
     )
+
+
+@router.get("/results/reports/orders/{order_id}/bundle", name="lab_report_bundle")
+def lab_report_bundle(order_id: int, service: ResultServiceDependency,
+                      actor: ReportReaderDependency) -> Response:
+    context = service.report_context(order_id, actor_reference=actor.reference)
+    order = cast(LabOrder, context["order"])
+    buffer = BytesIO()
+    with ZipFile(buffer, "w", ZIP_DEFLATED) as archive:
+        if context["results"]:
+            archive.writestr(f"QMS-LIS-{order.order_number}.pdf", build_lab_report_pdf(context))
+        for item in order.items:
+            if item.is_outlab and item.outlab and item.outlab.ready:
+                document = item.outlab.documents[-1]
+                filename = PurePath(document.filename).name
+                archive.writestr(f"Outlab/{item.id}-{document.id}-{filename}", document.content)
+    service.audit_report_pdf_download(order_id, actor_reference=actor.reference)
+    return Response(buffer.getvalue(), media_type="application/zip", headers={
+        "Content-Disposition": f'attachment; filename="QMS-LIS-{order.order_number}-documents.zip"',
+        "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+    })
 
 
 @router.post(

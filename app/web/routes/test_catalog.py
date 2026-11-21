@@ -76,6 +76,8 @@ async def save_parameter_options(
     )
 
 TEST_FORM_FIELDS = (
+    "is_outlab",
+    "outlab_lab_name",
     "code",
     "name_th",
     "name_en",
@@ -113,7 +115,8 @@ def _form_value(form: Any, field: str) -> str | None:
 
 
 def _form_values(form: Any, fields: tuple[str, ...]) -> dict[str, Any]:
-    return {field: _form_value(form, field) for field in fields}
+    return {field: _checkbox(form, field) if field == "is_outlab" else _form_value(form, field)
+            for field in fields}
 
 
 def _checkbox(form: Any, field: str) -> bool:

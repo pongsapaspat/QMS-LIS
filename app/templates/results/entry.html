@@ -3,6 +3,7 @@
 <h1>Result entry</h1>
 <form method="post">
   {% for item in items %}
+  {% if not item.is_outlab %}
   {% set saved = item.result and item.result.status in ['COMPLETED', 'VERIFICATION_REJECTED', 'VERIFIED', 'AMENDMENT_REQUESTED', 'RELEASED'] %}
   {% set locked = item.result and item.result.status == 'RELEASED' %}
   <div class="card mb-3"><div class="card-body">
@@ -47,6 +48,11 @@
     </fieldset>
     {% if locked %}<div class="alert alert-info mt-2 mb-0">Released results are locked. Use the amendment workflow for corrections.</div>{% endif %}
   </div></div>
+  {% else %}
+  <div class="alert alert-info">{{ item.test_code }} · {{ item.test_name_en }} — Outlab รับใบผลแยกเอกสาร
+    {% if item.outlab %}<a href="{{ url_for('outlab_detail', case_id=item.outlab.id) }}">ติดตาม / รับใบผล Outlab</a>{% endif %}
+  </div>
+  {% endif %}
   {% endfor %}
   <button class="btn btn-primary" type="submit">Save results</button>
 </form>

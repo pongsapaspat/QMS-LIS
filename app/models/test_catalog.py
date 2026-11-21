@@ -10,6 +10,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    false,
     func,
     text,
     true,
@@ -88,6 +89,10 @@ class LabTest(TimestampMixin, Base):
     result_unit: Mapped[str | None] = mapped_column(String(50), nullable=True)
     tat_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     panel_entry_options: Mapped[dict[str, list[str]] | None] = mapped_column(JSON, nullable=True)
+    is_outlab: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
+    outlab_lab_name: Mapped[str | None] = mapped_column(String(200))
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true(), nullable=False, index=True
     )

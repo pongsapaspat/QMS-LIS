@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+{% set labels = {'PENDING_SEND': 'รอเก็บ / ส่ง', 'SENT': 'ส่งแล้ว · รอใบผล', 'RECEIVED': 'รอตรวจเช็กเอกสาร', 'CHECKED': 'เอกสารครบแล้ว'} %}
+<h1 class="h3">Outlab | ส่งตรวจภายนอก</h1>
+<p class="text-secondary">Specimen แยกจากงานภายใน · ใบผลต้นฉบับแยกเอกสาร · รอครบก่อนส่งมอบทั้ง Order</p>
+<form method="get" class="card card-body mb-3"><div class="row g-3 align-items-end">
+  <div class="col-md-4"><label for="status" class="form-label">สถานะ</label><select id="status" name="status" class="form-select"><option value="">ทั้งหมด</option>{% for code, label in labels.items() %}<option value="{{ code }}"{% if status == code %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  <div class="col-md-5"><label for="search" class="form-label">ค้นหา Order, HN, Test, แล็บปลายทาง</label><input id="search" name="search" class="form-control" value="{{ search }}"></div>
+  <div class="col-md-3"><button class="btn btn-primary" type="submit">ค้นหา</button> <a href="{{ url_for('outlab_queue') }}" class="btn btn-outline-secondary">ล้าง</a></div>
+</div></form>
+<div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Order / ผู้ป่วย</th><th>Test</th><th>แล็บปลายทาง</th><th>สถานะ</th><th>ส่งเมื่อ</th><th></th></tr></thead><tbody>
+{% for case in cases %}<tr>
+  <td><a href="{{ url_for('order_detail', order_id=case.order_item.order.id) }}">{{ case.order_item.order.order_number }}</a><div>{{ case.order_item.order.patient.hn }} · {{ case.order_item.order.patient.display_name }}</div></td>
+  <td>{{ case.order_item.test_code }} · {{ case.order_item.test_name_en }}</td><td>{{ case.lab_name }}</td>
+  <td><span class="badge {{ 'text-bg-success' if case.status == 'CHECKED' else 'text-bg-secondary' }}">{{ labels[case.status] }}</span></td>
+  <td>{{ case.sent_at | app_datetime }}</td><td><a class="btn btn-sm btn-primary" href="{{ url_for('outlab_detail', case_id=case.id) }}">จัดการ Outlab</a></td>
+</tr>{% else %}<tr><td colspan="6" class="text-center text-secondary">ไม่มีงาน Outlab ตามเงื่อนไข</td></tr>{% endfor %}
+</tbody></table></div>
+<div class="d-flex gap-2">{% if page > 1 %}<a class="btn btn-outline-secondary" href="{{ request.url.include_query_params(page=page-1) }}">ก่อนหน้า</a>{% endif %}{% if has_next %}<a class="btn btn-outline-secondary" href="{{ request.url.include_query_params(page=page+1) }}">ถัดไป</a>{% endif %}</div>
+{% endblock %}

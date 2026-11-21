@@ -114,9 +114,9 @@ class WorklistRepository:
         self, *, department_id: int | None, priority: str | None, search: str | None
     ) -> list[WorklistRecord]:
         specimen_exists = exists(
-            select(Specimen.id).where(
+            select(Specimen.id).join(SpecimenItem).where(
                 Specimen.order_id == LabOrder.id,
-                Specimen.specimen_type_id == LabTest.specimen_type_id,
+                SpecimenItem.order_item_id == LabOrderItem.id,
             )
         )
         statement = (
@@ -293,6 +293,7 @@ class WorklistRepository:
             .where(
                 Specimen.status == SpecimenStatus.RECEIVED,
                 LabOrder.status != OrderStatus.CANCELLED,
+                LabOrderItem.is_outlab.is_(False),
             )
         )
         result_conditions = []
@@ -416,6 +417,7 @@ class WorklistRepository:
             .join(Specimen, Specimen.id == SpecimenItem.specimen_id)
             .outerjoin(Result, Result.order_item_id == LabOrderItem.id)
             .where(
+                LabOrderItem.is_outlab.is_(False),
                 LabOrder.status != OrderStatus.CANCELLED,
                 Specimen.status == SpecimenStatus.RECEIVED,
                 or_(Result.id.is_(None), Result.status == ResultStatus.PENDING),

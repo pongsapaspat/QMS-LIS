@@ -116,6 +116,8 @@ def result_context(
                 "test_code": item.test_code,
                 "test_name": item.test_name_en,
                 "result_type": item.result_type,
+                "is_outlab": item.is_outlab,
+                "outlab_case_id": item.outlab.id if item.outlab else None,
                 "parameters": item.parameter_definitions or [],
                 "unit": item.result_unit,
                 "options": [

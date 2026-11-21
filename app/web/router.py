@@ -7,6 +7,7 @@ from app.web.routes import (
     audits,
     auth,
     orders,
+    outlab,
     packages,
     patients,
     results,
@@ -25,6 +26,7 @@ web_router.include_router(packages.router)
 web_router.include_router(specimens.router)
 web_router.include_router(specimens.receiving_router)
 web_router.include_router(results.router)
+web_router.include_router(outlab.router)
 web_router.include_router(users.router)
 web_router.include_router(audits.router)
 

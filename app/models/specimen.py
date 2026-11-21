@@ -22,7 +22,8 @@ class SpecimenStatus(StrEnum):
 class Specimen(TimestampMixin, Base):
     __tablename__ = "specimens"
     __table_args__ = (
-        UniqueConstraint("order_id", "specimen_type_id", name="uq_specimens_order_type"),
+        UniqueConstraint("order_id", "specimen_type_id", "collection_group",
+                         name="uq_specimens_order_type_group"),
         Index("ix_specimens_order_status", "order_id", "status"),
     )
 
@@ -35,6 +36,9 @@ class Specimen(TimestampMixin, Base):
         ForeignKey("specimen_types.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     specimen_type_code: Mapped[str] = mapped_column(String(30), nullable=False)
+    collection_group: Mapped[str] = mapped_column(
+        String(40), default="INTERNAL", server_default="INTERNAL", nullable=False
+    )
     specimen_type_name_th: Mapped[str] = mapped_column(String(150), nullable=False)
     specimen_type_name_en: Mapped[str] = mapped_column(String(150), nullable=False)
     status: Mapped[str] = mapped_column(

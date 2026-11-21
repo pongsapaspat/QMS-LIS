@@ -8,6 +8,7 @@ from app.domain.exceptions import (
 from app.domain.panels import panel_definitions
 from app.models.base import utc_now
 from app.models.order import LabOrder, LabOrderItem
+from app.models.outlab import OutlabCase
 from app.repositories.order import OrderRepository
 from app.schemas.order import LabOrderCreate
 from app.services.package import PackageService
@@ -60,6 +61,8 @@ class OrderService:
                 result_unit=test.result_unit,
                 parameter_definitions=panel_definitions(test.result_type) or None,
                 price=test.current_price,
+                is_outlab=test.is_outlab,
+                outlab=OutlabCase(lab_name=test.outlab_lab_name) if test.is_outlab else None,
             )
             for test in tests
         ]

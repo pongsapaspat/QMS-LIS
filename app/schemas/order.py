@@ -45,6 +45,7 @@ class LabOrderItemResponse(BaseModel):
     id: int
     lab_test_id: int
     included_in_package: bool = False
+    is_outlab: bool = False
     test_code: str
     test_name_th: str
     test_name_en: str

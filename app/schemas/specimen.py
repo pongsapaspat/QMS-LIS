@@ -19,6 +19,9 @@ class SpecimenCollectRequest(BaseModel):
 
     order_id: int = Field(ge=1)
     specimen_type_id: int = Field(ge=1)
+    collection_group: str = Field(
+        default="INTERNAL", pattern=r"^(INTERNAL|OUTLAB-[1-9][0-9]*)$", max_length=40
+    )
     collected_at: datetime | None = None
     collection_note: str | None = Field(default=None, max_length=2000)
 
@@ -121,6 +124,7 @@ class SpecimenResponse(BaseModel):
     accession_number: str
     order_id: int
     specimen_type_id: int
+    collection_group: str = "INTERNAL"
     specimen_type_code: str
     specimen_type_name_th: str
     specimen_type_name_en: str
@@ -148,6 +152,8 @@ class SpecimenRequirementItem(BaseModel):
 
 
 class SpecimenRequirement(BaseModel):
+    collection_group: str = "INTERNAL"
+    outlab_lab_name: str | None = None
     specimen_type_id: int
     specimen_type_code: str
     specimen_type_name_th: str

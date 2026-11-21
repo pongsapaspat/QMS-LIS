@@ -69,6 +69,8 @@ class ResultService:
             item = items.get(submitted.order_item_id)
             if item is None:
                 raise InvalidResultOperationError("order item not found in this order")
+            if item.is_outlab:
+                raise InvalidResultOperationError("Outlab accepts original documents only, not result values")
             specimen = self.repository.specimen_for_item(submitted.order_item_id)
             if specimen is None or specimen.status != SpecimenStatus.RECEIVED:
                 raise InvalidResultOperationError(
@@ -268,6 +270,7 @@ class ResultService:
         return {
             "order": self._order_summary(order),
             "results": self._order_result_details(order),
+            "outlab_cases": [item.outlab for item in order.items if item.outlab],
             "admin_bypass_enabled": (
                 self.settings.enforce_four_eyes_check
                 and self.settings.allow_admin_four_eyes_bypass
@@ -415,6 +418,7 @@ class ResultService:
         return {
             "order": self._order_summary(order),
             "results": self._order_result_details(order),
+            "outlab_cases": [item.outlab for item in order.items if item.outlab],
             "release_ready": not issues,
             "issues": issues,
         }
@@ -428,7 +432,8 @@ class ResultService:
                 "รายงานผลฉบับสมบูรณ์เปิดได้หลังจาก Release ผลแล้วเท่านั้น"
             )
         if not order.items or any(
-            item.result is None or item.result.status != ResultStatus.RELEASED
+            (not item.outlab or not item.outlab.ready) if item.is_outlab else
+            (item.result is None or item.result.status != ResultStatus.RELEASED)
             for item in order.items
         ):
             raise InvalidResultOperationError("ผลตรวจใน Order นี้ยัง Release ไม่ครบถ้วน")
@@ -443,7 +448,7 @@ class ResultService:
         results = []
         for item in order.items:
             result = item.result
-            if result is None:
+            if item.is_outlab or result is None:
                 continue
             reference = result.reference_range_snapshot or {}
             results.append(
@@ -492,6 +497,7 @@ class ResultService:
             "patient": order.patient,
             "accession_numbers": accessions,
             "results": results,
+            "outlab_cases": [item.outlab for item in order.items if item.outlab],
         }
 
     def report_list(
@@ -551,6 +557,8 @@ class ResultService:
         released_at = utc_now()
         try:
             for item in order.items:
+                if item.is_outlab:
+                    continue
                 result = item.result
                 if result is None:
                     raise InvalidResultOperationError(
@@ -743,7 +751,8 @@ class ResultService:
             ResultStatus.RELEASED,
         }
         completed = bool(items) and all(
-            item.result is not None and item.result.status in completed_statuses for item in items
+            (item.outlab is not None and item.outlab.ready) if item.is_outlab else
+            (item.result is not None and item.result.status in completed_statuses) for item in items
         )
         target = OrderStatus.RESULTS_COMPLETED if completed else OrderStatus.RESULTS_IN_PROGRESS
         if order.status != target:
@@ -770,6 +779,8 @@ class ResultService:
 
     @staticmethod
     def _validate_verification(result: Result) -> None:
+        if result.order_item.is_outlab:
+            raise InvalidResultOperationError("Outlab documents are checked, not result-verified")
         if result.status != ResultStatus.COMPLETED:
             raise InvalidResultOperationError("only completed results may be verified")
         if result.specimen.status != SpecimenStatus.RECEIVED:
@@ -793,18 +804,21 @@ class ResultService:
 
     def _update_order_verification(self, order: LabOrder, actor: str) -> None:
         items = self.repository.order_context(order.id)
+        external_ready = all(item.outlab and item.outlab.ready for item in items if item.is_outlab)
+        internal_items = [item for item in items if not item.is_outlab]
         fully_verified = (
             bool(items)
             and all(
                 item.result is not None
                 and item.result.status in {ResultStatus.VERIFIED, ResultStatus.RELEASED}
-                for item in items
+                for item in internal_items
             )
-            and any(item.result and item.result.status == ResultStatus.VERIFIED for item in items)
+            and (not internal_items or any(item.result and item.result.status == ResultStatus.VERIFIED
+                                          for item in internal_items))
         )
         specimens_received = all(
             item.result is not None and item.result.specimen.status == SpecimenStatus.RECEIVED
-            for item in items
+            for item in internal_items
         )
         critical_resolved = all(
             item.result is not None
@@ -812,9 +826,9 @@ class ResultService:
                 item.result.abnormal_flag not in {"LL", "HH"}
                 or item.result.critical_acknowledged_at is not None
             )
-            for item in items
+            for item in internal_items
         )
-        if not (fully_verified and specimens_received and critical_resolved):
+        if not (external_ready and fully_verified and specimens_received and critical_resolved):
             return
         order.status = OrderStatus.RESULTS_VERIFIED
         order.verified_at = utc_now()
@@ -825,7 +839,8 @@ class ResultService:
                 entity_type="lab_order",
                 entity_id=order.id,
                 changed_fields=["status", "verified_at", "verified_by"],
-                reason="all required results verified",
+                reason="internal results verified and Outlab documents checked"
+                if any(item.is_outlab for item in items) else "all required results verified",
                 actor_reference=actor,
             )
         )
@@ -837,6 +852,10 @@ class ResultService:
             return ["order has already been released"]
         issues: list[str] = []
         for item in order.items:
+            if item.is_outlab:
+                if not item.outlab or not item.outlab.ready:
+                    issues.append(f"รอใบผล Outlab / ตรวจเช็กเอกสาร: {item.test_code}")
+                continue
             result = item.result
             if result is None:
                 issues.append(f"required result {item.test_code} is missing")
@@ -963,7 +982,7 @@ class ResultService:
         return detail
 
     def _order_result_details(self, order: LabOrder) -> list[dict[str, object]]:
-        results = [item.result for item in order.items if item.result is not None]
+        results = [item.result for item in order.items if not item.is_outlab and item.result is not None]
         events = self.audit_repository.list_for_entities(
             "result", [result.id for result in results]
         )
@@ -1003,6 +1022,7 @@ class ResultService:
         return {
             **self._order_summary(order),
             "result_count": len(results),
+            "outlab_count": sum(item.is_outlab for item in order.items),
             "has_critical": any(
                 result.abnormal_flag in {"LL", "HH"} for result in results
             ),

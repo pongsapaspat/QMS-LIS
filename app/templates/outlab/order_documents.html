@@ -1,0 +1,11 @@
+{% if context.outlab_cases %}
+<section class="card card-body mb-3 report-actions" aria-label="ใบผลจากแล็บภายนอก">
+  <h2 class="h5">ใบผลจากแล็บภายนอก — เอกสารแยก</h2>
+  {% for case in context.outlab_cases %}<div class="border-top pt-2 mt-2">
+    <strong>{{ case.order_item.test_code }} · {{ case.order_item.test_name_en }}</strong> · {{ case.lab_name }}
+    {% if case.ready %}<span class="badge text-bg-success">ตรวจเช็กเอกสารแล้ว</span>{% else %}<span class="badge text-bg-warning">รอใบผล / ตรวจเช็กเอกสาร</span>{% endif %}
+    <a class="ms-2" href="{{ url_for('outlab_detail', case_id=case.id) }}">ติดตาม Outlab</a>
+    {% if case.ready %}<div><a href="{{ url_for('outlab_document', document_id=case.documents[-1].id) }}">ดาวน์โหลดใบผลต้นฉบับ: {{ case.documents[-1].filename }}</a></div>{% endif %}
+  </div>{% endfor %}
+</section>
+{% endif %}

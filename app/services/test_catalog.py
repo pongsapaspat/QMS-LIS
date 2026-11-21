@@ -230,7 +230,8 @@ class TestCatalogService:
         self._require_active_configuration(
             data.category_id, data.department_id, data.specimen_type_id
         )
-        self._validate_test_configuration(data.result_type, data.result_unit)
+        if not data.is_outlab:
+            self._validate_test_configuration(data.result_type, data.result_unit)
         if self.repository.test_code_exists(data.code):
             raise DuplicateCatalogCodeError("test code already exists")
 
@@ -301,6 +302,11 @@ class TestCatalogService:
         test = self.get_test(test_id)
         changes = data.model_dump(exclude_unset=True, exclude={"reason"})
         resulting_category_id = changes.get("category_id", test.category_id)
+        is_outlab = changes.get("is_outlab", bool(test.is_outlab))
+        if is_outlab is None or (
+            is_outlab and not changes.get("outlab_lab_name", test.outlab_lab_name)
+        ):
+            raise InvalidCatalogOperationError("Outlab laboratory name is required")
         resulting_department_id = changes.get("department_id", test.department_id)
         resulting_specimen_type_id = changes.get("specimen_type_id", test.specimen_type_id)
         if not all(
@@ -327,7 +333,8 @@ class TestCatalogService:
 
         result_type = changes.get("result_type", test.result_type)
         result_unit = changes.get("result_unit", test.result_unit)
-        self._validate_test_configuration(result_type, result_unit)
+        if not is_outlab:
+            self._validate_test_configuration(result_type, result_unit)
         if result_type != test.result_type:
             if result_type in {
                 ResultType.QUALITATIVE,

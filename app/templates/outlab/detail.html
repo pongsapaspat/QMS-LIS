@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block content %}
+{% set labels = {'PENDING_SEND': 'รอส่ง', 'SENT': 'ส่งแล้ว · รอใบผล', 'RECEIVED': 'รอตรวจเช็กเอกสาร', 'CHECKED': 'เอกสารครบแล้ว'} %}
+{% set editable = case.order_item.order.status not in ['CANCELLED', 'RELEASED'] %}
+<div class="d-flex flex-wrap justify-content-between gap-2 mb-3"><h1 class="h3">Outlab — {{ case.order_item.test_code }} · {{ case.order_item.test_name_en }}</h1><a class="btn btn-outline-secondary" href="{{ url_for('outlab_queue') }}">คิว Outlab</a></div>
+{% for error in errors %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endfor %}
+<div class="card card-body mb-3">
+  <p><a href="{{ url_for('order_detail', order_id=case.order_item.order.id) }}">{{ case.order_item.order.order_number }}</a> · {{ case.order_item.order.patient.hn }} · {{ case.order_item.order.patient.display_name }}</p>
+  <p><strong>แล็บปลายทาง:</strong> {{ case.lab_name }} · <strong>เลขอ้างอิง:</strong> {{ case.external_reference or '-' }}</p>
+  <p><strong>Specimen แยก:</strong> {% if specimen %}{{ specimen.accession_number }} · {{ specimen.specimen_type_name_en }} · {{ specimen.status }}{% else %}ยังไม่ได้เก็บ{% endif %}</p>
+  <p><strong>สถานะ:</strong> {{ labels[case.status] }}</p>
+  <div class="row g-2 small text-secondary"><div class="col-md-4">ส่ง: {{ case.sent_at | app_datetime }} · {{ case.sent_by or '-' }}</div><div class="col-md-4">รับใบผล: {{ case.received_at | app_datetime }} · {{ case.received_by or '-' }}</div><div class="col-md-4">ตรวจเช็กเอกสาร: {{ case.checked_at | app_datetime }} · {{ case.checked_by or '-' }}</div></div>
+  {% if case.notes %}<p class="mt-2 mb-0">{{ case.notes }}</p>{% endif %}
+</div>
+{% if case.status == 'PENDING_SEND' and can_send and editable %}
+  {% if not specimen %}<a class="btn btn-primary mb-3" href="{{ url_for('specimen_collection', order_id=case.order_item.order.id) }}">เก็บ Specimen แยกสำหรับ Outlab</a>
+  {% elif specimen.status != 'RECEIVED' %}<a class="btn btn-primary mb-3" href="{{ url_for('specimen_receiving_detail', specimen_id=specimen.id) }}">ตรวจรับ Specimen ก่อนส่ง Outlab</a>
+  {% else %}<form method="post" action="{{ url_for('outlab_action', case_id=case.id, action='send') }}" class="card card-body mb-3">
+    <h2 class="h5">บันทึกส่งแล็บภายนอก</h2>
+    <label for="lab_name" class="form-label">ชื่อแล็บปลายทาง</label><input class="form-control mb-2" id="lab_name" name="lab_name" required maxlength="200" value="{{ values.get('lab_name', case.lab_name) }}">
+    <label for="external_reference" class="form-label">เลขอ้างอิงแล็บปลายทาง (ถ้ามี)</label><input class="form-control mb-2" id="external_reference" name="external_reference" maxlength="150" value="{{ values.get('external_reference', case.external_reference or '') }}">
+    <label for="notes" class="form-label">หมายเหตุการส่ง</label><textarea class="form-control mb-3" id="notes" name="notes" maxlength="2000">{{ values.get('notes', '') }}</textarea>
+    <button class="btn btn-primary align-self-start" type="submit">บันทึกส่ง Outlab</button>
+  </form>{% endif %}
+{% endif %}
+{% if case.status == 'SENT' and can_manage_documents and editable %}
+<form method="post" enctype="multipart/form-data" action="{{ url_for('outlab_action', case_id=case.id, action='receive') }}" class="card card-body mb-3">
+  <h2 class="h5">รับใบผลต้นฉบับจากแล็บภายนอก</h2>
+  <label for="document" class="form-label">ใบผล PDF / PNG / JPEG ไม่เกิน 10 MB</label><input type="file" id="document" name="document" accept=".pdf,.png,.jpg,.jpeg" class="form-control mb-2" required>
+  <label for="reference" class="form-label">เลขอ้างอิงในใบผล (ถ้ามี)</label><input class="form-control mb-3" id="reference" name="external_reference" maxlength="150" value="{{ values.get('external_reference', case.external_reference or '') }}">
+  <button class="btn btn-primary align-self-start" type="submit">แนบใบผลต้นฉบับ</button>
+</form>{% endif %}
+{% if case.documents %}<div class="card card-body mb-3"><h2 class="h5">เอกสารต้นฉบับ</h2><ul class="mb-0">{% for doc in case.documents %}<li><a href="{{ url_for('outlab_document', document_id=doc.id) }}">{{ doc.filename }}</a> · {{ doc.uploaded_at | app_datetime }} · {{ doc.uploaded_by }} {% if loop.last %}(ล่าสุด){% else %}(ประวัติ){% endif %}</li>{% endfor %}</ul></div>{% endif %}
+{% if case.status == 'RECEIVED' and can_manage_documents and editable %}
+<div class="card card-body mb-3"><h2 class="h5">ตรวจเช็กและอนุมัติเอกสารเพื่อส่งมอบ</h2>
+  <p class="text-secondary">ตรวจความตรงกันของผู้ป่วย รายการที่ส่ง และความครบถ้วนของใบผลต้นฉบับ</p>
+  <form method="post" action="{{ url_for('outlab_check', case_id=case.id) }}">
+    <label class="form-check mb-3"><input class="form-check-input" type="checkbox" name="confirmed" required> ตรวจเช็กเอกสารแล้ว ตรงกับผู้ป่วยและรายการส่งตรวจ</label>
+    <button class="btn btn-success" type="submit">ตรวจเช็กและอนุมัติเอกสาร</button>
+  </form>
+  <details class="mt-3"><summary>เอกสารไม่ตรง / ขอใบผลใหม่</summary><form method="post" action="{{ url_for('outlab_check', case_id=case.id) }}" class="mt-2"><input type="hidden" name="decision" value="reject"><label for="reason" class="form-label">เหตุผล</label><input class="form-control mb-2" id="reason" name="reason" maxlength="1000" required><button class="btn btn-outline-danger" type="submit">รอใบผลใหม่</button></form></details>
+</div>{% endif %}
+{% if editable %}
+{% if case.status == 'PENDING_SEND' and not can_send %}<div class="alert alert-info">รอ Medtech เก็บ รับ และส่งสิ่งส่งตรวจ Outlab</div>{% endif %}
+{% if case.status == 'SENT' and not can_manage_documents %}<div class="alert alert-info">ส่ง Outlab แล้ว รอ Supervisor แนบใบผลต้นฉบับ</div>{% endif %}
+{% if case.status == 'RECEIVED' and not can_manage_documents %}<div class="alert alert-info">รอ Supervisor ตรวจเช็กและอนุมัติเอกสาร Outlab</div>{% endif %}
+{% endif %}
+<details><summary>ประวัติการดำเนินการ</summary><ul>{% for event in history %}<li>{{ event.occurred_at | app_datetime }} · {{ event.event_type }} · {{ event.actor_reference }} · {{ event.reason }}</li>{% endfor %}</ul></details>
+{% endblock %}

@@ -17,9 +17,12 @@
     <a class="btn btn-outline-secondary" href="{{ url_for('order_detail', order_id=context.order.id) }}">กลับไปยัง Order</a>
     <a class="btn btn-outline-primary" href="{{ url_for('release_queue') }}">หน้าหลัก Release ผล</a>
   </div>
-  <div><a class="btn btn-success" href="{{ url_for('lab_report_pdf', order_id=context.order.id) }}">ดาวน์โหลด PDF</a> <button class="btn btn-primary" type="button" onclick="window.print()">พิมพ์รายงาน</button></div>
+  {% if context.outlab_cases %}<a class="btn btn-outline-primary" href="{{ url_for('lab_report_bundle', order_id=context.order.id) }}">ดาวน์โหลดเอกสารทั้งหมด (ZIP)</a>{% endif %}
+  {% if context.results %}<div><a class="btn btn-success" href="{{ url_for('lab_report_pdf', order_id=context.order.id) }}">ดาวน์โหลด PDF</a> <button class="btn btn-primary" type="button" onclick="window.print()">พิมพ์รายงาน</button></div>{% endif %}
 </div>
 <article class="report-sheet card">
+{% include 'outlab/order_documents.html' %}
+{% if not context.results %}<div class="card-body"><p class="mb-0">Order นี้มีเฉพาะ Outlab กรุณาส่งมอบใบผลต้นฉบับจากแล็บภายนอกตามเอกสารแนบ</p></div>{% else %}
   <div class="card-body p-4 p-md-5">
     <header class="text-center border-bottom pb-3 mb-4">
       <h1 class="h2 report-title mb-1">QMS-LIS</h1>
@@ -60,5 +63,6 @@
     </section>
     <p class="small text-secondary text-center mt-4 mb-0">รายงานนี้สร้างจากระบบ QMS-LIS</p>
   </div>
+{% endif %}
 </article>
 {% endblock %}

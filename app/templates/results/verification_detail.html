@@ -2,6 +2,7 @@
 {% block content %}
 <a href="/results/verification" class="btn btn-link px-0">← Verification Queue</a>
 <h1 class="h3">Verify {{ context.order.order_number }}</h1>
+{% include 'outlab/order_documents.html' %}
 <p>{{ context.order.patient_hn }} · {{ context.order.patient_name }} · {{ context.order.accession_numbers|join(', ') }}</p>
 <p class="text-body-secondary" data-verification-progress role="status">รอ Verify {{ context.results | selectattr('status', 'equalto', 'COMPLETED') | list | length }} รายการ</p>
 {% for error in errors %}<div class="alert alert-danger" role="alert" data-verification-error>{{ error }}</div>{% endfor %}

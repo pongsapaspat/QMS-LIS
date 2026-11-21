@@ -4,6 +4,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.order import LabOrder, LabOrderItem
+from app.models.outlab import OutlabCase
 from app.models.patient import Patient
 from app.models.result import Result, ResultStatus
 from app.models.specimen import Specimen, SpecimenItem
@@ -19,6 +20,8 @@ class ResultRepository:
             select(LabOrder)
             .options(
                 selectinload(LabOrder.patient),
+                selectinload(LabOrder.items).selectinload(LabOrderItem.outlab)
+                .selectinload(OutlabCase.documents),
                 selectinload(LabOrder.items)
                 .selectinload(LabOrderItem.result)
                 .selectinload(Result.specimen),
@@ -54,6 +57,7 @@ class ResultRepository:
         statement = (
             select(LabOrderItem)
             .options(
+                selectinload(LabOrderItem.outlab).selectinload(OutlabCase.documents),
                 selectinload(LabOrderItem.lab_test).selectinload(LabTest.reference_ranges),
                 selectinload(LabOrderItem.lab_test).selectinload(LabTest.qualitative_options),
                 selectinload(LabOrderItem.lab_test).selectinload(LabTest.department),
@@ -94,6 +98,7 @@ class ResultRepository:
                 selectinload(LabOrderItem.order).selectinload(LabOrder.patient),
             )
             .where(Specimen.status == "RECEIVED")
+            .where(LabOrderItem.is_outlab.is_(False))
         )
         if department_id is not None:
             statement = statement.where(LabTest.department_id == department_id)

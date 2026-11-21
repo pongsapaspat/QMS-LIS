@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     ForeignKey,
     Index,
     Integer,
@@ -12,6 +13,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -19,6 +21,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UTCDateTime, utc_now
 
 if TYPE_CHECKING:
+    from app.models.outlab import OutlabCase
     from app.models.patient import Patient
     from app.models.result import Result
     from app.models.test_catalog import LabTest
@@ -111,6 +114,9 @@ class LabOrderItem(Base):
     result_type: Mapped[str] = mapped_column(String(20), nullable=False)
     result_unit: Mapped[str | None] = mapped_column(String(50), nullable=True)
     parameter_definitions: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
+    is_outlab: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), default=utc_now, server_default=func.now(), nullable=False
@@ -119,6 +125,7 @@ class LabOrderItem(Base):
     order: Mapped[LabOrder] = relationship(back_populates="items")
     lab_test: Mapped["LabTest"] = relationship()
     result: Mapped["Result | None"] = relationship(back_populates="order_item", uselist=False)
+    outlab: Mapped["OutlabCase | None"] = relationship(back_populates="order_item", uselist=False)
 
     @property
     def included_in_package(self) -> bool:

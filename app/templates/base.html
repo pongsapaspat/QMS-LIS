@@ -50,6 +50,7 @@
             {% if role in ['ADMIN', 'IT', 'LAB_TECH', 'LAB_SUPERVISOR'] %}
             <a class="nav-link{% if request.url.path.startswith('/worklist') %} active{% endif %}" href="/worklist"{% if request.url.path.startswith('/worklist') %} aria-current="page"{% endif %}>Worklist | รายการงานตรวจ</a>
             <a class="nav-link{% if request.url.path.startswith('/results/verification') %} active{% endif %}" href="/results/verification">รอตรวจสอบผล</a>
+            <a class="nav-link{% if request.url.path.startswith('/outlab') %} active{% endif %}" href="/outlab">Outlab | ส่งตรวจภายนอก</a>
             {% endif %}
             {% if role in ['ADMIN', 'IT', 'LAB_SUPERVISOR'] %}
             <a class="nav-link{% if request.url.path.startswith('/results/release') %} active{% endif %}" href="/results/release">รอเผยแพร่ผล</a>

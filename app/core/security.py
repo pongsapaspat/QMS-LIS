@@ -156,6 +156,21 @@ def require_result_verifier(actor: Annotated[Actor, Depends(get_current_actor)])
 ResultVerifierDependency = Annotated[Actor, Depends(require_result_verifier)]
 
 
+OUTLAB_DOCUMENT_ROLES = frozenset({"ADMIN", "LAB_SUPERVISOR"})
+
+
+def require_outlab_document_manager(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
+    if actor.role not in OUTLAB_DOCUMENT_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="LAB_SUPERVISOR or ADMIN required for Outlab documents",
+        )
+    return actor
+
+
+OutlabDocumentManagerDependency = Annotated[Actor, Depends(require_outlab_document_manager)]
+
+
 def require_result_releaser(actor: Annotated[Actor, Depends(get_current_actor)]) -> Actor:
     if actor.role not in {"ADMIN", "LAB_SUPERVISOR", "IT"}:
         raise HTTPException(

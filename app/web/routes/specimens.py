@@ -83,6 +83,7 @@ async def specimen_collect(
                 {
                     "order_id": order_id,
                     "specimen_type_id": specimen_type_id,
+                    "collection_group": form.get("collection_group", "INTERNAL"),
                     "collected_at": collected_at,
                     "collection_note": values["collection_note"],
                 }
@@ -150,7 +151,8 @@ async def specimen_reject(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     return RedirectResponse(
-        f"{request.url_for('specimen_collection', order_id=specimen.order_id)}?success=specimen-rejected",
+        f"{request.url_for('specimen_collection', order_id=specimen.order_id)}"
+        "?success=specimen-rejected",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 

@@ -37,22 +37,25 @@ class SpecimenService:
     def requirements(self, order_id: int) -> list[SpecimenRequirement]:
         order = self._get_collectable_order(order_id)
         specimens = {
-            specimen.specimen_type_id: specimen
+            (specimen.specimen_type_id, specimen.collection_group): specimen
             for specimen in self.repository.list_order_specimens(order.id)
         }
-        grouped: dict[int, SpecimenRequirement] = {}
+        grouped: dict[tuple[int, str], SpecimenRequirement] = {}
         for order_item in self.repository.list_order_items(order.id):
             lab_test = order_item.lab_test
             specimen_type = lab_test.specimen_type
+            group = f"OUTLAB-{order_item.id}" if order_item.is_outlab else "INTERNAL"
             requirement = grouped.setdefault(
-                specimen_type.id,
+                (specimen_type.id, group),
                 SpecimenRequirement(
                     specimen_type_id=specimen_type.id,
+                    collection_group=group,
+                    outlab_lab_name=order_item.outlab.lab_name if order_item.outlab else None,
                     specimen_type_code=specimen_type.code,
                     specimen_type_name_th=specimen_type.name_th,
                     specimen_type_name_en=specimen_type.name_en,
                     items=[],
-                    specimen=specimens.get(specimen_type.id),
+                    specimen=specimens.get((specimen_type.id, group)),
                 ),
             )
             requirement.items.append(
@@ -68,7 +71,9 @@ class SpecimenService:
 
     def collect(self, data: SpecimenCollectRequest, *, actor_reference: str) -> Specimen:
         order = self._get_collectable_order(data.order_id)
-        if self.repository.get_order_specimen(order.id, data.specimen_type_id) is not None:
+        if self.repository.get_order_specimen(
+            order.id, data.specimen_type_id, data.collection_group
+        ) is not None:
             raise InvalidSpecimenOperationError(
                 "a specimen for this order and specimen type already exists"
             )
@@ -77,6 +82,7 @@ class SpecimenService:
             item
             for item in self.repository.list_order_items(order.id)
             if item.lab_test.specimen_type_id == data.specimen_type_id
+            and (f"OUTLAB-{item.id}" if item.is_outlab else "INTERNAL") == data.collection_group
         ]
         if not matching_items:
             raise InvalidSpecimenOperationError(
@@ -90,6 +96,7 @@ class SpecimenService:
             accession_number=f"P-{uuid4().hex[:22]}",
             order_id=order.id,
             specimen_type_id=specimen_type.id,
+            collection_group=data.collection_group,
             specimen_type_code=specimen_type.code,
             specimen_type_name_th=specimen_type.name_th,
             specimen_type_name_en=specimen_type.name_en,
@@ -125,7 +132,9 @@ class SpecimenService:
             self.session.refresh(specimen)
         except IntegrityError as exc:
             self.session.rollback()
-            if self.repository.get_order_specimen(order.id, data.specimen_type_id) is not None:
+            if self.repository.get_order_specimen(
+                order.id, data.specimen_type_id, data.collection_group
+            ) is not None:
                 raise InvalidSpecimenOperationError(
                     "a specimen for this order and specimen type already exists"
                 ) from exc
@@ -198,7 +207,8 @@ class SpecimenService:
                     actor_reference=actor_reference,
                 )
             )
-            if self.repository.all_required_specimens_received(order.id):
+            if (self.repository.all_required_specimens_received(order.id)
+                    and order.status == OrderStatus.ORDERED):
                 order.status = OrderStatus.SPECIMENS_RECEIVED
                 self.audit_repository.add(
                     AuditLog(

@@ -144,12 +144,14 @@ class CatalogTestCreate(BaseModel):
     result_unit: str | None = Field(default=None, max_length=50)
     tat_minutes: int = Field(gt=0, le=525600)
     reason: str = Field(default="", max_length=500)
+    is_outlab: bool = False
+    outlab_lab_name: str | None = Field(default=None, max_length=200)
 
     _code = field_validator("code")(normalize_code)
     _names = field_validator("name_th", "name_en")(normalize_required_text)
     _reason = field_validator("reason", mode="before")(normalize_reason)
 
-    @field_validator("result_unit", mode="before")
+    @field_validator("result_unit", "outlab_lab_name", mode="before")
     @classmethod
     def normalize_unit(cls, value: object) -> str | None:
         if value is None:
@@ -159,9 +161,11 @@ class CatalogTestCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_result_configuration(self) -> "CatalogTestCreate":
-        if self.result_type == ResultType.NUMERIC and not self.result_unit:
+        if self.is_outlab and not self.outlab_lab_name:
+            raise ValueError("Outlab laboratory name is required")
+        if not self.is_outlab and self.result_type == ResultType.NUMERIC and not self.result_unit:
             raise ValueError("result unit is required for numeric tests")
-        if self.result_type == ResultType.QUALITATIVE and self.result_unit:
+        if not self.is_outlab and self.result_type == ResultType.QUALITATIVE and self.result_unit:
             raise ValueError("qualitative tests must not define a numeric result unit")
         return self
 
@@ -180,12 +184,14 @@ class CatalogTestUpdate(BaseModel):
     result_unit: str | None = Field(default=None, max_length=50)
     tat_minutes: int | None = Field(default=None, gt=0, le=525600)
     reason: str = Field(default="", max_length=500)
+    is_outlab: bool | None = None
+    outlab_lab_name: str | None = Field(default=None, max_length=200)
 
     _code = field_validator("code", mode="before")(normalize_optional_code)
     _names = field_validator("name_th", "name_en")(normalize_optional_required_text)
     _reason = field_validator("reason", mode="before")(normalize_reason)
 
-    @field_validator("result_unit", mode="before")
+    @field_validator("result_unit", "outlab_lab_name", mode="before")
     @classmethod
     def normalize_unit(cls, value: object) -> str | None:
         return CatalogTestCreate.normalize_unit(value)
@@ -217,6 +223,8 @@ class CatalogTestListItem(BaseModel):
     result_type: str
     result_unit: str | None
     tat_minutes: int
+    is_outlab: bool = False
+    outlab_lab_name: str | None = None
     is_active: bool
     category: ConfigurationResponse
     department: ConfigurationResponse
