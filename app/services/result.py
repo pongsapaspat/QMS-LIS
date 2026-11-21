@@ -34,6 +34,7 @@ from app.schemas.result import (
     VerificationApproval,
     VerificationRejection,
 )
+from app.services.report_identity import capture_identity
 from app.services.report_layout import prepare_report
 
 
@@ -235,6 +236,7 @@ class ResultService:
             order.verified_by = None
             order.released_at = None
             order.released_by = None
+            order.released_by_snapshot = None
             self._audit(
                 "RESULT_AMENDMENT_OPENED",
                 result,
@@ -336,6 +338,9 @@ class ResultService:
             result.status = ResultStatus.VERIFIED
             result.verified_at = utc_now()
             result.verified_by = actor_reference
+            result.verified_by_snapshot = capture_identity(
+                self.session, actor_reference, self.settings, require_complete=True
+            )
             result.verification_comment = data.comment
             result.verification_rejected_at = None
             result.verification_rejected_by = None
@@ -390,6 +395,7 @@ class ResultService:
             result.verification_rejected_by = actor_reference
             result.verification_rejection_reason = data.reason
             result.verification_comment = None
+            result.verified_by_snapshot = None
             result.version += 1
             order = result.order_item.order
             order.status = OrderStatus.RESULTS_IN_PROGRESS
@@ -490,8 +496,10 @@ class ResultService:
                     "category_name": item.lab_test.category.name_th,
                     "category_name_en": item.lab_test.category.name_en,
                     "specimen": result.specimen,
-                    "entered_by": result.entered_by,
-                    "entered_at": result.entered_at,
+                    "entered_by": result.last_modified_by or result.entered_by,
+                    "entered_at": result.last_modified_at or result.entered_at,
+                    "reporter_snapshot": result.last_modified_by_snapshot or result.entered_by_snapshot,
+                    "approver_snapshot": result.released_by_snapshot,
                     "parameters": display_panel_results(result.parameter_results),
                     "test_code": item.test_code,
                     "test_name": item.test_name_th or item.test_name_en,
@@ -594,6 +602,7 @@ class ResultService:
         if issues:
             raise InvalidResultOperationError("; ".join(issues))
         released_at = utc_now()
+        identity = capture_identity(self.session, actor_reference, self.settings, require_complete=True)
         try:
             for item in order.items:
                 if item.is_outlab:
@@ -608,6 +617,7 @@ class ResultService:
                 result.status = ResultStatus.RELEASED
                 result.released_at = released_at
                 result.released_by = actor_reference
+                result.released_by_snapshot = identity.copy()
                 result.version += 1
                 self._audit(
                     "RESULT_AMENDMENT_RELEASED"
@@ -621,6 +631,7 @@ class ResultService:
             order.status = OrderStatus.RELEASED
             order.released_at = released_at
             order.released_by = actor_reference
+            order.released_by_snapshot = identity.copy()
             self.audit_repository.add(
                 AuditLog(
                     event_type="ORDER_RELEASED",
@@ -741,17 +752,25 @@ class ResultService:
         result.reference_range_snapshot = interpretation["range"]  # type: ignore[assignment]
         result.abnormal_flag = interpretation["flag"]  # type: ignore[assignment]
         result.status = ResultStatus.COMPLETED if submitted.complete else ResultStatus.IN_PROGRESS
+        identity = capture_identity(
+            self.session, actor, self.settings, require_complete=submitted.complete
+        )
+        if not result.entered_by:
+            result.entered_by_snapshot = identity.copy()
+        result.last_modified_by_snapshot = identity.copy()
         result.entered_at = result.entered_at or utc_now()
         result.entered_by = result.entered_by or actor
         result.last_modified_at, result.last_modified_by = utc_now(), actor
         result.verified_at = None
         result.verified_by = None
+        result.verified_by_snapshot = None
         result.verification_comment = None
         result.verification_rejected_at = None
         result.verification_rejected_by = None
         result.verification_rejection_reason = None
         result.released_at = None
         result.released_by = None
+        result.released_by_snapshot = None
         result.version += 1
         if result.abnormal_flag not in {"LL", "HH"}:
             result.critical_acknowledged_at, result.critical_acknowledged_by = None, None
@@ -767,6 +786,10 @@ class ResultService:
             "categorical_label_snapshot": result.categorical_label_snapshot,
             "parameter_values": result.parameter_values,
             "parameter_results": result.parameter_results,
+            "entered_by_snapshot": result.entered_by_snapshot,
+            "last_modified_by_snapshot": result.last_modified_by_snapshot,
+            "verified_by_snapshot": result.verified_by_snapshot,
+            "released_by_snapshot": result.released_by_snapshot,
             "abnormal_flag": result.abnormal_flag,
         }
 

@@ -78,6 +78,10 @@ async def order_create(
         "test_ids": form.getlist("test_ids"),
         "package_ids": form.getlist("package_ids"),
         "clinical_note": form.get("clinical_note") or None,
+        "referrer_name": form.get("referrer_name"),
+        "referrer_organization": form.get("referrer_organization"),
+        "referrer_license_type": form.get("referrer_license_type"),
+        "referrer_license_number": form.get("referrer_license_number"),
     }
     try:
         order = order_service.create(

@@ -15,6 +15,11 @@
       </div>
     </div>
     <div class="col-12"><label class="form-label" for="clinical_note">Clinical note</label><textarea class="form-control" id="clinical_note" name="clinical_note" rows="2">{{ values.get('clinical_note') or '' }}</textarea></div>
+    <div class="col-12"><h2 class="h5 mt-2">ผู้ส่งตรวจ</h2><p class="small text-secondary mb-0">ระบุผู้ส่งตรวจจริง แยกจากเจ้าหน้าที่ที่สร้าง Order หากไม่มีผู้ส่งตรวจสามารถเว้นว่างได้</p></div>
+    <div class="col-md-6"><label class="form-label" for="referrer_name">ชื่อ-นามสกุลผู้ส่งตรวจ</label><input class="form-control" id="referrer_name" name="referrer_name" maxlength="200" value="{{ values.get('referrer_name') or '' }}"></div>
+    <div class="col-md-6"><label class="form-label" for="referrer_organization">หน่วยงานผู้ส่งตรวจ</label><input class="form-control" id="referrer_organization" name="referrer_organization" maxlength="200" value="{{ values.get('referrer_organization') or '' }}"></div>
+    <div class="col-md-4"><label class="form-label" for="referrer_license_type">ประเภทใบอนุญาต</label><input class="form-control" id="referrer_license_type" name="referrer_license_type" maxlength="50" placeholder="เช่น ทน. หรือ ว." value="{{ values.get('referrer_license_type') or '' }}"></div>
+    <div class="col-md-8"><label class="form-label" for="referrer_license_number">เลขใบอนุญาตผู้ส่งตรวจ</label><input class="form-control" id="referrer_license_number" name="referrer_license_number" maxlength="100" value="{{ values.get('referrer_license_number') or '' }}"></div>
   </div>
   <hr>
   <h2 class="h5">Active Lab Tests</h2>

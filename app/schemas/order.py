@@ -14,6 +14,10 @@ class LabOrderCreate(BaseModel):
     package_ids: list[int] = Field(default_factory=list, max_length=50)
     priority: OrderPriority = OrderPriority.ROUTINE
     clinical_note: str | None = Field(default=None, max_length=2000)
+    referrer_name: str | None = Field(default=None, max_length=200)
+    referrer_organization: str | None = Field(default=None, max_length=200)
+    referrer_license_type: str | None = Field(default=None, max_length=50)
+    referrer_license_number: str | None = Field(default=None, max_length=100)
 
     @field_validator("test_ids", "package_ids")
     @classmethod
@@ -28,9 +32,15 @@ class LabOrderCreate(BaseModel):
     def require_selection(self):
         if not self.test_ids and not self.package_ids:
             raise ValueError('Select at least one test or package')
+        if (self.referrer_license_number or self.referrer_license_type
+                or self.referrer_organization) and not self.referrer_name:
+            raise ValueError('กรุณาระบุชื่อ-นามสกุลผู้ส่งตรวจ')
+        if self.referrer_license_number and not self.referrer_license_type:
+            raise ValueError('กรุณาระบุประเภทใบอนุญาตผู้ส่งตรวจ เช่น ทน. หรือ ว.')
         return self
 
-    @field_validator("clinical_note", mode="before")
+    @field_validator("clinical_note", "referrer_name", "referrer_organization",
+                     "referrer_license_type", "referrer_license_number", mode="before")
     @classmethod
     def normalize_note(cls, value: object) -> str | None:
         if value is None:
@@ -64,6 +74,10 @@ class LabOrderResponse(BaseModel):
     status: OrderStatus
     priority: OrderPriority
     clinical_note: str | None
+    referrer_name: str | None = None
+    referrer_organization: str | None = None
+    referrer_license_type: str | None = None
+    referrer_license_number: str | None = None
     ordered_at: datetime
     created_by: str
     verified_at: datetime | None

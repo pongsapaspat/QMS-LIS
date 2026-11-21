@@ -14,6 +14,8 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
     role: Mapped[str] = mapped_column(String(30), nullable=False)
     display_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    full_name: Mapped[str | None] = mapped_column(String(200))
+    professional_license_number: Mapped[str | None] = mapped_column(String(100))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     failed_login_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

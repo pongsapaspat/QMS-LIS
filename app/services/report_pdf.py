@@ -121,7 +121,11 @@ def build_lab_report_pdf(context: dict[str, Any]) -> bytes:
                     p("HN: " + patient.hn),
                     p("เพศ: " + (patient.sex or "-")),
                 ],
-                [p("โทรศัพท์: " + (lab["phone"] or "-")), p("ผู้ส่งตรวจ: -"), ""],
+                [
+                    p("โทรศัพท์: " + (lab["phone"] or "-")),
+                    p("ผู้ส่งตรวจ: " + context["referrer_label"]),
+                    "",
+                ],
                 [
                     p(section["report_title"], heading),
                     p("Requested Date/Time:\n" + format_datetime_for_web(order.ordered_at), small),
@@ -208,7 +212,7 @@ def build_lab_report_pdf(context: dict[str, Any]) -> bytes:
         story.append(table)
         # Keep the signature area at the reference position for shorter orders.
         table_height = table.wrap(table_width, doc.height)[1]
-        story.append(Spacer(1, max(0, (402 if is_ua else 384) - table_height)))
+        body_gap = max(0, (402 if is_ua else 384) - table_height)
         tail: list[Any] = [Spacer(1, 6)]
         if not is_ua:
             tail += [p("NOTE: H = ค่าสูงกว่าเกณฑ์ปกติ, L = ค่าต่ำกว่าเกณฑ์ปกติ", small), Spacer(1, 10)]
@@ -222,16 +226,24 @@ def build_lab_report_pdf(context: dict[str, Any]) -> bytes:
                 small,
             ),
             Spacer(1, 12),
-            p(
-                f"Reported by: {section['reported_by'] or '-'}"
-                f"     Date: {format_datetime_for_web(section['reported_at'])}"
-            ),
-            Spacer(1, 10),
-            p(
-                f"Approved by: {order.released_by or '-'}"
-                f"     Date: {format_datetime_for_web(order.released_at)}"
-            ),
-            Spacer(1, 10),
+        ]
+        for person in section["reporters"]:
+            tail += [
+                p(
+                    f"Reported by: {person['label']}"
+                    f"     Date: {format_datetime_for_web(person['at'])}"
+                ),
+                Spacer(1, 10),
+            ]
+        for person in section["approvers"]:
+            tail += [
+                p(
+                    f"Approved by: {person['label']}"
+                    f"     Date: {format_datetime_for_web(person['at'])}"
+                ),
+                Spacer(1, 10),
+            ]
+        tail += [
             Paragraph(
                 "สถานะรายงาน: "
                 + checkbox(True)
@@ -243,7 +255,11 @@ def build_lab_report_pdf(context: dict[str, Any]) -> bytes:
                 normal,
             ),
         ]
-        story.append(KeepTogether(tail))
+        # Use blank space for extra signatories before moving signatures onto another page.
+        tail_height = sum(flowable.wrap(width, doc.height)[1] for flowable in tail)
+        header_height = header.wrap(width, doc.height)[1] + 21
+        available_gap = max(0, doc.height - 12 - header_height - table_height - tail_height)
+        story.extend([Spacer(1, min(body_gap, available_gap)), KeepTogether(tail)])
 
     def footer(canvas: Any, document: Any) -> None:
         canvas.saveState()

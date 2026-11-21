@@ -5,6 +5,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.core.config import Settings
+from app.services.report_identity import identity_label, referrer_label
 
 
 def prepare_report(context: dict[str, Any], settings: Settings) -> dict[str, Any]:
@@ -43,6 +44,27 @@ def prepare_report(context: dict[str, Any], settings: Settings) -> dict[str, Any
         )
         section["reported_by"] = reporter.get("entered_by") or context.get("reported_by")
         section["reported_at"] = reporter.get("entered_at") or context.get("reported_at")
+        reporters = {}
+        approvers = {}
+        for result in section["results"]:
+            label = identity_label(result.get("reporter_snapshot"), result.get("entered_by"))
+            when = result.get("entered_at")
+            if label not in reporters or (
+                when and (not reporters[label] or when > reporters[label])
+            ):
+                reporters[label] = when
+            label = identity_label(result.get("approver_snapshot"), result.get("released_by"))
+            if result.get("released_by"):
+                approvers[label] = result.get("released_at")
+        if not reporters:
+            reporters[identity_label(None, context.get("reported_by"))] = context.get("reported_at")
+        if not approvers:
+            order = context["order"]
+            approvers[
+                identity_label(getattr(order, "released_by_snapshot", None), order.released_by)
+            ] = order.released_at
+        section["reporters"] = [{"label": label, "at": when} for label, when in reporters.items()]
+        section["approvers"] = [{"label": label, "at": when} for label, when in approvers.items()]
         if section["subtitle"] == "Clinical Chemistry":
             section["report_title"] = "ใบรายงานผลการตรวจวิเคราะห์เคมีคลินิก"
             section["report_subtitle"] = "Clinical Chemistry laboratory report"
@@ -62,6 +84,7 @@ def prepare_report(context: dict[str, Any], settings: Settings) -> dict[str, Any
         **context,
         "sections": list(groups.values()),
         "patient_age": age,
+        "referrer_label": referrer_label(order),
         "lab": {
             "name": settings.report_lab_name,
             "address": settings.report_lab_address,

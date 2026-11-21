@@ -1,12 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
 <h1 class="mb-4">จัดการผู้ใช้งาน</h1>
+<p class="text-secondary">ชื่อ-นามสกุลและเลข ทน. ใช้ในใบรายงานผล ข้อมูลจะถูกเก็บ ณ เวลาลงผลและอนุมัติผล การแก้โปรไฟล์ไม่เปลี่ยนรายงานเก่า</p>
 {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
 <div class="card mb-4"><div class="card-body">
   <h2 class="h5">สร้างผู้ใช้ใหม่</h2>
   <form method="post" action="/users" class="row g-2">
     <div class="col-md-3"><input class="form-control" name="username" placeholder="Username" required></div>
     <div class="col-md-3"><input class="form-control" name="display_name" placeholder="ชื่อแสดงผล" required></div>
+    <div class="col-md-6"><label class="form-label" for="new-full-name">ชื่อ-นามสกุลสำหรับรายงาน</label><input id="new-full-name" class="form-control" name="full_name" maxlength="200" placeholder="คำนำหน้า ชื่อ นามสกุล"></div>
+    <div class="col-md-6"><label class="form-label" for="new-license">เลข ทน.</label><input id="new-license" class="form-control" name="professional_license_number" maxlength="100" placeholder="เลขใบอนุญาตประกอบวิชาชีพเทคนิคการแพทย์"></div>
     <div class="col-md-2"><select class="form-select" name="role">{% for role in roles|default(['ADMIN','IT','LAB_TECH','LAB_SUPERVISOR','RECEPTION']) %}<option>{{ role }}</option>{% endfor %}</select></div>
     <div class="col-md-3"><input class="form-control" type="password" name="password" placeholder="รหัสผ่าน" required></div>
     <div class="col-md-1"><button class="btn btn-primary w-100">เพิ่ม</button></div>
@@ -17,6 +20,11 @@
 <form method="post" action="/users/{{ user.id }}/toggle" class="d-inline"><button class="btn btn-sm btn-outline-secondary">{{ 'ปิดใช้งาน' if user.is_active else 'เปิดใช้งาน' }}</button></form>
 {% if user.locked_until %}<form method="post" action="/users/{{ user.id }}/unlock" class="d-inline ms-2"><button class="btn btn-sm btn-outline-danger">ปลดล็อก</button></form>{% endif %}
 <form method="post" action="/users/{{ user.id }}/reset-password" class="d-inline ms-2"><input name="password" type="password" placeholder="รหัสใหม่" required><button class="btn btn-sm btn-outline-warning">รีเซ็ตรหัส</button></form>
+<details class="mt-2"><summary>ชื่อ-นามสกุล / เลข ทน.{% if user.role in ['LAB_TECH','LAB_SUPERVISOR'] and (not user.full_name or not user.professional_license_number) %} <span class="badge text-bg-warning">ข้อมูลยังไม่ครบ</span>{% endif %}</summary>
+<form method="post" action="{{ url_for('user_professional_profile', user_id=user.id) }}" class="row g-2 mt-1">
+<div class="col-md-6"><label class="form-label" for="full-name-{{ user.id }}">ชื่อ-นามสกุลสำหรับรายงาน</label><input class="form-control" id="full-name-{{ user.id }}" name="full_name" maxlength="200" value="{{ user.full_name or '' }}" {% if user.role in ['LAB_TECH','LAB_SUPERVISOR'] %}required{% endif %}></div>
+<div class="col-md-6"><label class="form-label" for="license-{{ user.id }}">เลข ทน.</label><input class="form-control" id="license-{{ user.id }}" name="professional_license_number" maxlength="100" value="{{ user.professional_license_number or '' }}" {% if user.role in ['LAB_TECH','LAB_SUPERVISOR'] %}required{% endif %}></div>
+<div class="col-12"><button class="btn btn-sm btn-primary">บันทึกข้อมูลสำหรับรายงาน</button></div></form></details>
 </td></tr>{% else %}<tr><td colspan="5">ยังไม่มีผู้ใช้งาน</td></tr>{% endfor %}
 </tbody></table></div>
 {% endblock %}

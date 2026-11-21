@@ -67,6 +67,11 @@ class LabOrder(TimestampMixin, Base):
         nullable=False,
     )
     clinical_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    referrer_name: Mapped[str | None] = mapped_column(String(200))
+    referrer_organization: Mapped[str | None] = mapped_column(String(200))
+    referrer_license_type: Mapped[str | None] = mapped_column(String(50))
+    referrer_license_number: Mapped[str | None] = mapped_column(String(100))
+    released_by_snapshot: Mapped[dict | None] = mapped_column(JSON)
     package_snapshots: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
     ordered_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), default=utc_now, server_default=func.now(), nullable=False, index=True

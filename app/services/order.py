@@ -40,6 +40,10 @@ class OrderService:
             patient_id=patient.id,
             priority=data.priority,
             clinical_note=data.clinical_note,
+            referrer_name=data.referrer_name,
+            referrer_organization=data.referrer_organization,
+            referrer_license_type=data.referrer_license_type,
+            referrer_license_number=data.referrer_license_number,
             ordered_at=ordered_at,
             created_by=actor_reference,
             package_snapshots=[{
