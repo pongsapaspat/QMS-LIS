@@ -173,6 +173,8 @@ async def verification_approve(
                 "form_values": {str(result_id): values},
             },
         )
+    if request.headers.get("X-Verification-Inline") == "true":
+        return verification_order(result.order_item.order_id, request, service, actor)
     return _verification_redirect(
         request, service, result.order_item.order_id, "result-verified"
     )
@@ -208,6 +210,8 @@ async def verification_reject(
                 "form_values": {str(result_id): {"reason": reason}},
             },
         )
+    if request.headers.get("X-Verification-Inline") == "true":
+        return verification_order(result.order_item.order_id, request, service, actor)
     return _verification_redirect(
         request, service, result.order_item.order_id, "result-rejected"
     )

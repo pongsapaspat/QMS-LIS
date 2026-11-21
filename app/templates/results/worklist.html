@@ -87,7 +87,8 @@
 
 {% if worklist.items %}
 <div class="table-responsive">
-  <table class="table table-hover align-middle">
+  <table class="table table-hover align-middle{% if result_queue %} result-queue-table{% endif %}">
+    {% if result_queue %}<colgroup><col style="width: 12%"><col style="width: 19%"><col style="width: 29%"><col style="width: 8%"><col style="width: 10%"><col style="width: 12%"><col style="width: 10%"></colgroup>{% endif %}
     <thead>
       <tr>
         <th scope="col">Task</th>
@@ -101,7 +102,7 @@
     </thead>
     <tbody>
       {% for task in worklist.items %}
-      <tr>
+      <tr{% if task.result_tests %} class="result-queue-order"{% endif %}>
         <td>
           <div class="fw-semibold">{{ task.task_label }}</div>
           {% if not task.result_tests %}<div class="small text-body-secondary">{{ task.task_type.value }}</div>{% endif %}
@@ -112,13 +113,10 @@
         </td>
         <td>
           {% if task.result_tests %}
-          {% for test in task.result_tests %}
-          <div class="mb-2">
-            <div>{{ test.test_code }} · {{ test.test_name }}</div>
-            <div class="small text-body-secondary">{{ test.accession_number or '' }} · {{ test.specimen_type or '' }}</div>
-            {% if test.department_code %}<span class="badge text-bg-light">{{ test.department_code }} — {{ test.department_name or '' }}</span>{% endif %}
-          </div>
-          {% endfor %}
+          <div class="result-test-summary">{% for test in task.result_tests %}{{ test.test_name }}{% if not loop.last %} · {% endif %}{% endfor %}</div>
+          <button type="button" class="btn btn-link btn-sm p-0 mt-1" aria-expanded="false" aria-controls="result-tests-{{ loop.index }}" data-result-tests-toggle>
+            <span data-show-label>ดูทั้งหมด ({{ task.result_tests | length }})</span><span data-hide-label hidden>ซ่อนรายละเอียด</span>
+          </button>
           {% elif task.pending_specimens %}
           {% for specimen_type in task.pending_specimens %}<div>{{ specimen_type }}</div>{% endfor %}
           <div class="small text-body-secondary">{{ task.pending_specimens | length }} specimen{% if task.pending_specimens | length != 1 %}s{% endif %} pending</div>
@@ -152,6 +150,24 @@
           <a class="btn btn-sm btn-primary" href="{{ task.next_action_url }}">{{ task.next_action_label }}</a>
         </td>
       </tr>
+      {% if task.result_tests %}
+      <tr id="result-tests-{{ loop.index }}" class="result-tests-detail" hidden>
+        <td colspan="7">
+          <div class="result-tests-panel">
+            <div class="fw-semibold mb-2">รายการตรวจ — {{ task.order_number }}</div>
+            <div class="result-tests-grid">
+              {% for test in task.result_tests %}
+              <div class="result-test-detail">
+                <div class="fw-semibold">{{ test.test_code }} · {{ test.test_name }}</div>
+                <div class="small text-body-secondary">{{ test.accession_number or '-' }} · {{ test.specimen_type or '-' }}</div>
+                {% if test.department_code %}<div class="small text-body-secondary">{{ test.department_code }} — {{ test.department_name or '' }}</div>{% endif %}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </td>
+      </tr>
+      {% endif %}
       {% endfor %}
     </tbody>
   </table>
@@ -187,4 +203,16 @@
   {% endif %}
 </div>
 {% endif %}
+<script>
+document.querySelectorAll('[data-result-tests-toggle]').forEach(button => {
+  button.addEventListener('click', () => {
+    const details = document.getElementById(button.getAttribute('aria-controls'));
+    const expanded = button.getAttribute('aria-expanded') !== 'true';
+    details.hidden = !expanded;
+    button.setAttribute('aria-expanded', String(expanded));
+    button.querySelector('[data-show-label]').hidden = expanded;
+    button.querySelector('[data-hide-label]').hidden = !expanded;
+  });
+});
+</script>
 {% endblock %}

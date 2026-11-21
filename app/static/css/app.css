@@ -200,6 +200,22 @@ fieldset { padding: 1.25rem; }
   .role-module { min-height: 210px; }
 }
 
+.result-queue-table { table-layout: fixed; min-width: 1000px; }
+.result-queue-order > td { vertical-align: top; overflow-wrap: anywhere; }
+.result-test-summary {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.5;
+  max-height: 3em;
+}
+.result-tests-detail[hidden] { display: none; }
+.result-tests-detail > td { padding: 0; }
+.result-tests-panel { padding: 1rem 1.25rem; background: var(--lis-slate-50); }
+.result-tests-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .75rem; }
+.result-test-detail { padding: .75rem; border: 1px solid var(--lis-slate-200); border-radius: .5rem; background: #fff; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
   .interaction-spinner { animation: none; }

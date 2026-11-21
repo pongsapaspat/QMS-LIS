@@ -211,6 +211,60 @@ def test_admin_bypass_visibility_matches_role_and_settings(
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize('action', ['verify', 'reject'])
+def test_inline_review_updates_in_place_even_after_last_result(
+    client: TestClient, action: str,
+) -> None:
+    order_id, results = _completed_order(client)
+    headers = {**SUPERVISOR_HEADERS, 'X-Verification-Inline': 'true'}
+    for index, result in enumerate(results):
+        response = client.post(
+            f"/results/verification/{result['id']}/{action}", headers=headers,
+            data={'order_id': str(order_id), 'reason': 'Please recheck'},
+            follow_redirects=False,
+        )
+        assert response.status_code == 200
+        assert 'location' not in response.headers
+        assert f'id="verification-result-{result["id"]}"' in response.text
+        assert response.text.count('data-inline-verification>') == 2 * (len(results) - index - 1)
+        statuses = {item['result_id']: item['status']
+                    for item in response.context['context']['results']}
+        assert statuses[result['id']] == (
+            'VERIFIED' if action == 'verify' else 'VERIFICATION_REJECTED'
+        )
+    # Double submission still goes through the original server-side status checks.
+    duplicate = client.post(
+        f"/results/verification/{results[0]['id']}/{action}", headers=headers,
+        data={'order_id': str(order_id), 'reason': 'Please recheck'},
+    )
+    assert duplicate.status_code == 422
+    assert 'data-verification-error' in duplicate.text
+
+
+@pytest.mark.integration
+def test_inline_verification_preserves_four_eyes_error_and_comment(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    order_id, results = _completed_order(client)
+    monkeypatch.setenv('QMS_LIS_ENFORCE_FOUR_EYES_CHECK', 'true')
+    get_settings.cache_clear()
+    try:
+        response = client.post(
+            f"/results/verification/{results[0]['id']}/verify",
+            headers={'X-Role': 'LAB_SUPERVISOR', 'X-Actor': 'entry-tech',
+                     'X-Verification-Inline': 'true'},
+            data={'order_id': str(order_id), 'comment': 'Keep this comment'},
+        )
+        assert response.status_code == 422
+        assert 'data-verification-error' in response.text
+        assert 'Keep this comment' in response.text
+        assert all(item['status'] == 'COMPLETED'
+                   for item in response.context['context']['results'])
+    finally:
+        get_settings.cache_clear()
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize('actions', [
     ('verify', 'verify', 'verify'),
     ('reject', 'verify', 'verify'),

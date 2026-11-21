@@ -73,6 +73,7 @@ class ResultResponse(BaseModel):
     numeric_value: Decimal | None
     text_value: str | None
     categorical_value: str | None
+    categorical_label_snapshot: dict[str, str] | None = None
     parameter_values: dict[str, str] | None = None
     parameter_results: list[dict] | None = None
     result_unit_snapshot: str | None

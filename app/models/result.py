@@ -43,6 +43,7 @@ class Result(Base):
     parameter_values: Mapped[dict[str, str] | None] = mapped_column(JSON, nullable=True)
     parameter_results: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
     categorical_value: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    categorical_label_snapshot: Mapped[dict[str, str] | None] = mapped_column(JSON, nullable=True)
     result_unit_snapshot: Mapped[str | None] = mapped_column(String(50), nullable=True)
     reference_range_snapshot: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
     abnormal_flag: Mapped[str | None] = mapped_column(String(2), nullable=True)

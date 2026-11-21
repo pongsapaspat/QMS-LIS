@@ -615,12 +615,15 @@ class ResultService:
         if result_type in {"CATEGORICAL", "QUALITATIVE"}:
             if submitted.categorical_value is None:
                 raise InvalidResultOperationError("categorical result requires an option")
-            allowed = {option.code for option in self.repository.active_options(item.lab_test_id)}
+            allowed = {option.code: option for option in self.repository.active_options(item.lab_test_id)}
             if submitted.categorical_value not in allowed:
                 raise InvalidResultOperationError(
                     "categorical value is not configured for this test"
                 )
-            return {"flag": None, "range": None}
+            option = allowed[submitted.categorical_value]
+            return {"flag": None, "range": None, "categorical_label": {
+                "code": option.code, "label_th": option.label_th, "label_en": option.label_en,
+            }}
         raise InvalidResultOperationError("unsupported result type")
 
     def _match_range(self, item: LabOrderItem) -> ReferenceRange | None:
@@ -680,6 +683,11 @@ class ResultService:
             submitted.categorical_value,
         )
         result.result_unit_snapshot = result.order_item.result_unit
+        # A correction that keeps the same code also keeps the original wording.
+        label = interpretation.get("categorical_label")
+        if not (result.categorical_label_snapshot
+                and result.categorical_label_snapshot.get("code") == submitted.categorical_value):
+            result.categorical_label_snapshot = label  # type: ignore[assignment]
         result.parameter_values = submitted.parameter_values
         result.parameter_results = interpretation.get('parameters')
         result.reference_range_snapshot = interpretation["range"]  # type: ignore[assignment]
@@ -708,6 +716,7 @@ class ResultService:
             else None,
             "text_value": result.text_value,
             "categorical_value": result.categorical_value,
+            "categorical_label_snapshot": result.categorical_label_snapshot,
             "parameter_values": result.parameter_values,
             "parameter_results": result.parameter_results,
             "abnormal_flag": result.abnormal_flag,
@@ -854,7 +863,17 @@ class ResultService:
             return f"{len(result.parameter_results)} parameters"
         if result.numeric_value is not None:
             return str(result.numeric_value)
-        return result.text_value or result.categorical_value
+        if result.text_value:
+            return result.text_value
+        if result.categorical_value:
+            snapshot = result.categorical_label_snapshot or {}
+            if snapshot.get("label_en") or snapshot.get("label_th"):
+                return snapshot.get("label_en") or snapshot.get("label_th")
+            # Legacy rows without a snapshot can still resolve inactive options.
+            for option in result.order_item.lab_test.qualitative_options:
+                if option.code == result.categorical_value:
+                    return option.label_en or option.label_th or option.code
+        return result.categorical_value
 
     @staticmethod
     def _reference_interval(reference: dict[str, object]) -> str | None:
