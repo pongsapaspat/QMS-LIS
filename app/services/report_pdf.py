@@ -112,7 +112,7 @@ def build_lab_report_pdf(context: dict[str, Any]) -> bytes:
         header = Table(
             [
                 [
-                    p("คลินิกเทคนิคการแพทย์: " + lab["name"]),
+                    p(lab["name"]),
                     p("ชื่อ-สกุล: " + patient.display_name),
                     p(f"อายุ: {age if age is not None else '-'} ปี"),
                 ],

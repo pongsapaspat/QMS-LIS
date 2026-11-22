@@ -53,7 +53,7 @@ main.container{max-width:none;padding:0!important}
 <table class="report-header" aria-label="ข้อมูลคลินิก ผู้ป่วย และสิ่งส่งตรวจ">
 <colgroup><col style="width:41.44%"><col style="width:32.30%"><col style="width:26.26%"></colgroup>
 <tbody>
-<tr><td>คลินิกเทคนิคการแพทย์: {{ context.lab.name }}</td><td>ชื่อ-สกุล: {{ context.patient.display_name }}</td><td>อายุ: {{ context.patient_age if context.patient_age is not none else '-' }} ปี</td></tr>
+<tr><td>{{ context.lab.name }}</td><td>ชื่อ-สกุล: {{ context.patient.display_name }}</td><td>อายุ: {{ context.patient_age if context.patient_age is not none else '-' }} ปี</td></tr>
 <tr><td>ที่อยู่: {{ context.lab.address or '-' }}</td><td>HN: {{ context.patient.hn }}</td><td>เพศ: {{ context.patient.sex or '-' }}</td></tr>
 <tr><td class="clinic-phone">โทรศัพท์: {{ context.lab.phone or '-' }}</td><td colspan="2" class="specimen-cell">ผู้บันทึกคำสั่งตรวจ: {{ context.order_creator_label }}{% if context.referrer_label != '-' %}<br>ผู้ส่งตรวจภายนอก: {{ context.referrer_label }}{% endif %}</td></tr>
 <tr><td class="report-thai-title">{{ section.report_title }}</td><td class="specimen-cell">Requested Date/Time:<br>{{ context.order.ordered_at | app_datetime }}</td><td class="specimen-cell">ประเภทสิ่งส่งตรวจ:<br>{% for specimen in section.specimens %}{{ specimen.specimen_type_name_en }}{% if not loop.last %}, {% endif %}{% else %}-{% endfor %}</td></tr>

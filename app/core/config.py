@@ -7,9 +7,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = "QMS-LIS"
-    report_lab_name: str = "QMS-LIS"
-    report_lab_address: str = ""
-    report_lab_phone: str = ""
+    report_lab_name: str = "คลินิกเทคนิคการแพทย์"
+    report_lab_address: str = "มหาวิทยาลัยมหิดล คณะเทคนิคการแพทย์ ศาลายา"
+    report_lab_phone: str = "0818496118"
     app_env: str = "development"
     debug: bool = True
     api_v1_prefix: str = "/api/v1"
