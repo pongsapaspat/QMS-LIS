@@ -46,6 +46,7 @@
             {% if role in ['ADMIN','IT','RECEPTION'] %}<a class="nav-link{% if request.url.path.startswith('/bookings') %} active{% endif %}" href="{{ url_for('booking_list') }}">รายการจอง</a>{% endif %}
             <a class="nav-link{% if request.url.path == '/' %} active{% endif %}" href="/">ภาพรวมระบบ</a>
             {% if role in ['ADMIN', 'IT', 'LAB_TECH', 'LAB_SUPERVISOR', 'RECEPTION'] %}
+            <a class="nav-link{% if request.url.path == '/orders' %} active{% endif %}" href="{{ url_for('order_list') }}">รายการ Order</a>
             <a class="nav-link{% if request.url.path.startswith('/orders') %} active{% endif %}" href="/orders/new">สร้างคำสั่งตรวจ</a>
             {% endif %}
             {% if role in ['ADMIN', 'IT', 'LAB_TECH', 'LAB_SUPERVISOR'] %}

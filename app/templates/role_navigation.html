@@ -5,11 +5,12 @@
 {%- endmacro %}
 <nav class="role-top-nav" aria-label="เมนูหลัก">
   {{ menu_link('/', 'หน้าหลัก', path == '/') }}
+  {{ menu_link(url_for('order_list'), 'รายการ Order', path == '/orders' or (path.startswith('/orders/') and path != '/orders/new' and '/specimens' not in path)) }}
   {% if role == 'RECEPTION' %}
   {{ menu_link('/bookings', 'รายการจอง', path.startswith('/bookings')) }}
   {{ menu_link('/patients/new', 'ลงทะเบียนผู้ป่วย', path == '/patients/new') }}
   {{ menu_link('/patients', 'ข้อมูลผู้ป่วย', path.startswith('/patients') and path != '/patients/new') }}
-  {{ menu_link('/orders/new', 'สั่งตรวจ', path.startswith('/orders')) }}
+  {{ menu_link('/orders/new', 'สั่งตรวจ', path == '/orders/new') }}
   {% elif role == 'LAB_TECH' %}
   {{ menu_link('/outlab', 'Outlab', path.startswith('/outlab')) }}
   {{ menu_link('/worklist?task_type=ORDER_PENDING_COLLECTION', 'เก็บสิ่งส่งตรวจ', collection_queue or (path.startswith('/orders') and '/specimens' in path)) }}

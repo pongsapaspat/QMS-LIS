@@ -132,6 +132,15 @@ def test_package_plus_outlab_separate_specimens_and_wait_for_both(
     assert any(row.order_id == order_id for row in pending.context["worklist"].items)
     original = collect(client, order_id, external)
     assert original["id"] != own_specimen["id"]
+    external_page = client.get(
+        f"/specimens/receiving/{original['id']}", headers=HEADERS
+    )
+    internal_page = client.get(
+        f"/specimens/receiving/{own_specimen['id']}", headers=HEADERS
+    )
+    badge = '<span class="badge text-bg-warning ms-2">Outlab</span>'
+    assert badge in external_page.text
+    assert badge not in internal_page.text
     assert original["accession_number"] != own_specimen["accession_number"]
     assert {i["order_item_id"] for i in original["items"]}.isdisjoint(
         {i["order_item_id"] for i in own_specimen["items"]}

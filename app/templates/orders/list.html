@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="h3 mb-3">รายการ Order</h1>
+{% if errors %}<div class="alert alert-danger" role="alert">{{ errors | join(' · ') }}</div>{% endif %}
+<form method="get" action="{{ url_for('order_list') }}" class="card card-body mb-3">
+  <div class="row g-3 align-items-end">
+    <div class="col-md-6 col-xl-4">
+      <label class="form-label" for="order-search">ค้นหา Order, HN หรือชื่อผู้ป่วย</label>
+      <input class="form-control" id="order-search" name="search" maxlength="100" value="{{ search }}">
+    </div>
+    <div class="col-md-6 col-xl-4">
+      <label class="form-label" for="order-status">สถานะ Order</label>
+      <select class="form-select" id="order-status" name="order_status">
+        <option value="">ทุกสถานะ</option>
+        {% for value, label in statuses.items() %}
+        <option value="{{ value }}"{% if order_status == value %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-xl-2"><label class="form-label" for="date-from">ตั้งแต่วันที่</label><input class="form-control" id="date-from" name="date_from" type="date" value="{{ date_from }}"></div>
+    <div class="col-6 col-xl-2"><label class="form-label" for="date-to">ถึงวันที่</label><input class="form-control" id="date-to" name="date_to" type="date" value="{{ date_to }}"></div>
+    <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
+      <button class="btn btn-primary" type="submit">ค้นหา</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('order_list') }}">ล้างตัวกรอง</a>
+      <label class="form-check ms-2 mb-0"><input class="form-check-input" type="checkbox" name="all_dates" value="true"{% if all_dates %} checked{% endif %}> ค้นหาย้อนหลังทุกวันเมื่อไม่ระบุวันที่</label>
+    </div>
+  </div>
+</form>
+{% if not errors %}
+<p class="text-secondary">{{ total }} Order{% if today_and_open %} · วันนี้และงานก่อนหน้าที่ยังไม่เสร็จ{% endif %}</p>
+{% if rows %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead><tr><th scope="col">Order / เวลาสั่ง</th><th scope="col">ผู้ป่วย</th><th scope="col">สถานะ</th><th scope="col">ความคืบหน้า</th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      {% set order = row.order %}
+      {% set progress = row.progress %}
+      <tr>
+        <td><a class="fw-semibold" href="{{ url_for('order_detail', order_id=order.id) }}">{{ order.order_number }}</a><div class="small text-secondary">{{ order.ordered_at | app_datetime }}</div></td>
+        <td>{{ order.patient.display_name }}<div class="small text-secondary">{{ order.patient.hn }}</div></td>
+        <td><span class="badge {{ 'text-bg-success' if order.status == 'RELEASED' else 'text-bg-secondary' }}">{{ statuses.get(order.status, order.status) }}</span>{% if order.priority == 'URGENT' %}<div class="text-danger fw-semibold mt-1">ด่วน</div>{% endif %}</td>
+        <td>{% if order.status != 'CANCELLED' %}{% include 'orders/progress.html' %}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card card-body text-secondary">ไม่พบ Order ตามตัวกรองที่เลือก</div>
+{% endif %}
+{% if page > 1 or has_next %}
+<nav class="d-flex flex-wrap align-items-center gap-2" aria-label="หน้ารายการ Order">
+  {% if page > 1 %}<a class="btn btn-outline-secondary" href="{{ request.url.include_query_params(page=page - 1) }}">ก่อนหน้า</a>{% endif %}
+  <span>หน้า {{ page }}</span>
+  {% if has_next %}<a class="btn btn-outline-secondary" href="{{ request.url.include_query_params(page=page + 1) }}">ถัดไป</a>{% endif %}
+</nav>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,11 @@
+<div>เก็บแล้ว {{ progress.collected }}/{{ progress.required }} · รับแล้ว {{ progress.received }}/{{ progress.required }}</div>
+{% if progress.recollection %}<div class="text-danger">ต้องเก็บใหม่ {{ progress.recollection }} สิ่งส่งตรวจ</div>{% endif %}
+{% if progress.internal %}<div>Verify แล้ว {{ progress.verified }}/{{ progress.internal }} รายการ{% if progress.awaiting_verification %} · รอ Verify {{ progress.awaiting_verification }}{% endif %}</div>{% endif %}
+{% if progress.outlab %}
+<div>Outlab เอกสารผ่านการตรวจ {{ progress.outlab_ready }}/{{ progress.outlab }} รายการ</div>
+{% if show_lab_details %}
+  {% if progress.outlab_statuses['PENDING_SEND'] %}<div class="text-secondary">รอส่ง Outlab {{ progress.outlab_statuses['PENDING_SEND'] }} รายการ</div>{% endif %}
+  {% if progress.outlab_statuses['SENT'] %}<div class="text-secondary">รอใบผล Outlab {{ progress.outlab_statuses['SENT'] }} รายการ</div>{% endif %}
+  {% if progress.outlab_statuses['RECEIVED'] %}<div class="text-secondary">รอตรวจเอกสาร Outlab {{ progress.outlab_statuses['RECEIVED'] }} รายการ</div>{% endif %}
+{% endif %}
+{% endif %}

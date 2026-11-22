@@ -2,13 +2,41 @@
 {% block content %}
 {% set cases = order.items | selectattr('outlab') | map(attribute='outlab') | list %}
 {% if cases %}<div class="alert alert-info">Outlab {{ cases | length }} รายการ · เอกสารครบ {{ cases | selectattr('ready') | list | length }} รายการ · ส่งมอบเมื่อครบทั้ง Order
-{% if role in ['ADMIN', 'IT', 'LAB_TECH', 'LAB_SUPERVISOR'] %}{% for case in cases %}<div><a href="{{ url_for('outlab_detail', case_id=case.id) }}">{{ case.order_item.test_code }} — {{ case.lab_name }}</a> · {{ case.status }}</div>{% endfor %}{% endif %}</div>{% endif %}
-<div class="d-flex justify-content-between align-items-center mb-3"><div><h1 class="h3 mb-1">{{ order.order_number }}</h1><p class="text-secondary mb-0">Laboratory order</p></div><div>{% if order.status == 'RELEASED' and role in ['ADMIN', 'IT', 'LAB_TECH', 'LAB_SUPERVISOR'] %}<a class="btn btn-success" href="{{ url_for('lab_report', order_id=order.id) }}">รายงานผลตรวจ</a> {% endif %}{% if can_collect_specimens %}<a class="btn btn-outline-primary" href="{{ url_for('specimen_collection', order_id=order.id) }}">Collect specimens</a> {% endif %}</div></div>
+{% if show_lab_details %}{% for case in cases %}<div><a href="{{ url_for('outlab_detail', case_id=case.id) }}">{{ case.order_item.test_code }} — {{ case.lab_name }}</a> · {{ case.status }}</div>{% endfor %}{% endif %}</div>{% endif %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+  <div><h1 class="h3 mb-1">{{ order.order_number }}</h1><p class="text-secondary mb-0">{{ statuses.get(order.status, order.status) }}</p></div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('order_list') }}">กลับรายการ Order</a>
+    {% if can_collect_specimens %}<a class="btn btn-outline-primary" href="{{ url_for('specimen_collection', order_id=order.id) }}">เก็บสิ่งส่งตรวจ</a>{% endif %}
+    {% if can_enter_results %}<a class="btn btn-primary" href="{{ url_for('result_entry', order_id=order.id) }}">ลงผลตรวจ</a>{% endif %}
+    {% if can_verify %}<a class="btn btn-primary" href="{{ url_for('verification_order', order_id=order.id) }}">Verify</a>{% endif %}
+    {% if can_release %}<a class="btn btn-primary" href="{{ url_for('release_order_preview', order_id=order.id) }}">Release</a>{% endif %}
+    {% if can_read_report %}<a class="btn btn-success" href="{{ url_for('lab_report', order_id=order.id) }}">รายงานผลตรวจ</a>{% endif %}
+  </div>
+</div>
+{% if order.status != 'CANCELLED' %}
+<section class="card card-body mb-3">
+  <h2 class="h5">ความคืบหน้า</h2>
+  {% include 'orders/progress.html' %}
+  {% if show_lab_details and progress.pending_rooms and order.status != 'RELEASED' %}
+  <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+    <span class="text-secondary">ค้างเก็บตามห้อง</span>
+    {% for room, count in progress.pending_rooms.items() %}
+      {% set label = collection_rooms.get(room, 'ยังไม่กำหนดห้อง') %}
+      {% if can_collect_specimens %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('specimen_collection', order_id=order.id).include_query_params(collection_room=room or 'all') }}">{{ label }} · {{ count }}</a>
+      {% else %}<span class="badge text-bg-light">{{ label }} · {{ count }}</span>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endif %}
 <div class="card mb-4"><div class="card-body"><dl class="row mb-0"><dt class="col-sm-3">Patient</dt><dd class="col-sm-9">{{ order.patient.hn }} — {{ order.patient.display_name }}</dd><dt class="col-sm-3">Status</dt><dd class="col-sm-3">{{ order.status }}</dd><dt class="col-sm-3">Priority</dt><dd class="col-sm-3">{{ order.priority }}</dd><dt class="col-sm-3">Ordered at</dt><dd class="col-sm-3">{{ order.ordered_at | app_datetime }}</dd><dt class="col-sm-3">ผู้บันทึกคำสั่งตรวจ</dt><dd class="col-sm-3">{{ order_creator_label }}<div class="small text-secondary">{{ order.created_by }}</div></dd><dt class="col-sm-3">Clinical note</dt><dd class="col-sm-9">{{ order.clinical_note or '-' }}</dd></dl></div></div>
 {% if order.package_snapshots %}<div class="card mb-4"><div class="card-body"><h2 class="h5">Packages ที่สั่ง</h2>{% for p in order.package_snapshots %}<div class="d-flex justify-content-between"><span>{{ p.code }} · {{ p.name }}</span><strong>{{ '%.2f'|format(p.price|float) }} บาท</strong></div>{% endfor %}<p class="small text-secondary mt-2 mb-0">ราคาเหมาแต่ละ Package รวมกับราคา Tests เพิ่มที่อยู่นอกชุด</p></div></div>{% endif %}
 <div class="card"><div class="card-body"><h2 class="h5">Ordered tests</h2><div class="table-responsive"><table class="table"><thead><tr><th>Code</th><th>Thai name</th><th>English name</th><th>Result</th><th class="text-end">Price</th></tr></thead><tbody>{% for item in order.items %}<tr><td>{{ item.test_code }}</td><td>{{ item.test_name_th }}</td><td>{{ item.test_name_en }}</td><td>{{ item.result_type }}{% if item.result_unit %} ({{ item.result_unit }}){% endif %}</td><td class="text-end">{% if item.lab_test_id in order.package_test_ids %}รวมใน Package{% else %}{{ '%.2f'|format(item.price) }}{% endif %}</td></tr>{% endfor %}</tbody><tfoot><tr><th colspan="4" class="text-end">Total</th><th class="text-end">{{ '%.2f'|format(order.total_price) }}</th></tr></tfoot></table></div></div></div>
-<div class="card mt-4"><div class="card-body"><h2 class="h5">Specimens</h2>{% if specimens %}<div class="table-responsive"><table class="table mb-0"><thead><tr><th>Accession</th><th>Type</th><th>Status</th><th>Collected</th><th>Received</th><th>Rejection</th></tr></thead><tbody>{% for specimen in specimens %}<tr><td>{{ specimen.accession_number }}</td><td>{{ specimen.specimen_type_code }} — {{ specimen.specimen_type_name_en }}</td><td>{{ specimen.status }}</td><td>{{ specimen.collected_at | app_datetime }}<br><small>{{ specimen.collected_by }}</small></td><td>{{ specimen.received_at | app_datetime if specimen.received_at else '-' }}{% if specimen.received_by %}<br><small>{{ specimen.received_by }}</small>{% endif %}{% if specimen.receiving_note %}<br><small>{{ specimen.receiving_note }}</small>{% endif %}</td><td>{{ specimen.rejection_reason_code or '-' }}{% if specimen.rejection_reason %}<br><small>{{ specimen.rejection_reason }}</small>{% endif %}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-secondary mb-0">No specimens collected.</p>{% endif %}</div></div>
+{% if show_lab_details %}
+<div class="card mt-4"><div class="card-body"><h2 class="h5">Specimens</h2>{% if specimens %}<div class="table-responsive"><table class="table mb-0"><thead><tr><th>Accession</th><th>ชนิด / ห้องเก็บ</th><th>Status</th><th>Collected</th><th>Received</th><th>Rejection</th></tr></thead><tbody>{% for specimen in specimens %}<tr><td>{% if can_receive and specimen.is_current and specimen.status == 'COLLECTED' %}<a href="{{ url_for('specimen_receiving_detail', specimen_id=specimen.id) }}">{{ specimen.accession_number }} · รับสิ่งส่งตรวจ</a>{% else %}{{ specimen.accession_number }}{% endif %}</td><td>{{ specimen.specimen_type_code }} — {{ specimen.specimen_type_name_en }}<div class="small text-secondary">{{ collection_rooms.get(specimen.specimen_type.collection_room, 'ยังไม่กำหนดห้อง') }}</div></td><td>{{ specimen.status }}</td><td>{{ specimen.collected_at | app_datetime }}<br><small>{{ specimen.collected_by }}</small></td><td>{{ specimen.received_at | app_datetime if specimen.received_at else '-' }}{% if specimen.received_by %}<br><small>{{ specimen.received_by }}</small>{% endif %}{% if specimen.receiving_note %}<br><small>{{ specimen.receiving_note }}</small>{% endif %}</td><td>{{ specimen.rejection_reason_code or '-' }}{% if specimen.rejection_reason %}<br><small>{{ specimen.rejection_reason }}</small>{% endif %}</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="text-secondary mb-0">No specimens collected.</p>{% endif %}</div></div>
+{% endif %}
 {% if order.referrer_name %}<section class="card card-body mt-3"><h2 class="h5">ผู้ส่งตรวจ</h2><dl class="row mb-0"><dt class="col-sm-3">ชื่อ-นามสกุล</dt><dd class="col-sm-9">{{ order.referrer_name }}</dd><dt class="col-sm-3">หน่วยงาน</dt><dd class="col-sm-9">{{ order.referrer_organization or '-' }}</dd><dt class="col-sm-3">เลขใบอนุญาต</dt><dd class="col-sm-9">{{ order.referrer_license_type or '' }} {{ order.referrer_license_number or '-' }}</dd></dl></section>{% endif %}
-{% set replacements = specimens | selectattr('replaces_specimen_id') | list %}
+{% set replacements = specimens | selectattr('replaces_specimen_id') | list if show_lab_details else [] %}
 {% if replacements %}<section class="card card-body mt-3"><h2 class="h5">ประวัติการเก็บสิ่งส่งตรวจทดแทน</h2><ul class="mb-0">{% for specimen in replacements %}<li>{{ specimen.replaces_specimen.accession_number }} → {{ specimen.accession_number }} · {{ specimen.status }} · {{ specimen.collected_at | app_datetime }} · {{ specimen.collected_by }}</li>{% endfor %}</ul></section>{% endif %}
 {% endblock %}

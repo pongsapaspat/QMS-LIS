@@ -1,6 +1,8 @@
-from typing import Any
+from collections import defaultdict
+from datetime import date
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from pydantic import ValidationError
 
@@ -12,18 +14,83 @@ from app.api.dependencies import (
 )
 from app.core.config import get_settings
 from app.core.security import ActorDependency
+from app.core.time import app_date_range_utc, to_app_timezone, utc_now
 from app.domain.exceptions import (
     CatalogNotFoundError,
     InvalidBookingOperationError,
     PatientNotFoundError,
 )
+from app.models.order import OrderStatus
+from app.models.specimen import Specimen
 from app.schemas.order import LabOrderCreate
 from app.services.booking import BookingService
+from app.services.order_progress import ORDER_STATUS_LABELS, summarize_order
 from app.services.package import PackageService
 from app.services.report_identity import capture_identity, order_creator_label
 from app.web.templates import templates
 
 router = APIRouter(prefix="/orders")
+ORDER_VIEW_ROLES = {"ADMIN", "IT", "RECEPTION", "LAB_TECH", "LAB_SUPERVISOR"}
+
+
+@router.get("", response_class=HTMLResponse, name="order_list")
+def order_list(
+    request: Request,
+    service: OrderServiceDependency,
+    actor: ActorDependency,
+    search: Annotated[str, Query(max_length=100)] = "",
+    order_status: str = "",
+    date_from: str = "",
+    date_to: str = "",
+    all_dates: bool = False,
+    page: Annotated[int, Query(ge=1, le=1_000_000)] = 1,
+) -> Response:
+    if actor.role not in ORDER_VIEW_ROLES:
+        raise HTTPException(403, "Order viewing permission required")
+    today_and_open = not (all_dates or date_from or date_to)
+    page_size = 25
+    errors = []
+    rows: list[dict[str, Any]] = []
+    total = 0
+    try:
+        today = to_app_timezone(utc_now()).date() if today_and_open else None
+        first = date.fromisoformat(date_from) if date_from else today
+        last = date.fromisoformat(date_to) if date_to else today
+        if first and last and first > last:
+            raise ValueError
+        start, end = app_date_range_utc(first, last)
+    except (ValueError, OverflowError):
+        errors.append("กรุณาตรวจสอบช่วงวันที่")
+        start, end = None, None
+    try:
+        selected_status = OrderStatus(order_status) if order_status else None
+    except ValueError:
+        errors.append("สถานะคำสั่งตรวจไม่ถูกต้อง")
+        selected_status = None
+    if not errors:
+        orders, total = service.repository.list_orders(
+            search=search, status=selected_status, start=start, end=end,
+            include_older_open=today_and_open, offset=(page - 1) * page_size, limit=page_size,
+        )
+        specimens: dict[int, list[Specimen]] = defaultdict(list)
+        for specimen in service.repository.current_specimens([order.id for order in orders]):
+            specimens[specimen.order_id].append(specimen)
+        rows = [
+            {"order": order, "progress": summarize_order(order, specimens[order.id])}
+            for order in orders
+        ]
+    return templates.TemplateResponse(
+        request=request,
+        name="orders/list.html",
+        status_code=422 if errors else 200,
+        context={
+            "page_title": "รายการ Order", "rows": rows, "total": total, "page": page,
+            "has_next": page * page_size < total, "errors": errors,
+            "statuses": ORDER_STATUS_LABELS, "search": search, "order_status": order_status,
+            "date_from": date_from, "date_to": date_to, "all_dates": all_dates,
+            "today_and_open": today_and_open, "show_lab_details": actor.role != "RECEPTION",
+        },
+    )
 
 
 def _context(
@@ -190,7 +257,13 @@ def order_detail(
     specimen_service: SpecimenServiceDependency,
     actor: ActorDependency,
 ) -> Response:
+    if actor.role not in ORDER_VIEW_ROLES:
+        raise HTTPException(403, "Order viewing permission required")
     order = service.get(order_id)
+    specimens = specimen_service.repository.list_order_specimens(order.id)
+    progress = summarize_order(order, specimens)
+    active = order.status not in {OrderStatus.CANCELLED, OrderStatus.RELEASED}
+    can_collect = actor.role in {"ADMIN", "LAB_TECH", "IT"}
     return templates.TemplateResponse(
         request=request,
         name="orders/detail.html",
@@ -198,7 +271,17 @@ def order_detail(
             "page_title": "Laboratory order",
             "order": order,
             "order_creator_label": order_creator_label(order),
-            "specimens": specimen_service.repository.list_order_specimens(order.id),
-            "can_collect_specimens": actor.role in {"ADMIN", "LAB_TECH", "IT"},
+            "specimens": specimens,
+            "can_collect_specimens": active and can_collect,
+            "can_enter_results": active and can_collect and progress.can_enter_results,
+            "can_receive": active and can_collect,
+            "can_verify": active and bool(progress.awaiting_verification)
+            and actor.role in {"ADMIN", "LAB_SUPERVISOR", "IT"},
+            "can_release": order.status == OrderStatus.RESULTS_VERIFIED
+            and actor.role in {"ADMIN", "LAB_SUPERVISOR", "IT"},
+            "can_read_report": actor.role != "RECEPTION" and order.status == OrderStatus.RELEASED,
+            "show_lab_details": actor.role != "RECEPTION",
+            "progress": progress,
+            "statuses": ORDER_STATUS_LABELS,
         },
     )
