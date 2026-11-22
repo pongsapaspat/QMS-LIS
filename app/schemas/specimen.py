@@ -4,6 +4,7 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.time import ensure_utc
+from app.domain.collection import CollectionRoom
 from app.models.specimen import SpecimenStatus
 
 
@@ -156,6 +157,7 @@ class SpecimenRequirementItem(BaseModel):
 
 
 class SpecimenRequirement(BaseModel):
+    collection_room: CollectionRoom | None = None
     history: list[SpecimenResponse] = Field(default_factory=list)
     collection_group: str = "INTERNAL"
     outlab_lab_name: str | None = None

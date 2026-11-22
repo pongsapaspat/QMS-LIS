@@ -14,17 +14,18 @@
 <form class="card card-body mb-4" method="get" action="{{ url_for('worklist') }}">
   <input type="hidden" name="task_type" value="ORDER_PENDING_COLLECTION">
   <div class="row g-3 align-items-end">
-    <div class="col-md-5"><label class="form-label" for="collection-filter">ประเภทการเก็บสิ่งส่งตรวจ</label>
+    <div class="col-md-3"><label class="form-label" for="collection-room">ห้องเก็บ</label><select class="form-select" id="collection-room" name="collection_room"><option value="all"{% if filters.collection_room == 'all' %} selected{% endif %}>ทั้งหมด</option>{% for room, label in collection_rooms.items() %}<option value="{{ room }}"{% if filters.collection_room == room %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label" for="collection-filter">ประเภทการเก็บสิ่งส่งตรวจ</label>
       <select class="form-select" id="collection-filter" name="collection_filter">
         {% for value, label in [('all', 'ทั้งหมด'), ('initial', 'เก็บครั้งแรก'), ('recollection', 'มีรายการต้องเก็บใหม่หลัง Reject')] %}
         <option value="{{ value }}"{% if filters.collection_filter == value %} selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </div>
-    <div class="col-md-4"><label class="form-label" for="collection-search">ค้นหา Order, HN, ชื่อผู้ป่วย</label><input class="form-control" id="collection-search" name="search" value="{{ filters.search }}"></div>
-    <div class="col-md-3 d-flex gap-2"><button class="btn btn-primary" type="submit">กรองรายการ</button><a class="btn btn-outline-secondary" href="{{ url_for('worklist') }}?task_type=ORDER_PENDING_COLLECTION">ล้าง</a></div>
+    <div class="col-md-3"><label class="form-label" for="collection-search">ค้นหา Order, HN, ชื่อผู้ป่วย</label><input class="form-control" id="collection-search" name="search" value="{{ filters.search }}"></div>
+    <div class="col-md-3 d-flex gap-2"><button class="btn btn-primary" type="submit">กรองรายการ</button><a class="btn btn-outline-secondary" href="{{ url_for('worklist') }}?task_type=ORDER_PENDING_COLLECTION&collection_room=all">ล้าง</a></div>
   </div>
-  <p class="form-text mb-0">Order ที่มีทั้งรายการเก็บครั้งแรกและรายการเก็บใหม่ จะแสดงในกลุ่มเก็บใหม่</p>
+  <p class="form-text mb-0">เครื่องนี้จะจำห้องที่เลือกไว้ · Order ที่มีรายการเก็บใหม่ในห้องที่เลือก จะแสดงในกลุ่มเก็บใหม่{% if filters.collection_room == 'all' %} · สิ่งส่งตรวจที่ยังไม่กำหนดห้องจะแสดงในคิวทั้งหมด{% endif %}</p>
 </form>
 {% endif %}
 

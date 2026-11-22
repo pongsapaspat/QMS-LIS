@@ -11,6 +11,7 @@ from app.core.security import (
     SpecimenReceivingReaderDependency,
 )
 from app.core.time import parse_local_datetime
+from app.domain.collection import CollectionRoom, CollectionRoomFilter
 from app.domain.exceptions import InvalidSpecimenOperationError, OrderNotFoundError
 from app.schemas.specimen import (
     REJECTION_REASON_LABELS,
@@ -19,6 +20,7 @@ from app.schemas.specimen import (
     SpecimenReceiptRequest,
     SpecimenRejectRequest,
 )
+from app.web.collection_preferences import remember_collection_room, selected_collection_room
 from app.web.templates import templates
 
 router = APIRouter(prefix="/orders")
@@ -31,27 +33,37 @@ def _errors(exc: Exception) -> list[str]:
     return [str(exc)]
 
 
+def _collection_response(
+    request: Request, service: SpecimenServiceDependency, order_id: int,
+    room: CollectionRoom | None, *, values: dict[str, Any] | None = None,
+    errors: list[str] | None = None, status_code: int = 200,
+) -> Response:
+    order = service.repository.get_order(order_id)
+    if order is None:
+        raise OrderNotFoundError("lab order not found")
+    response = templates.TemplateResponse(
+        request=request, name="specimens/collection.html", status_code=status_code,
+        context={
+            "page_title": "Specimen collection", "order": order,
+            "requirements": service.requirements(order_id, collection_room=room),
+            "collection_room": room.value if room else "all",
+            "errors": errors or [], "values": values or {},
+        },
+    )
+    remember_collection_room(response, room)
+    return response
+
+
 @router.get("/{order_id}/specimens", response_class=HTMLResponse, name="specimen_collection")
 def specimen_collection(
     order_id: int,
     request: Request,
     service: SpecimenServiceDependency,
     actor: SpecimenCollectorDependency,
+    collection_room: CollectionRoomFilter | None = None,
 ) -> Response:
-    requirements = service.requirements(order_id)
-    order = service.repository.get_order(order_id)
-    if order is None:
-        raise OrderNotFoundError("lab order not found")
-    return templates.TemplateResponse(
-        request=request,
-        name="specimens/collection.html",
-        context={
-            "page_title": "Specimen collection",
-            "order": order,
-            "requirements": requirements,
-            "errors": [],
-            "values": {},
-        },
+    return _collection_response(
+        request, service, order_id, selected_collection_room(request, collection_room)
     )
 
 
@@ -66,7 +78,9 @@ async def specimen_collect(
     request: Request,
     service: SpecimenServiceDependency,
     actor: SpecimenCollectorDependency,
+    collection_room: CollectionRoomFilter | None = None,
 ) -> Response:
+    room = selected_collection_room(request, collection_room)
     form = await request.form()
     values: dict[str, Any] = {
         "collected_at": form.get("collected_at") or None,
@@ -90,6 +104,7 @@ async def specimen_collect(
                 }
             ),
             actor_reference=actor.reference,
+            collection_room=room,
         )
     except (
         ValidationError,
@@ -97,24 +112,13 @@ async def specimen_collect(
         OrderNotFoundError,
         ValueError,
     ) as exc:
-        requirements = service.requirements(order_id)
-        order = service.repository.get_order(order_id)
-        if order is None:
-            raise OrderNotFoundError("lab order not found") from exc
-        return templates.TemplateResponse(
-            request=request,
-            name="specimens/collection.html",
-            context={
-                "page_title": "Specimen collection",
-                "order": order,
-                "requirements": requirements,
-                "errors": _errors(exc),
-                "values": values,
-            },
+        return _collection_response(
+            request, service, order_id, room, values=values, errors=_errors(exc),
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     return RedirectResponse(
-        f"{request.url_for('specimen_collection', order_id=order_id)}?success=specimen-collected",
+        f"{request.url_for('specimen_collection', order_id=order_id)}?success=specimen-collected"
+        f"&collection_room={room.value if room else 'all'}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 
@@ -125,10 +129,17 @@ async def specimen_reject(
     request: Request,
     service: SpecimenServiceDependency,
     actor: SpecimenCollectorDependency,
+    collection_room: CollectionRoomFilter | None = None,
 ) -> Response:
     specimen = service.get(specimen_id)
+    room = selected_collection_room(request, collection_room)
     form = await request.form()
     try:
+        if room is not None and not any(
+            req.specimen and req.specimen.id == specimen_id
+            for req in service.requirements(specimen.order_id, collection_room=room)
+        ):
+            raise InvalidSpecimenOperationError("สิ่งส่งตรวจนี้ไม่ได้อยู่ในห้องเก็บที่เลือก")
         service.reject(
             specimen_id,
             SpecimenRejectRequest.model_validate(
@@ -137,23 +148,14 @@ async def specimen_reject(
             actor_reference=actor.reference,
         )
     except (ValidationError, InvalidSpecimenOperationError) as exc:
-        requirements = service.requirements(specimen.order_id)
-        order = service.repository.get_order(specimen.order_id)
-        return templates.TemplateResponse(
-            request=request,
-            name="specimens/collection.html",
-            context={
-                "page_title": "Specimen collection",
-                "order": order,
-                "requirements": requirements,
-                "errors": _errors(exc),
-                "values": {"rejection_reason": form.get("rejection_reason") or ""},
-            },
+        return _collection_response(
+            request, service, specimen.order_id, room, errors=_errors(exc),
+            values={"rejection_reason": form.get("rejection_reason") or ""},
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     return RedirectResponse(
         f"{request.url_for('specimen_collection', order_id=specimen.order_id)}"
-        "?success=specimen-rejected",
+        f"?success=specimen-rejected&collection_room={room.value if room else 'all'}",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 

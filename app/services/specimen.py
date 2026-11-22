@@ -6,6 +6,7 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.domain.collection import CollectionRoom
 from app.domain.exceptions import (
     InvalidSpecimenOperationError,
     OrderNotFoundError,
@@ -38,7 +39,9 @@ class SpecimenService:
         self.repository = repository or SpecimenRepository(session)
         self.audit_repository = audit_repository or AuditRepository(session)
 
-    def requirements(self, order_id: int) -> list[SpecimenRequirement]:
+    def requirements(
+        self, order_id: int, *, collection_room: CollectionRoom | None = None
+    ) -> list[SpecimenRequirement]:
         order = self._get_collectable_order(order_id)
         all_specimens = self.repository.list_order_specimens(order.id)
         specimens_by_item = {
@@ -54,10 +57,18 @@ class SpecimenService:
             current = specimens_by_item.get(order_item.id)
             # Keep the original specimen requirement when catalog settings change later.
             type_id = current.specimen_type_id if current else specimen_type.id
+            required_type = (
+                self.repository.get_specimen_type(type_id)
+                if type_id != specimen_type.id else specimen_type
+            )
+            room = required_type.collection_room if required_type else None
+            if collection_room is not None and room != collection_room:
+                continue
             group = f"OUTLAB-{order_item.id}" if order_item.is_outlab else "INTERNAL"
             requirement = grouped.setdefault(
                 (type_id, group),
                 SpecimenRequirement(
+                    collection_room=room,
                     specimen_type_id=type_id,
                     collection_group=group,
                     outlab_lab_name=order_item.outlab.lab_name if order_item.outlab else None,
@@ -92,7 +103,10 @@ class SpecimenService:
             )
         return list(sorted(grouped.values(), key=lambda item: item.specimen_type_code))
 
-    def collect(self, data: SpecimenCollectRequest, *, actor_reference: str) -> Specimen:
+    def collect(
+        self, data: SpecimenCollectRequest, *, actor_reference: str,
+        collection_room: CollectionRoom | None = None,
+    ) -> Specimen:
         order = self._get_collectable_order(data.order_id)
         previous = self.repository.get_order_specimen(
             order.id, data.specimen_type_id, data.collection_group
@@ -124,6 +138,8 @@ class SpecimenService:
         specimen_type = self.repository.get_specimen_type(data.specimen_type_id)
         if specimen_type is None or not specimen_type.is_active:
             raise InvalidSpecimenOperationError("active specimen type not found")
+        if collection_room is not None and specimen_type.collection_room != collection_room:
+            raise InvalidSpecimenOperationError("สิ่งส่งตรวจนี้ไม่ได้อยู่ในห้องเก็บที่เลือก")
         collected_at = data.collected_at or utc_now()
         if previous and (
             collected_at < (previous.rejected_at or previous.collected_at)

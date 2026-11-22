@@ -4,6 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.domain.collection import CollectionRoom
 from app.domain.enums import AgeUnit, ReferenceSex, ResultType
 
 
@@ -79,6 +80,18 @@ class ConfigurationResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class SpecimenTypeCreate(ConfigurationCreate):
+    collection_room: CollectionRoom | None = None
+
+
+class SpecimenTypeUpdate(ConfigurationUpdate):
+    collection_room: CollectionRoom | None = None
+
+
+class SpecimenTypeResponse(ConfigurationResponse):
+    collection_room: CollectionRoom | None = None
 
 
 class DepartmentCreate(BaseModel):

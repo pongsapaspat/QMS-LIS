@@ -4,8 +4,10 @@ from markupsafe import Markup, escape
 from app.core.config import get_settings
 from app.core.result_formatting import format_result_number
 from app.core.time import format_datetime_for_web, format_datetime_local
+from app.domain.collection import COLLECTION_ROOM_LABELS
 
 templates = Jinja2Templates(directory="app/templates")
+templates.env.globals["collection_rooms"] = COLLECTION_ROOM_LABELS
 templates.env.filters["app_datetime"] = format_datetime_for_web
 templates.env.filters["app_datetime_local"] = format_datetime_local
 templates.env.filters["result_number"] = format_result_number

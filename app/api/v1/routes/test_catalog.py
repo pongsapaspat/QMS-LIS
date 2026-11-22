@@ -29,6 +29,9 @@ from app.schemas.test_catalog import (
     ReferenceRangeCreate,
     ReferenceRangeResponse,
     ReferenceRangeUpdate,
+    SpecimenTypeCreate,
+    SpecimenTypeResponse,
+    SpecimenTypeUpdate,
 )
 
 category_router = APIRouter(prefix="/test-categories", tags=["test catalog"])
@@ -77,37 +80,37 @@ def update_category(
     )
 
 
-@specimen_router.post("", response_model=ConfigurationResponse, status_code=status.HTTP_201_CREATED)
+@specimen_router.post("", response_model=SpecimenTypeResponse, status_code=status.HTTP_201_CREATED)
 def create_specimen_type(
-    data: ConfigurationCreate,
+    data: SpecimenTypeCreate,
     service: TestCatalogServiceDependency,
     actor: AdminActorDependency,
-) -> ConfigurationResponse:
-    return ConfigurationResponse.model_validate(
+) -> SpecimenTypeResponse:
+    return SpecimenTypeResponse.model_validate(
         service.create_specimen_type(data, actor_reference=actor.reference)
     )
 
 
-@specimen_router.get("", response_model=list[ConfigurationResponse])
+@specimen_router.get("", response_model=list[SpecimenTypeResponse])
 def list_specimen_types(
     service: TestCatalogServiceDependency,
     actor: ActorDependency,
     include_inactive: bool = False,
-) -> list[ConfigurationResponse]:
+) -> list[SpecimenTypeResponse]:
     return [
-        ConfigurationResponse.model_validate(item)
+        SpecimenTypeResponse.model_validate(item)
         for item in service.list_specimen_types(include_inactive=include_inactive)
     ]
 
 
-@specimen_router.patch("/{specimen_type_id}", response_model=ConfigurationResponse)
+@specimen_router.patch("/{specimen_type_id}", response_model=SpecimenTypeResponse)
 def update_specimen_type(
     specimen_type_id: int,
-    data: ConfigurationUpdate,
+    data: SpecimenTypeUpdate,
     service: TestCatalogServiceDependency,
     actor: AdminActorDependency,
-) -> ConfigurationResponse:
-    return ConfigurationResponse.model_validate(
+) -> SpecimenTypeResponse:
+    return SpecimenTypeResponse.model_validate(
         service.update_specimen_type(specimen_type_id, data, actor_reference=actor.reference)
     )
 

@@ -26,6 +26,8 @@ from app.schemas.test_catalog import (
     QualitativeOptionUpdate,
     ReferenceRangeCreate,
     ReferenceRangeUpdate,
+    SpecimenTypeCreate,
+    SpecimenTypeUpdate,
 )
 from app.web.query import empty_string_to_none, positive_int_or_none
 from app.web.templates import templates
@@ -139,6 +141,7 @@ def _config_values(entity: Any | None) -> dict[str, Any]:
         "name_th": entity.name_th,
         "name_en": entity.name_en,
         "is_active": entity.is_active,
+        "collection_room": getattr(entity, "collection_room", None),
     }
 
 
@@ -494,10 +497,10 @@ async def test_catalog_specimen_create(
     request: Request, service: TestCatalogServiceDependency, actor: AdminActorDependency
 ) -> Response:
     form = await request.form()
-    values = _form_values(form, ("code", "name_th", "name_en", "reason"))
+    values = _form_values(form, ("code", "name_th", "name_en", "reason", "collection_room"))
     try:
         service.create_specimen_type(
-            ConfigurationCreate.model_validate(values), actor_reference=actor.reference
+            SpecimenTypeCreate.model_validate(values), actor_reference=actor.reference
         )
     except (ValidationError, DuplicateCatalogCodeError, InvalidCatalogOperationError) as exc:
         return _render_form_error(
@@ -780,11 +783,13 @@ async def test_catalog_specimen_update(
 ) -> Response:
     form = await request.form()
     values = _form_values(form, ("name_th", "name_en", "reason"))
+    if "collection_room" in form:
+        values["collection_room"] = _form_value(form, "collection_room")
     values["is_active"] = _checkbox(form, "is_active")
     try:
         service.update_specimen_type(
             specimen_type_id,
-            ConfigurationUpdate.model_validate(values),
+            SpecimenTypeUpdate.model_validate(values),
             actor_reference=actor.reference,
         )
     except (ValidationError, CatalogNotFoundError, InvalidCatalogOperationError) as exc:

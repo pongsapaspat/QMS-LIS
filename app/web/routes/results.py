@@ -18,6 +18,7 @@ from app.core.security import (
     ResultReleaserDependency,
     ResultVerifierDependency,
 )
+from app.domain.collection import CollectionRoomFilter
 from app.domain.exceptions import InvalidResultOperationError
 from app.domain.panels import same_panel_values
 from app.models.order import LabOrder, LabOrderItem, OrderPriority
@@ -33,6 +34,7 @@ from app.schemas.result import (
 )
 from app.schemas.worklist import WorklistTaskStatus, WorklistTaskType
 from app.services.report_pdf import build_lab_report_pdf
+from app.web.collection_preferences import remember_collection_room, selected_collection_room
 from app.web.query import empty_string_to_none, positive_int_or_none
 from app.web.templates import templates
 
@@ -444,6 +446,7 @@ def worklist(
     page: int = Query(default=1, ge=1),
     queue: str | None = None,
     collection_filter: Literal["all", "initial", "recollection"] = "all",
+    collection_room: CollectionRoomFilter | None = None,
 ) -> HTMLResponse:
     result_queue = queue == "results" or task_type in {
         WorklistTaskType.RESULT_PENDING_ENTRY,
@@ -459,6 +462,8 @@ def worklist(
             task_type = None
         priority = None
         status = None
+    collection_queue = task_type == WorklistTaskType.ORDER_PENDING_COLLECTION
+    room = selected_collection_room(request, collection_room) if collection_queue else None
     response = service.list_tasks(
         task_type=task_type,
         department_id=department_id,
@@ -470,8 +475,9 @@ def worklist(
         group_collection_orders=task_type == WorklistTaskType.ORDER_PENDING_COLLECTION,
         result_tasks_only=result_queue,
         collection_filter=collection_filter,
+        collection_room=room,
     )
-    return templates.TemplateResponse(
+    rendered = templates.TemplateResponse(
         request=request,
         name="results/worklist.html",
         context={
@@ -489,9 +495,13 @@ def worklist(
                 "status": status.value if status else "",
                 "search": search or "",
                 "collection_filter": collection_filter,
+                "collection_room": room.value if room else "all",
             },
         },
     )
+    if collection_queue:
+        remember_collection_room(rendered, room)
+    return rendered
 
 
 @router.get("/worklist/orders/{order_id}", response_class=HTMLResponse, name="result_entry")

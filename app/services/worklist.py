@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
+from app.domain.collection import CollectionRoom
 from app.models.order import OrderPriority
 from app.models.test_catalog import LaboratoryDepartment
 from app.repositories.worklist import WorklistRecord, WorklistRepository
@@ -39,6 +40,7 @@ class WorklistService:
         group_collection_orders: bool = False,
         result_tasks_only: bool = False,
         collection_filter: str = "all",
+        collection_room: CollectionRoom | None = None,
     ) -> WorklistResponse:
         task_types = {task_type} if task_type is not None else set(ALL_TASK_TYPES)
         if result_tasks_only:
@@ -58,8 +60,13 @@ class WorklistService:
             department_id=department_id,
             priority=priority.value if priority is not None else None,
             search=search.strip() if search and search.strip() else None,
+            collection_room=collection_room.value if collection_room else None,
         )
         items = sorted((self._to_item(record) for record in records), key=self._sort_key)
+        if collection_room is not None:
+            for item in items:
+                if item.task_type == WorklistTaskType.ORDER_PENDING_COLLECTION:
+                    item.next_action_url += f"?collection_room={collection_room.value}"
         if group_collection_orders:
             items = self._group_collection_orders(items)
             if collection_filter == "recollection":

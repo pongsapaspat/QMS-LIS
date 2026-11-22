@@ -2,6 +2,7 @@ from fastapi import APIRouter, Query, status
 
 from app.api.dependencies import SpecimenServiceDependency
 from app.core.security import SpecimenCollectorDependency, SpecimenReceivingReaderDependency
+from app.domain.collection import CollectionRoom
 from app.schemas.specimen import (
     SpecimenCollectRequest,
     SpecimenReceiptRequest,
@@ -19,8 +20,9 @@ def get_specimen_requirements(
     order_id: int,
     service: SpecimenServiceDependency,
     actor: SpecimenCollectorDependency,
+    collection_room: CollectionRoom | None = None,
 ) -> list[SpecimenRequirement]:
-    return service.requirements(order_id)
+    return service.requirements(order_id, collection_room=collection_room)
 
 
 @router.post("", response_model=SpecimenResponse, status_code=status.HTTP_201_CREATED)
@@ -28,8 +30,11 @@ def collect_specimen(
     data: SpecimenCollectRequest,
     service: SpecimenServiceDependency,
     actor: SpecimenCollectorDependency,
+    collection_room: CollectionRoom | None = None,
 ) -> SpecimenResponse:
-    return SpecimenResponse.model_validate(service.collect(data, actor_reference=actor.reference))
+    return SpecimenResponse.model_validate(service.collect(
+        data, actor_reference=actor.reference, collection_room=collection_room
+    ))
 
 
 @router.get("/{specimen_id:int}", response_model=SpecimenResponse)

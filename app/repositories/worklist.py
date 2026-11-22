@@ -82,12 +82,14 @@ class WorklistRepository:
         department_id: int | None,
         priority: str | None,
         search: str | None,
+        collection_room: str | None = None,
     ) -> list[WorklistRecord]:
         records: list[WorklistRecord] = []
         if "ORDER_PENDING_COLLECTION" in task_types:
             records.extend(
                 self._pending_collection(
-                    department_id=department_id, priority=priority, search=search
+                    department_id=department_id, priority=priority, search=search,
+                    collection_room=collection_room,
                 )
             )
         if "SPECIMEN_PENDING_RECEIVING" in task_types:
@@ -113,7 +115,8 @@ class WorklistRepository:
         return records
 
     def _pending_collection(
-        self, *, department_id: int | None, priority: str | None, search: str | None
+        self, *, department_id: int | None, priority: str | None, search: str | None,
+        collection_room: str | None = None,
     ) -> list[WorklistRecord]:
         specimen_exists = exists(
             select(Specimen.id).join(SpecimenItem).where(
@@ -127,6 +130,12 @@ class WorklistRepository:
             Specimen.order_id == LabOrder.id, SpecimenItem.order_item_id == LabOrderItem.id,
             Specimen.is_current.is_(True), Specimen.status == SpecimenStatus.REJECTED,
         ))
+        required_type_id = func.coalesce(
+            select(Specimen.specimen_type_id).join(SpecimenItem).where(
+                SpecimenItem.order_item_id == LabOrderItem.id, Specimen.is_current.is_(True),
+            ).correlate(LabOrderItem).limit(1).scalar_subquery(),
+            LabTest.specimen_type_id,
+        )
         statement = (
             select(
                 LabOrder,
@@ -142,10 +151,12 @@ class WorklistRepository:
             .join(Patient, Patient.id == LabOrder.patient_id)
             .join(LabOrderItem, LabOrderItem.order_id == LabOrder.id)
             .join(LabTest, LabTest.id == LabOrderItem.lab_test_id)
-            .join(SpecimenType, SpecimenType.id == LabTest.specimen_type_id)
+            .join(SpecimenType, SpecimenType.id == required_type_id)
             .join(LaboratoryDepartment, LaboratoryDepartment.id == LabTest.department_id)
             .where(LabOrder.status != OrderStatus.CANCELLED, ~specimen_exists)
         )
+        if collection_room is not None:
+            statement = statement.where(SpecimenType.collection_room == collection_room)
         if department_id is not None:
             statement = statement.where(LabTest.department_id == department_id)
         if priority is not None:

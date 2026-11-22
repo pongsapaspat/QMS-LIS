@@ -58,6 +58,7 @@ class SpecimenType(TimestampMixin, Base):
     code: Mapped[str] = mapped_column(String(30), nullable=False)
     name_th: Mapped[str] = mapped_column(String(150), nullable=False)
     name_en: Mapped[str] = mapped_column(String(150), nullable=False)
+    collection_room: Mapped[str | None] = mapped_column(String(30))
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true(), nullable=False, index=True
     )
