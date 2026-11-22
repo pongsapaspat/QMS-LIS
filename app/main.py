@@ -82,6 +82,7 @@ async def require_web_login(request: Request, call_next: RequestResponseEndpoint
     user_id = request.session.get("user_id")
     status_check = request.url.path == "/session-status"
     session_reason = request.session.get("session_reason", "expired")
+    request.state.user_display_name = None
     remaining = 0.0
     if isinstance(user_id, int):
         with SessionLocal() as session:
@@ -104,6 +105,7 @@ async def require_web_login(request: Request, call_next: RequestResponseEndpoint
                     )
                 remaining = (record.expires_at - current).total_seconds()
                 request.session["role"] = user.role
+                request.state.user_display_name = user.display_name or user.username
             session.commit()
     try:
         response: Response

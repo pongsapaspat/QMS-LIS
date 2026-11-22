@@ -41,6 +41,15 @@ def test_login_session_and_logout(
     protected = client.get("/results/release")
     assert protected.status_code == 200
     assert "Release Queue" in protected.text
+    assert '<strong>Supervisor</strong><span>LAB_SUPERVISOR</span>' in protected.text
+
+    # Existing logins pick up changes to the account name on the next request.
+    with db_session_factory() as session:
+        user = session.query(User).filter_by(username="supervisor").one()
+        user.display_name = "ผู้ตรวจสอบผล"
+        session.commit()
+    refreshed = client.get("/results/release")
+    assert '<strong>ผู้ตรวจสอบผล</strong><span>LAB_SUPERVISOR</span>' in refreshed.text
 
     logout = client.post("/logout", follow_redirects=False)
     assert logout.status_code == 303
@@ -52,6 +61,10 @@ def test_login_session_and_logout(
             .order_by(AuditLog.id)
         ]
         assert events == ["USER_LOGGED_IN", "USER_LOGGED_OUT"]
+        assert all(
+            entry.actor_reference == "supervisor"
+            for entry in session.query(AuditLog).filter(AuditLog.entity_type == "user")
+        )
     monkeypatch.setenv("QMS_LIS_APP_ENV", "production")
     monkeypatch.setenv("QMS_LIS_ENABLE_DEV_ADMIN_FALLBACK", "false")
     monkeypatch.setenv("QMS_LIS_SESSION_SECRET", "test-production-secret")

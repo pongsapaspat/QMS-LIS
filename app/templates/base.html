@@ -26,7 +26,7 @@
       </div>
       <div class="header-user">
         {% if request.session.get('actor') %}
-        <div class="user-summary"><strong>{{ request.session.get('actor') }}</strong><span>{{ role }}</span></div>
+        <div class="user-summary"><strong>{{ request.state.user_display_name or request.session.get('actor') }}</strong><span>{{ role }}</span></div>
         <a class="header-link{% if request.url.path == '/change-password' %} active{% endif %}" href="/change-password">เปลี่ยนรหัสผ่าน</a>
         <form method="post" action="{{ url_for('logout') }}"><button type="submit" class="btn btn-sm btn-outline-light">ออกจากระบบ</button></form>
         {% else %}

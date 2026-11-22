@@ -25,6 +25,10 @@ storage/
 generated/
 backups/
 
+# Local test output and inspection artifacts
+/tmp/
+/output/
+
 # Editors and operating systems
 .vscode/*.local.json
 .idea/
