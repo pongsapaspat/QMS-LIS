@@ -47,7 +47,7 @@ class Result(Base):
     result_unit_snapshot: Mapped[str | None] = mapped_column(String(50), nullable=True)
     reference_range_snapshot: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
     abnormal_flag: Mapped[str | None] = mapped_column(String(2), nullable=True)
-    status: Mapped[str] = mapped_column(String(20), default=ResultStatus.PENDING, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default=ResultStatus.PENDING, nullable=False)
     entered_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     entered_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     entered_by_snapshot: Mapped[dict[str, str | None] | None] = mapped_column(JSON)

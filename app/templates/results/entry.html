@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4"><div><h1 class="h3 mb-1">ลงผลตรวจ | Result entry</h1><p class="text-secondary mb-0">กรอกผลและตรวจทานก่อนบันทึก เพื่อส่งตรวจสอบผล</p></div><a class="btn btn-outline-secondary" href="/worklist?queue=results">กลับคิวลงผล</a></div>
-<form method="post" class="result-entry-form">
+<form method="post" class="result-entry-form" data-async-result-entry>
   {% for item in items %}
   {% if not item.is_outlab %}
   {% set saved = item.result and item.result.status in ['COMPLETED', 'VERIFICATION_REJECTED', 'VERIFIED', 'AMENDMENT_REQUESTED', 'RELEASED'] %}
@@ -64,5 +64,10 @@
   {% endfor %}
   <div class="result-entry-actions"><span class="small text-secondary">บันทึกผลที่กรอกแล้ว · Panel ที่ยังไม่ครบสามารถกลับมากรอกต่อได้</span><button class="btn btn-primary" type="submit">บันทึกผลตรวจ | Save results</button></div>
 </form>
-<script src="{{ url_for('static', path='/js/result-entry.js') }}" defer></script>
+<dialog class="result-entry-error-dialog" id="result-entry-error" role="alertdialog" aria-labelledby="result-entry-error-title" aria-describedby="result-entry-error-message">
+  <h2 class="h5" id="result-entry-error-title">ยังบันทึกผลตรวจไม่ได้</h2>
+  <p id="result-entry-error-message"></p>
+  <form method="dialog" class="text-end"><button class="btn btn-primary" autofocus>ตกลง</button></form>
+</dialog>
+<script src="{{ url_for('static', path='/js/result-entry.js') }}?v=save-popup-1" defer></script>
 {% endblock %}

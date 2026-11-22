@@ -240,6 +240,8 @@ fieldset { padding: 1.25rem; }
 .result-critical-notice { max-width: 620px; }
 .result-critical-notice[hidden] { display: none; }
 .result-entry-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.25rem; border: 1px solid var(--lis-slate-200); border-radius: .75rem; background: #fff; }
+.result-entry-error-dialog { width: min(480px, calc(100% - 2rem)); padding: 1.5rem; border: 1px solid var(--lis-slate-200); border-radius: 1rem; box-shadow: 0 1rem 3rem #0003; }
+.result-entry-error-dialog::backdrop { background: #0006; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }

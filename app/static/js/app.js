@@ -45,7 +45,7 @@
 
   document.querySelectorAll('form[method="post"], form[method="POST"]').forEach((form) => {
     form.addEventListener("submit", (event) => {
-      if (form.hasAttribute("data-inline-verification")) return;
+      if (form.matches('[data-inline-verification], [data-async-result-entry]')) return;
       if (event.defaultPrevented || !form.checkValidity()) return;
       if (form.dataset.allowRepeat === "true") return;
       const submitter = event.submitter;

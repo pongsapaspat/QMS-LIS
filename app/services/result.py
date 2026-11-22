@@ -76,10 +76,11 @@ class ResultService:
         for item in items:
             if item.is_outlab or item.result_type != "NUMERIC":
                 continue
-            reference = self._match_range(item)
+            reference, reference_problem = self._reference_status(item)
             snapshot = self._range_snapshot(reference) if reference else {}
             if item.result and item.result.status == ResultStatus.RELEASED:
                 snapshot = item.result.reference_range_snapshot or {}
+                reference_problem = "ไม่มีค่าอ้างอิงที่บันทึกไว้กับผลที่เผยแพร่แล้ว"
             value = item.result.numeric_value if item.result else None
             lower, upper = snapshot.get("lower_critical"), snapshot.get("upper_critical")
             critical = value is not None and (
@@ -90,7 +91,7 @@ class ResultService:
                 "reference_text": format_reference_text(snapshot.get("display_text")) or (
                     f"{format_result_number(snapshot['lower_value'], None)} – "
                     f"{format_result_number(snapshot['upper_value'], None)}"
-                    if snapshot.get("lower_value") is not None else "ยังไม่ได้กำหนดค่าอ้างอิง"
+                    if snapshot.get("lower_value") is not None else reference_problem
                 ),
                 "lower_critical": lower, "upper_critical": upper, "critical": bool(critical),
             }
@@ -703,21 +704,24 @@ class ResultService:
         raise InvalidResultOperationError("unsupported result type")
 
     def _match_range(self, item: LabOrderItem) -> ReferenceRange | None:
+        return self._reference_status(item)[0]
+
+    def _reference_status(self, item: LabOrderItem) -> tuple[ReferenceRange | None, str]:
+        candidates = self.repository.active_ranges(item.lab_test_id)
+        if not candidates:
+            return None, "ยังไม่ได้กำหนดค่าอ้างอิงที่เปิดใช้งานในรายการตรวจ"
         patient = item.order.patient
         if patient.date_of_birth is None:
-            age_days = None
-        else:
-            age_days = (date.today() - patient.date_of_birth).days
-        for candidate in self.repository.active_ranges(item.lab_test_id):
+            return None, "ยังไม่มีวันเกิดผู้ป่วยสำหรับเลือกช่วงอ้างอิง กรุณาตรวจสอบข้อมูลผู้ป่วย"
+        age_days = (date.today() - patient.date_of_birth).days
+        for candidate in candidates:
             if candidate.sex not in {"ALL", (patient.sex or "").upper()}:
-                continue
-            if age_days is None:
                 continue
             divisor = {"DAYS": 1, "MONTHS": 30, "YEARS": 365}[candidate.age_unit]
             age = age_days // divisor
             if candidate.minimum_age <= age <= candidate.maximum_age:
-                return candidate
-        return None
+                return candidate, ""
+        return None, "ไม่มีช่วงอ้างอิงที่ตรงกับอายุและเพศของผู้ป่วย กรุณาตรวจสอบการตั้งค่า"
 
     @staticmethod
     def _flag(value: Decimal, reference: ReferenceRange) -> str:

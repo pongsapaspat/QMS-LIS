@@ -7,7 +7,7 @@ from typing import Annotated, Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import AfterValidator, BeforeValidator
 
 from app.api.dependencies import ResultServiceDependency, WorklistServiceDependency
@@ -522,13 +522,13 @@ def entry(
     )
 
 
-@router.post("/worklist/orders/{order_id}", name="result_save")
+@router.post("/worklist/orders/{order_id}", name="result_save", response_model=None)
 async def save(
     order_id: int,
     request: Request,
     service: ResultServiceDependency,
     actor: ResultMutationDependency,
-) -> RedirectResponse:
+) -> RedirectResponse | JSONResponse:
     form = await request.form()
     items: list[ResultItemSave] = []
     for item in service.context(order_id):
@@ -603,6 +603,8 @@ async def save(
         service.save_multiple(
             order_id, MultiResultSave(items=items), actor_reference=actor.reference
         )
+    if request.headers.get("X-Result-Entry") == "true":
+        return JSONResponse({"redirect_url": "/worklist?queue=results&success=results-saved"})
     return RedirectResponse(
         "/worklist?queue=results&success=results-saved",
         status_code=303,
