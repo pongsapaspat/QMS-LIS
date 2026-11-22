@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import JSON, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -31,7 +31,7 @@ class Booking(TimestampMixin, Base):
     emergency_contact_relationship: Mapped[str | None] = mapped_column(String(100))
     emergency_contact_phone: Mapped[str | None] = mapped_column(String(30))
     requested_services: Mapped[str | None] = mapped_column(Text)
-    requested_items: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    requested_items: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     note: Mapped[str | None] = mapped_column(Text)
     patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id", ondelete="RESTRICT"))
     created_by: Mapped[str] = mapped_column(String(100))

@@ -1,6 +1,8 @@
+from typing import Any, cast
 from uuid import uuid4
 
-from sqlalchemy import exists, update
+from sqlalchemy import exists, true, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -149,7 +151,7 @@ class SpecimenService:
         )
         try:
             if previous:
-                changed = self.session.execute(
+                changed = cast(CursorResult[Any], self.session.execute(
                     update(Specimen)
                     .where(
                         Specimen.id == previous.id,
@@ -158,7 +160,7 @@ class SpecimenService:
                     )
                     .values(is_current=False),
                     execution_options={"synchronize_session": False},
-                )
+                ))
                 if changed.rowcount != 1:
                     self.session.rollback()
                     raise InvalidSpecimenOperationError(
@@ -323,12 +325,12 @@ class SpecimenService:
     def _transition_collected(
         self,
         specimen: Specimen,
-        values: dict,
+        values: dict[str, Any],
         source_status: str = SpecimenStatus.COLLECTED,
         rejecting: bool = False,
     ) -> None:
-        guard = ~exists().where(Result.specimen_id == specimen.id) if rejecting else True
-        changed = self.session.execute(
+        guard = ~exists().where(Result.specimen_id == specimen.id) if rejecting else true()
+        changed = cast(CursorResult[Any], self.session.execute(
             update(Specimen)
             .where(
                 Specimen.id == specimen.id,
@@ -338,7 +340,7 @@ class SpecimenService:
             )
             .values(**values),
             execution_options={"synchronize_session": False},
-        )
+        ))
         if changed.rowcount != 1:
             self.session.rollback()
             raise InvalidSpecimenOperationError(

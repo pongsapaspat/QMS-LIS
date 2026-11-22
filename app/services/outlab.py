@@ -1,4 +1,7 @@
+from typing import Any, cast
+
 from sqlalchemy import or_, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session, selectinload
 
 from app.domain.exceptions import InvalidResultOperationError
@@ -94,12 +97,12 @@ class OutlabService:
         self,
         case: OutlabCase,
         expected: str,
-        values: dict,
+        values: dict[str, Any],
         event: str,
         actor: str,
         reason: str = "",
     ) -> None:
-        changed = self.session.execute(
+        changed = cast(CursorResult[Any], self.session.execute(
             update(OutlabCase)
             .where(
                 OutlabCase.id == case.id,
@@ -107,7 +110,7 @@ class OutlabService:
             )
             .values(**values),
             execution_options={"synchronize_session": False},
-        )
+        ))
         if changed.rowcount != 1:
             raise InvalidResultOperationError("Outlab status changed; reload before trying again")
         self.session.expire(case)
@@ -122,12 +125,14 @@ class OutlabService:
             )
         )
 
-    def send(self, case_id: int, lab_name: str, external_reference: str, notes: str, actor: str):
+    def send(
+        self, case_id: int, lab_name: str, external_reference: str, notes: str, actor: str
+    ) -> None:
         case = self.get(case_id)
         self._editable(case)
         if case.status != "PENDING_SEND":
             raise InvalidResultOperationError("Only pending Outlab items may be sent")
-        values = dict(
+        values: dict[str, Any] = dict(
             status="SENT",
             lab_name=self.text(lab_name, 200, True),
             external_reference=self.text(external_reference, 150) or None,
@@ -146,7 +151,7 @@ class OutlabService:
 
     def receive(
         self, case_id: int, filename: str, content: bytes, external_reference: str, actor: str
-    ):
+    ) -> None:
         case = self.get(case_id)
         self._editable(case)
         if case.status != "SENT":
@@ -194,7 +199,7 @@ class OutlabService:
             self.session.rollback()
             raise
 
-    def check(self, case_id: int, actor: str, confirmed: bool):
+    def check(self, case_id: int, actor: str, confirmed: bool) -> None:
         case = self.get(case_id)
         self._editable(case)
         if case.status != "RECEIVED" or not case.documents or not confirmed:
@@ -218,7 +223,7 @@ class OutlabService:
             self.session.rollback()
             raise
 
-    def reject_document(self, case_id: int, reason: str, actor: str):
+    def reject_document(self, case_id: int, reason: str, actor: str) -> None:
         case = self.get(case_id)
         self._editable(case)
         if case.status != "RECEIVED":

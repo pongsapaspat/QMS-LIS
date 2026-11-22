@@ -1,6 +1,6 @@
 """Shared grouping and presentation metadata for web and PDF reports."""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -37,15 +37,15 @@ def prepare_report(context: dict[str, Any], settings: Settings) -> dict[str, Any
         if specimen and all(s.id != specimen.id for s in section["specimens"]):
             section["specimens"].append(specimen)
     for section in groups.values():
-        reporter = max(
+        reporter: dict[str, Any] = max(
             (r for r in section["results"] if r.get("entered_at")),
             key=lambda r: r["entered_at"],
             default={},
         )
         section["reported_by"] = reporter.get("entered_by") or context.get("reported_by")
         section["reported_at"] = reporter.get("entered_at") or context.get("reported_at")
-        reporters = {}
-        approvers = {}
+        reporters: dict[str, datetime | None] = {}
+        approvers: dict[str, datetime | None] = {}
         for result in section["results"]:
             label = identity_label(result.get("reporter_snapshot"), result.get("entered_by"))
             when = result.get("entered_at")

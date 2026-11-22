@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import JSON, ForeignKey, Index, Integer, Numeric, String, Text, event
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -41,7 +41,7 @@ class Result(Base):
     numeric_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 6), nullable=True)
     text_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     parameter_values: Mapped[dict[str, str] | None] = mapped_column(JSON, nullable=True)
-    parameter_results: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
+    parameter_results: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     categorical_value: Mapped[str | None] = mapped_column(String(150), nullable=True)
     categorical_label_snapshot: Mapped[dict[str, str] | None] = mapped_column(JSON, nullable=True)
     result_unit_snapshot: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -50,10 +50,10 @@ class Result(Base):
     status: Mapped[str] = mapped_column(String(20), default=ResultStatus.PENDING, nullable=False)
     entered_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     entered_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    entered_by_snapshot: Mapped[dict | None] = mapped_column(JSON)
-    last_modified_by_snapshot: Mapped[dict | None] = mapped_column(JSON)
-    verified_by_snapshot: Mapped[dict | None] = mapped_column(JSON)
-    released_by_snapshot: Mapped[dict | None] = mapped_column(JSON)
+    entered_by_snapshot: Mapped[dict[str, str | None] | None] = mapped_column(JSON)
+    last_modified_by_snapshot: Mapped[dict[str, str | None] | None] = mapped_column(JSON)
+    verified_by_snapshot: Mapped[dict[str, str | None] | None] = mapped_column(JSON)
+    released_by_snapshot: Mapped[dict[str, str | None] | None] = mapped_column(JSON)
     last_modified_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     last_modified_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     critical_acknowledged_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)

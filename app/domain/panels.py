@@ -84,11 +84,13 @@ PRESETS = {
 }
 
 
-def panel_definitions(result_type: str) -> list[dict]:
+def panel_definitions(result_type: str) -> list[dict[str, Any]]:
     return deepcopy(PRESETS.get(result_type, []))
 
 
-def interpret_panel(definitions: list[dict], values: dict[str, str], complete: bool):
+def interpret_panel(
+    definitions: list[dict[str, Any]], values: dict[str, str], complete: bool
+) -> list[dict[str, Any]]:
     if not definitions:
         raise InvalidResultOperationError("Panel parameter definitions are missing")
     if set(values) - {p["code"] for p in definitions}:
@@ -125,7 +127,9 @@ def interpret_panel(definitions: list[dict], values: dict[str, str], complete: b
     return rows
 
 
-def same_panel_values(definitions: list[dict], left: dict[str, str], right: dict[str, str]) -> bool:
+def same_panel_values(
+    definitions: list[dict[str, Any]], left: dict[str, str], right: dict[str, str]
+) -> bool:
     if set(left) - {p["code"] for p in definitions}:
         return False
     for p in definitions:

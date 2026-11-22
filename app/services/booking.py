@@ -1,6 +1,8 @@
 from datetime import date
+from typing import Any, cast
 
 from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.time import app_date_range_utc
@@ -50,7 +52,7 @@ class BookingService:
         status: str | None,
         search: str | None,
         page: int = 1,
-    ):
+    ) -> tuple[list[Booking], int]:
         if status and status not in STATUS_LABELS:
             raise InvalidBookingOperationError("สถานะที่เลือกไม่ถูกต้อง")
         if date_from and date_to and date_from > date_to:
@@ -86,9 +88,9 @@ class BookingService:
                 .limit(20)
             )
         )
-        return rows, count
+        return rows, count or 0
 
-    def _items(self, data: BookingInput) -> list[dict]:
+    def _items(self, data: BookingInput) -> list[dict[str, Any]]:
         tests = list(self.session.scalars(select(LabTest).where(LabTest.id.in_(data.test_ids))))
         if len(tests) != len(data.test_ids) or any(
             not (
@@ -108,7 +110,7 @@ class BookingService:
             for p in data.package_ids
         ]
 
-    def _audit(self, event: str, booking: Booking, actor: str, fields: list[str]):
+    def _audit(self, event: str, booking: Booking, actor: str, fields: list[str]) -> None:
         self.session.add(
             AuditLog(
                 event_type=event,
@@ -120,19 +122,19 @@ class BookingService:
             )
         )
 
-    def _reserve(self, booking: Booking, version: int, allowed: set[str]):
+    def _reserve(self, booking: Booking, version: int, allowed: set[str]) -> None:
         if booking.status not in allowed:
             raise InvalidBookingOperationError(
                 "สถานะรายการจองเปลี่ยนแล้ว กรุณาเปิดรายการอีกครั้ง", conflict=True
             )
-        result = self.session.execute(
+        result = cast(CursorResult[Any], self.session.execute(
             update(Booking)
             .where(
                 Booking.id == booking.id, Booking.version == version, Booking.status.in_(allowed)
             )
             .values(version=Booking.version + 1, updated_at=utc_now())
             .execution_options(synchronize_session=False)
-        )
+        ))
         if result.rowcount != 1:
             raise InvalidBookingOperationError("มีผู้แก้ไขรายการนี้แล้ว กรุณาโหลดข้อมูลล่าสุด", conflict=True)
         self.session.refresh(booking)
@@ -230,7 +232,7 @@ class BookingService:
             )
         )
 
-    def _finish(self, booking: Booking, patient: Patient, actor: str):
+    def _finish(self, booking: Booking, patient: Patient, actor: str) -> None:
         booking.patient_id = patient.id
         booking.status = "REGISTERED"
         booking.registered_at, booking.registered_by = utc_now(), actor

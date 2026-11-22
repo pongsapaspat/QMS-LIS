@@ -10,7 +10,7 @@ from app.models.user import User
 
 def capture_identity(
     session: Session, username: str, settings: Settings, *, require_complete: bool = False
-) -> dict:
+) -> dict[str, str | None]:
     user = session.scalar(select(User).where(User.username == username))
     if user is None:
         # Development role headers may use synthetic actors without login accounts.
@@ -34,7 +34,7 @@ def capture_identity(
     }
 
 
-def identity_label(snapshot: dict | None, username: str | None = None) -> str:
+def identity_label(snapshot: dict[str, str | None] | None, username: str | None = None) -> str:
     identity = snapshot or {}
     name = identity.get("full_name") or identity.get("username") or username or "-"
     number = identity.get("license_number")

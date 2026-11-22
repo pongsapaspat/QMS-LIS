@@ -2,10 +2,11 @@
 
 import re
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, localcontext
+from typing import Any
 
 
-def format_reference_text(value: str | None) -> str | None:
-    if value is None:
+def format_reference_text(value: object) -> str | None:
+    if not isinstance(value, str):
         return None
     return re.sub(r"(?<![\w.])[+-]?\d+\.\d+(?![\w.])",
                   lambda match: format_result_number(match.group(), None), value)
@@ -29,7 +30,7 @@ def format_result_number(value: object, places: int | None = 2) -> str:
     return "0" if rendered == "-0" else rendered
 
 
-def display_panel_results(rows: list[dict] | None) -> list[dict]:
+def display_panel_results(rows: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     return [
         {
             **row,

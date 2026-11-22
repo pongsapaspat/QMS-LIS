@@ -2,7 +2,7 @@ from typing import Annotated
 from urllib.parse import quote
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from starlette.datastructures import UploadFile
 
 from app.api.dependencies import SessionDependency
@@ -32,7 +32,7 @@ def queue(
     status: str = "",
     search: str = Query(default="", max_length=100),
     page: Annotated[int, Query(ge=1)] = 1,
-):
+) -> HTMLResponse:
     cases = OutlabService(session).queue(status, search, page)
     return templates.TemplateResponse(
         request=request,
@@ -48,7 +48,11 @@ def queue(
     )
 
 
-def render_detail(request, service, case_id, role, errors=None, values=None, status_code=200):
+def render_detail(
+    request: Request, service: OutlabService, case_id: int, role: str,
+    errors: list[str] | None = None, values: dict[str, str] | None = None,
+    status_code: int = 200,
+) -> HTMLResponse:
     case = service.get(case_id)
     return templates.TemplateResponse(
         request=request,
@@ -70,7 +74,7 @@ def render_detail(request, service, case_id, role, errors=None, values=None, sta
 @router.get("/{case_id:int}", name="outlab_detail")
 def detail(
     case_id: int, request: Request, session: SessionDependency, actor: ResultReaderDependency
-):
+) -> HTMLResponse:
     return render_detail(request, OutlabService(session), case_id, actor.role)
 
 
@@ -81,7 +85,7 @@ async def action(
     request: Request,
     session: SessionDependency,
     actor: ActorDependency,
-):
+) -> Response:
     # Check the responsibility before parsing uploads or changing referral state.
     if action == "send":
         require_result_mutator(actor)
@@ -128,7 +132,7 @@ async def check(
     request: Request,
     session: SessionDependency,
     actor: OutlabDocumentManagerDependency,
-):
+) -> Response:
     form = await request.form()
     service = OutlabService(session)
     try:
@@ -143,7 +147,9 @@ async def check(
 
 
 @router.get("/documents/{document_id:int}", name="outlab_document")
-def document(document_id: int, session: SessionDependency, actor: ResultReaderDependency):
+def document(
+    document_id: int, session: SessionDependency, actor: ResultReaderDependency
+) -> Response:
     document = session.get(OutlabDocument, document_id)
     if document is None:
         raise InvalidResultOperationError("Outlab document not found")

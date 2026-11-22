@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     JSON,
@@ -71,13 +71,13 @@ class LabOrder(TimestampMixin, Base):
     referrer_organization: Mapped[str | None] = mapped_column(String(200))
     referrer_license_type: Mapped[str | None] = mapped_column(String(50))
     referrer_license_number: Mapped[str | None] = mapped_column(String(100))
-    released_by_snapshot: Mapped[dict | None] = mapped_column(JSON)
-    package_snapshots: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
+    released_by_snapshot: Mapped[dict[str, str | None] | None] = mapped_column(JSON)
+    package_snapshots: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     ordered_at: Mapped[datetime] = mapped_column(
         UTCDateTime(), default=utc_now, server_default=func.now(), nullable=False, index=True
     )
     created_by: Mapped[str] = mapped_column(String(100), nullable=False)
-    created_by_snapshot: Mapped[dict | None] = mapped_column(JSON)
+    created_by_snapshot: Mapped[dict[str, str | None] | None] = mapped_column(JSON)
     verified_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True, index=True)
     verified_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
     released_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True, index=True)
@@ -119,7 +119,7 @@ class LabOrderItem(Base):
     test_name_en: Mapped[str] = mapped_column(String(200), nullable=False)
     result_type: Mapped[str] = mapped_column(String(20), nullable=False)
     result_unit: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    parameter_definitions: Mapped[list[dict] | None] = mapped_column(JSON, nullable=True)
+    parameter_definitions: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     is_outlab: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )

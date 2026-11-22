@@ -1,5 +1,7 @@
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
+from typing import cast
 
 from sqlalchemy import case, exists, func, or_, select
 from sqlalchemy.orm import Session
@@ -154,7 +156,13 @@ class WorklistRepository:
             )
         statement = statement.group_by(LabOrder.id, Patient.id, SpecimenType.id)
         records = []
-        rows = self.session.execute(statement)
+        # Explicit row shape for this aggregate query, without deprecated tuple filters.
+        rows = cast(
+            Iterable[tuple[
+                LabOrder, Patient, SpecimenType, int, int, int, str, str, int,
+            ]],
+            self.session.execute(statement),
+        )
         for (
             order,
             patient,

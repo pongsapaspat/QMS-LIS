@@ -1,7 +1,9 @@
 from datetime import date
 from decimal import Decimal
+from typing import Any, NotRequired, TypedDict, cast
 
 from sqlalchemy import update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -37,6 +39,13 @@ from app.schemas.result import (
 )
 from app.services.report_identity import capture_identity
 from app.services.report_layout import prepare_report
+
+
+class ResultInterpretation(TypedDict):
+    flag: str | None
+    range: dict[str, object] | None
+    parameters: NotRequired[list[dict[str, Any]]]
+    categorical_label: NotRequired[dict[str, str]]
 
 
 class ResultService:
@@ -96,7 +105,7 @@ class ResultService:
         if order.status == OrderStatus.CANCELLED:
             raise InvalidResultOperationError("cancelled orders cannot accept results")
         items = {item.id: item for item in self.repository.order_context(order_id)}
-        prepared: list[tuple[LabOrderItem, Specimen, ResultItemSave, dict[str, object]]] = []
+        prepared: list[tuple[LabOrderItem, Specimen, ResultItemSave, ResultInterpretation]] = []
         for submitted in data.items:
             item = items.get(submitted.order_item_id)
             if item is None:
@@ -123,11 +132,11 @@ class ResultService:
         results: list[Result] = []
         try:
             for item, specimen, submitted, interpretation in prepared:
-                locked = self.session.execute(update(Specimen).where(
+                locked = cast(CursorResult[Any], self.session.execute(update(Specimen).where(
                     Specimen.id == specimen.id, Specimen.is_current.is_(True),
                     Specimen.status == SpecimenStatus.RECEIVED,
                 ).values(status=SpecimenStatus.RECEIVED, updated_at=Specimen.updated_at)
-                    .execution_options(synchronize_session=False))
+                    .execution_options(synchronize_session=False)))
                 if locked.rowcount != 1:
                     raise InvalidResultOperationError("สิ่งส่งตรวจถูก Reject หรือเปลี่ยนสถานะแล้ว กรุณาโหลดใหม่")
                 existing = item.result
@@ -660,7 +669,7 @@ class ResultService:
             self.session.rollback()
             raise
 
-    def _interpret(self, item: LabOrderItem, submitted: ResultItemSave) -> dict[str, object]:
+    def _interpret(self, item: LabOrderItem, submitted: ResultItemSave) -> ResultInterpretation:
         result_type = item.result_type
         if result_type in {'CBC', 'UA', 'INFLUENZA_AB'}:
             rows = interpret_panel(item.parameter_definitions or [],
@@ -741,7 +750,7 @@ class ResultService:
         self,
         result: Result,
         submitted: ResultItemSave,
-        interpretation: dict[str, object],
+        interpretation: ResultInterpretation,
         actor: str,
     ) -> None:
         result.numeric_value, result.text_value, result.categorical_value = (
@@ -754,11 +763,11 @@ class ResultService:
         label = interpretation.get("categorical_label")
         if not (result.categorical_label_snapshot
                 and result.categorical_label_snapshot.get("code") == submitted.categorical_value):
-            result.categorical_label_snapshot = label  # type: ignore[assignment]
+            result.categorical_label_snapshot = label
         result.parameter_values = submitted.parameter_values
         result.parameter_results = interpretation.get('parameters')
-        result.reference_range_snapshot = interpretation["range"]  # type: ignore[assignment]
-        result.abnormal_flag = interpretation["flag"]  # type: ignore[assignment]
+        result.reference_range_snapshot = interpretation["range"]
+        result.abnormal_flag = interpretation["flag"]
         result.status = ResultStatus.COMPLETED if submitted.complete else ResultStatus.IN_PROGRESS
         identity = capture_identity(
             self.session, actor, self.settings, require_complete=submitted.complete

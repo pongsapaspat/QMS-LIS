@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import (
     JSON,
@@ -132,7 +133,7 @@ class LabTest(TimestampMixin, Base):
         return {**defaults, **(self.panel_entry_options or {})} if self.result_type == "UA" else {}
 
     @property
-    def parameters(self) -> list[dict]:
+    def parameters(self) -> list[dict[str, Any]]:
         from app.domain.panels import panel_definitions
 
         return panel_definitions(self.result_type)

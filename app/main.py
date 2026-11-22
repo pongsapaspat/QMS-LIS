@@ -22,11 +22,11 @@ from app.core.logging import (
 from app.core.passwords import hash_password
 from app.domain.exceptions import (
     BookingNotFoundError,
-    InvalidBookingOperationError,
     BranchNotFoundError,
     CatalogNotFoundError,
     DuplicateCatalogCodeError,
     DuplicatePatientIdentifierError,
+    InvalidBookingOperationError,
     InvalidCatalogOperationError,
     InvalidPatientChangeError,
     InvalidResultOperationError,
@@ -37,9 +37,9 @@ from app.domain.exceptions import (
     ResultNotFoundError,
     SpecimenNotFoundError,
 )
-from app.models.user import User
-from app.models.login_session import LoginSession
 from app.models.base import utc_now
+from app.models.login_session import LoginSession
+from app.models.user import User
 from app.web.router import web_router
 from app.web.templates import templates
 

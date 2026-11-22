@@ -41,28 +41,28 @@ class BookingInput(BaseModel):
         mode="before",
     )
     @classmethod
-    def text(cls, value):
+    def text(cls, value: object) -> str | None:
         return normalize_optional_text(value)
 
     @field_validator("phone_number", mode="before")
     @classmethod
-    def phone(cls, value):
+    def phone(cls, value: object) -> str | None:
         return normalize_patient_phone(value)
 
     @field_validator("emergency_contact_phone", mode="before")
     @classmethod
-    def emergency_phone(cls, value):
+    def emergency_phone(cls, value: object) -> str | None:
         return normalize_phone_number(value)
 
     @field_validator("test_ids", "package_ids")
     @classmethod
-    def ids(cls, value):
+    def ids(cls, value: list[int]) -> list[int]:
         if any(item < 1 for item in value) or len(value) != len(set(value)):
             raise ValueError("รายการตรวจหรือแพ็กเกจไม่ถูกต้องหรือซ้ำกัน")
         return value
 
     @model_validator(mode="after")
-    def identifiable(self):
+    def identifiable(self) -> "BookingInput":
         if not self.first_name_th and not self.last_name_th and not self.phone_number:
             raise ValueError("กรุณาระบุชื่อหรือเบอร์โทรอย่างน้อยหนึ่งอย่าง")
         if self.appointment_at.tzinfo is None or self.appointment_at.utcoffset() is None:

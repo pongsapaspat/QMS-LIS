@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -75,7 +76,7 @@ class ResultResponse(BaseModel):
     categorical_value: str | None
     categorical_label_snapshot: dict[str, str] | None = None
     parameter_values: dict[str, str] | None = None
-    parameter_results: list[dict] | None = None
+    parameter_results: list[dict[str, Any]] | None = None
     result_unit_snapshot: str | None
     reference_range_snapshot: dict[str, object] | None
     abnormal_flag: str | None

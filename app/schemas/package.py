@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 
 class PackageCreate(BaseModel):
@@ -14,7 +14,7 @@ class PackageCreate(BaseModel):
 
     @field_validator("code", "name")
     @classmethod
-    def text(cls, value: str, info) -> str:
+    def text(cls, value: str, info: ValidationInfo) -> str:
         value = " ".join(value.split())
         if not value:
             raise ValueError("Code and name are required")

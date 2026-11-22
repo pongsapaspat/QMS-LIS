@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -232,7 +233,7 @@ class CatalogTestListItem(BaseModel):
 
 
 class CatalogTestDetail(CatalogTestListItem):
-    parameters: list[dict] = Field(default_factory=list)
+    parameters: list[dict[str, Any]] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 

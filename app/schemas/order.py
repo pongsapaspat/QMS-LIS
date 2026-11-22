@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -30,7 +31,7 @@ class LabOrderCreate(BaseModel):
         return value
 
     @model_validator(mode='after')
-    def require_selection(self):
+    def require_selection(self) -> "LabOrderCreate":
         if not self.test_ids and not self.package_ids:
             raise ValueError('Select at least one test or package')
         if (self.referrer_license_number or self.referrer_license_type
@@ -90,7 +91,7 @@ class LabOrderResponse(BaseModel):
     updated_at: datetime
     items: list[LabOrderItemResponse]
     total_price: Decimal
-    package_snapshots: list[dict] | None = None
+    package_snapshots: list[dict[str, Any]] | None = None
 
 
 class LabOrderListItem(BaseModel):

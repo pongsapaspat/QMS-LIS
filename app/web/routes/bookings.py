@@ -1,12 +1,14 @@
 from datetime import date
+from typing import Any
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from pydantic import ValidationError
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.api.dependencies import SessionDependency
-from app.core.security import PatientRegistrarDependency
+from app.core.security import Actor, PatientRegistrarDependency
 from app.core.time import format_datetime_local, parse_local_datetime, to_app_timezone, utc_now
 from app.domain.enums import Sex
 from app.domain.exceptions import (
@@ -14,6 +16,8 @@ from app.domain.exceptions import (
     InvalidBookingOperationError,
     PossibleDuplicatePatientError,
 )
+from app.domain.policies import DuplicateCandidate
+from app.models.booking import Booking
 from app.models.test_catalog import LabTest
 from app.schemas.booking import BookingInput
 from app.schemas.patient import PatientCreate
@@ -27,7 +31,10 @@ router = APIRouter(prefix="/bookings")
 FIELDS = tuple(BookingInput.model_fields)
 
 
-def _form(request, session, values, *, booking=None, errors=None, code=200):
+def _form(
+    request: Request, session: Session, values: dict[str, Any], *,
+    booking: Booking | None = None, errors: list[str] | None = None, code: int = 200,
+) -> HTMLResponse:
     tests = [
         test
         for test in session.scalars(
@@ -59,7 +66,7 @@ def _form(request, session, values, *, booking=None, errors=None, code=200):
     )
 
 
-def _values(booking):
+def _values(booking: Booking) -> dict[str, Any]:
     values = {
         field: getattr(booking, field)
         for field in FIELDS
@@ -74,7 +81,10 @@ def _values(booking):
     return values
 
 
-def _detail(request, session, booking, *, errors=None, code=200, patient_search=None):
+def _detail(
+    request: Request, session: Session, booking: Booking, *,
+    errors: list[str] | None = None, code: int = 200, patient_search: str | None = None,
+) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
         name="bookings/detail.html",
@@ -103,7 +113,7 @@ def booking_list(
     search: str = "",
     all_dates: bool = False,
     page: int = 1,
-):
+) -> HTMLResponse:
     errors = []
     page = max(1, page)
     today = to_app_timezone(utc_now()).date()
@@ -139,13 +149,17 @@ def booking_list(
 
 
 @router.get("/new", response_class=HTMLResponse, name="booking_new")
-def booking_new(request: Request, session: SessionDependency, actor: PatientRegistrarDependency):
+def booking_new(
+    request: Request, session: SessionDependency, actor: PatientRegistrarDependency
+) -> HTMLResponse:
     return _form(request, session, {"source": "LINE OA"})
 
 
-async def _save(request, session, actor, booking=None):
+async def _save(
+    request: Request, session: Session, actor: Actor, booking: Booking | None = None
+) -> Response:
     form = await request.form()
-    values = {
+    values: dict[str, Any] = {
         field: form.get(field) or None
         for field in FIELDS
         if field not in {"test_ids", "package_ids"}
@@ -187,7 +201,7 @@ async def _save(request, session, actor, booking=None):
 @router.post("/new", response_model=None)
 async def booking_create(
     request: Request, session: SessionDependency, actor: PatientRegistrarDependency
-):
+) -> Response:
     return await _save(request, session, actor)
 
 
@@ -198,7 +212,7 @@ def booking_detail(
     session: SessionDependency,
     actor: PatientRegistrarDependency,
     patient_search: str = "",
-):
+) -> HTMLResponse:
     return _detail(
         request, session, BookingService(session).get(booking_id), patient_search=patient_search
     )
@@ -207,7 +221,7 @@ def booking_detail(
 @router.get("/{booking_id}/edit", response_class=HTMLResponse, name="booking_edit")
 def booking_edit(
     booking_id: int, request: Request, session: SessionDependency, actor: PatientRegistrarDependency
-):
+) -> HTMLResponse:
     booking = BookingService(session).get(booking_id)
     if booking.status not in {"BOOKED", "ARRIVED"}:
         return _detail(request, session, booking, errors=["รายการนี้ปิดการแก้ไขแล้ว"], code=409)
@@ -217,14 +231,14 @@ def booking_edit(
 @router.post("/{booking_id}/edit", response_model=None)
 async def booking_update(
     booking_id: int, request: Request, session: SessionDependency, actor: PatientRegistrarDependency
-):
+) -> Response:
     return await _save(request, session, actor, BookingService(session).get(booking_id))
 
 
 @router.post("/{booking_id}/status", response_model=None, name="booking_status")
 async def booking_status(
     booking_id: int, request: Request, session: SessionDependency, actor: PatientRegistrarDependency
-):
+) -> Response:
     form = await request.form()
     service = BookingService(session)
     try:
@@ -247,7 +261,11 @@ async def booking_status(
     )
 
 
-def _registration(request, session, booking, values, *, errors=None, candidates=None, code=200):
+def _registration(
+    request: Request, session: Session, booking: Booking, values: dict[str, Any], *,
+    errors: list[str] | None = None, candidates: list[DuplicateCandidate] | None = None,
+    code: int = 200,
+) -> HTMLResponse:
     return templates.TemplateResponse(
         request=request,
         name="patients/form.html",
@@ -267,7 +285,7 @@ def _registration(request, session, booking, values, *, errors=None, candidates=
 @router.get("/{booking_id}/register", response_class=HTMLResponse, name="booking_register")
 def booking_register(
     booking_id: int, request: Request, session: SessionDependency, actor: PatientRegistrarDependency
-):
+) -> HTMLResponse:
     booking = BookingService(session).get(booking_id)
     if booking.status != "ARRIVED":
         return _detail(
@@ -293,7 +311,7 @@ def booking_register(
 @router.post("/{booking_id}/register", response_model=None)
 async def booking_register_save(
     booking_id: int, request: Request, session: SessionDependency, actor: PatientRegistrarDependency
-):
+) -> Response:
     service = BookingService(session)
     booking = service.get(booking_id)
     form = await request.form()
@@ -346,7 +364,7 @@ async def booking_register_save(
 @router.post("/{booking_id}/link", response_model=None, name="booking_link_patient")
 async def booking_link_patient(
     booking_id: int, request: Request, session: SessionDependency, actor: PatientRegistrarDependency
-):
+) -> Response:
     service = BookingService(session)
     form = await request.form()
     try:

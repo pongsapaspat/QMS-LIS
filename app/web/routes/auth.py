@@ -11,8 +11,8 @@ from app.core.passwords import hash_password, verify_password
 from app.core.security import ActorDependency
 from app.models.audit import AuditLog
 from app.models.base import utc_now
-from app.models.user import User
 from app.models.login_session import LoginSession
+from app.models.user import User
 from app.web.templates import templates
 
 router = APIRouter()
@@ -120,7 +120,8 @@ async def login(request: Request, session: SessionDependency) -> HTMLResponse | 
     old_token = request.session.get("login_token")
     if isinstance(old_token, str):
         session.execute(delete(LoginSession).where(LoginSession.token == old_token))
-    if (session.scalar(select(func.count()).select_from(LoginSession)) or 0) >= settings.max_active_sessions:
+    active_sessions = session.scalar(select(func.count()).select_from(LoginSession)) or 0
+    if active_sessions >= settings.max_active_sessions:
         session.rollback()
         return templates.TemplateResponse(
             request=request, name="auth/login.html", status_code=409,
